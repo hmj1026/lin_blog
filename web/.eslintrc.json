@@ -1,0 +1,48 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "overrides": [
+    {
+      "files": ["src/components/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "@/lib/db", "message": "UI layer MUST NOT depend on Prisma/db; call a module use case instead" },
+              { "name": "@prisma/client", "message": "UI layer MUST NOT depend on Prisma types" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/app/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "@/lib/db", "message": "App Router adapter MUST NOT import Prisma/db; call a module use case instead" },
+              { "name": "@prisma/client", "message": "App Router adapter MUST NOT depend on Prisma types" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/modules/**/domain/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "@/lib/db", "message": "domain layer MUST NOT depend on Prisma/db" },
+              { "name": "@prisma/client", "message": "domain layer MUST NOT depend on Prisma types" }
+            ],
+            "patterns": [{ "group": ["next/*"], "message": "domain layer MUST NOT depend on Next.js" }]
+          }
+        ]
+      }
+    }
+  ]
+}
