@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  blog:
+    build: ./web
+    container_name: blog_app
+    restart: unless-stopped
+    ports:
+      - "${BLOG_PORT:-3100}:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NODE_ENV=production
+      - NEXT_PUBLIC_APP_ENV=production
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+      - NEXT_PUBLIC_UPLOAD_BASE_URL=${NEXT_PUBLIC_UPLOAD_BASE_URL}
+      # Analytics (Optional)
+      - NEXT_PUBLIC_GA_ID=${NEXT_PUBLIC_GA_ID:-}
+      - NEXT_PUBLIC_GTM_ID=${NEXT_PUBLIC_GTM_ID:-}
+      - NEXT_PUBLIC_FB_PIXEL_ID=${NEXT_PUBLIC_FB_PIXEL_ID:-}
+    volumes:
+      - blog_storage:/app/storage
+    depends_on:
+      - postgres
+    networks:
+      - blog_network
+      - srl_shared_network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: blog_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - blog_network
+
+volumes:
+  postgres_data:
+  blog_storage:
+
+networks:
+  blog_network:
+    driver: bridge
+  srl_shared_network:
+    external: true

@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  name         String?
+  role         Role          @relation(fields: [roleId], references: [id])
+  roleId       String
+  posts        Post[]
+  postVersions PostVersion[]
+  deletedAt    DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([deletedAt])
+  @@index([roleId])
+}
+
+model Role {
+  id        String           @id @default(cuid())
+  key       String           @unique
+  name      String
+  users     User[]
+  perms     RolePermission[]
+  deletedAt DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([deletedAt])
+}
+
+model Permission {
+  key         String           @id
+  name        String
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  id            String      @id @default(cuid())
+  role          Role        @relation(fields: [roleId], references: [id])
+  roleId        String
+  permission    Permission  @relation(fields: [permissionKey], references: [key])
+  permissionKey String
+  createdAt     DateTime    @default(now())
+
+  @@unique([roleId, permissionKey])
+  @@index([permissionKey])
+}
+
+model Post {
+  id             String         @id @default(cuid())
+  slug           String         @unique
+  title          String
+  excerpt        String
+  content        String
+  coverImage     String?
+  readingTime    String?
+  featured       Boolean        @default(false)
+  status         PostStatus     @default(DRAFT)
+  publishedAt    DateTime?
+  // SEO 自訂欄位
+  seoTitle       String?
+  seoDescription String?
+  ogImage        String?
+  author         User?          @relation(fields: [authorId], references: [id])
+  authorId       String?
+  categories     Category[]     @relation("PostCategories")
+  tags           Tag[]          @relation("PostTags")
+  viewEvents     PostViewEvent[]
+  versions       PostVersion[]
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@index([deletedAt])
+}
+
+// 文章版本歷史
+model PostVersion {
+  id        String   @id @default(cuid())
+  post      Post     @relation(fields: [postId], references: [id])
+  postId    String
+  title     String
+  excerpt   String
+  content   String
+  editor    User?    @relation(fields: [editorId], references: [id])
+  editorId  String?
+  createdAt DateTime @default(now())
+
+  @@index([postId, createdAt])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?  // 分類描述
+  showInNav   Boolean  @default(false)
+  navOrder    Int      @default(0)
+  posts       Post[]   @relation("PostCategories")
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([deletedAt])
+}
+
+model SiteSetting {
+  key               String   @id
+  showBlogLink      Boolean  @default(true)
+  // 站點基本資訊
+  siteName          String?  // "Lin Blog"
+  siteTagline       String?  // "內容．社群．設計"
+  siteDescription   String?  // SEO description
+  contactEmail      String?  // "hello@lin.blog"
+  copyrightText     String?  // "以內容連結社群"
+  // Hero 區塊
+  heroBadge         String?  // "Client-First Blog · 社群驅動"
+  heroTitle         String?
+  heroSubtitle      String?
+  heroImage         String?
+  // 統計數據
+  statsArticles     String?  // "120+"
+  statsSubscribers  String?  // "35K"
+  statsRating       String?  // "4.8 ★"
+  // Newsletter (暫時隱藏)
+  showNewsletter    Boolean  @default(false)
+  newsletterTitle   String?
+  newsletterDesc    String?
+  // Contact (暫時隱藏)
+  showContact       Boolean  @default(false)
+  contactTitle      String?
+  contactDesc       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  posts     Post[]   @relation("PostTags")
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([deletedAt])
+}
+
+model Upload {
+  id           String           @id @default(cuid())
+  originalName String
+  storageKey   String           @unique
+  mimeType     String
+  size         Int
+  visibility   UploadVisibility @default(PUBLIC)
+  deletedAt    DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([visibility, deletedAt])
+}
+
+model PostViewEvent {
+  id             String     @id @default(cuid())
+  post           Post       @relation(fields: [postId], references: [id])
+  postId         String
+  slug           String
+  viewedAt       DateTime   @default(now())
+  ip             String
+  userAgent      String
+  referer        String?
+  acceptLanguage String?
+  deviceType     DeviceType
+  fingerprint    String
+  deletedAt      DateTime?
+
+  @@index([postId, viewedAt])
+  @@index([postId, fingerprint, viewedAt])
+  @@index([deletedAt, viewedAt])
+  @@index([deletedAt])
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum UploadVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+  BOT
+  OTHER
+}

@@ -1,0 +1,42 @@
+/**
+ * 站點設定完整資料結構
+ */
+export type SiteSettingRecord = {
+  showBlogLink: boolean;
+  // 站點基本資訊
+  siteName: string | null;
+  siteTagline: string | null;
+  siteDescription: string | null;
+  contactEmail: string | null;
+  copyrightText: string | null;
+  // Hero 區塊
+  heroBadge: string | null;
+  heroTitle: string | null;
+  heroSubtitle: string | null;
+  heroImage: string | null;
+  // 統計數據
+  statsArticles: string | null;
+  statsSubscribers: string | null;
+  statsRating: string | null;
+  // Newsletter
+  showNewsletter: boolean;
+  newsletterTitle: string | null;
+  newsletterDesc: string | null;
+  // Contact
+  showContact: boolean;
+  contactTitle: string | null;
+  contactDesc: string | null;
+};
+
+/**
+ * 站點設定 Repository 介面
+ */
+export interface SiteSettingsRepository {
+  getByKey(key: string): Promise<SiteSettingRecord | null>;
+  create(params: { key: string }): Promise<SiteSettingRecord>;
+  upsert(params: {
+    key: string;
+    create: Partial<SiteSettingRecord>;
+    update: Partial<SiteSettingRecord>;
+  }): Promise<SiteSettingRecord>;
+}
