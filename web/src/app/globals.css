@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .wysiwyg {
+    @apply text-base leading-7 text-primary;
+  }
+  .wysiwyg p {
+    @apply my-6;
+  }
+  .wysiwyg h2 {
+    @apply mt-10 mb-4 font-display text-2xl text-primary;
+  }
+  .wysiwyg ul {
+    @apply my-6 ml-6 list-disc space-y-2;
+  }
+  .wysiwyg ol {
+    @apply my-6 ml-6 list-decimal space-y-2;
+  }
+  .wysiwyg blockquote {
+    @apply my-8 rounded-2xl border border-line bg-base-50 px-6 py-4 text-lg font-semibold text-primary;
+  }
+  .wysiwyg cite {
+    @apply mt-2 block text-sm font-normal text-base-300;
+  }
+  .wysiwyg img {
+    @apply my-8 w-full rounded-2xl border border-line shadow-card;
+  }
+  .wysiwyg a {
+    @apply font-semibold text-accent-600 underline decoration-accent-500/30 underline-offset-4 hover:text-accent-500;
+  }
+}
+
+:root {
+  --color-primary: #232536;
+  --color-accent: #ffd050;
+  --color-accent-rgb: 255 208 80;
+  --color-accent-hover: #edc14a;
+  --color-purple: #592ea9;
+  --color-purple-rgb: 89 46 169;
+  --color-neutral-50: #f4f0f8;
+  --color-neutral-75: #fbf6ea;
+  --color-neutral-100: #f4f4f4;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-500: #6d6e76;
+  --color-neutral-600: #4c4c4c;
+  --color-line: rgba(35, 37, 54, 0.12);
+  --color-bg: #fbf6ea;
+  --color-card: #ffffff;
+}
+
+/* Dark Mode */
+.dark {
+  --color-primary: #f4f4f4;
+  --color-neutral-50: #1e1e2e;
+  --color-neutral-75: #11111b;
+  --color-neutral-100: #181825;
+  --color-neutral-200: #313244;
+  --color-neutral-500: #a6adc8;
+  --color-neutral-600: #cdd6f4;
+  --color-line: rgba(255, 255, 255, 0.12);
+  --color-bg: #11111b;
+  --color-card: #1e1e2e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--color-neutral-75);
+  color: var(--color-primary);
+  font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+}
+
+.grid-overlay {
+  background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.08) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .section-shell {
+    @apply mx-auto w-full max-w-6xl px-6 lg:px-10;
+  }
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}

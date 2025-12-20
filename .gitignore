@@ -1,0 +1,24 @@
+# 開發工具與 AI 助手設定
+.claude
+.agent
+prompt.md
+features
+
+# 開發規格文件
+openspec
+
+# IDE 設定
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 環境變數 (敏感資料)
+.env
+.env.local
+.env.*.local
+
+# 上傳目錄
+web/storage/uploads
+web/public/uploads

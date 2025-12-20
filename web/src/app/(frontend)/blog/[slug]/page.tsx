@@ -1,0 +1,164 @@
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { AuthorChip } from "@/components/author-chip";
+import { Badge } from "@/components/ui/badge";
+import { NewsletterForm } from "@/components/newsletter-form";
+import { PostCard } from "@/components/post-card";
+import { Toc } from "@/components/toc";
+import { ReadingProgress } from "@/components/reading-progress";
+import { ShareButtons } from "@/components/share-buttons";
+import { sanitizeAndPrepareHtml } from "@/lib/utils/content";
+import { toFrontendPost } from "@/lib/frontend/post";
+import { getSession } from "@/lib/auth";
+import { roleHasPermission } from "@/lib/rbac";
+import { PostViewTracker } from "@/components/post-view-tracker";
+import { postsUseCases } from "@/modules/posts";
+import { publicEnv } from "@/env.public";
+
+type PostPageProps = {
+  params: Promise<{
+    slug: string;
+  }>;
+  searchParams?: Promise<{ preview?: string }>;
+};
+
+export default async function PostPage({ params, searchParams }: PostPageProps) {
+  const { slug } = await params;
+  const sp = await searchParams;
+  const preview = sp?.preview === "1" || sp?.preview === "true";
+  const session = await getSession();
+  const canPreviewDraft =
+    session?.user?.roleId ? await roleHasPermission(session.user.roleId, "posts:write") : false;
+  const post = await postsUseCases.getReadablePostBySlug({ slug, allowDraft: canPreviewDraft });
+  if (!post) return notFound();
+
+  const relatedRaw = await postsUseCases.listRelatedPublishedPosts({ post });
+
+  const postView = toFrontendPost(post);
+  const related = relatedRaw.map(toFrontendPost);
+  const contentHtml = sanitizeAndPrepareHtml(post.content);
+  const analyticsSource: "frontend" | "preview" = preview || post.status !== "PUBLISHED" ? "preview" : "frontend";
+  const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const postUrl = `${siteUrl}/blog/${post.slug}`;
+
+  return (
+    <>
+      <ReadingProgress />
+      <article className="space-y-16">
+        <PostViewTracker slug={post.slug} source={analyticsSource} />
+        <header className="bg-white/70">
+          <div className="section-shell grid gap-8 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-base-300">
+                <Badge label={postView.category} tone="accent" />
+                <span>{postView.date}</span>
+                <span aria-hidden>•</span>
+                <span>{postView.readingTime}</span>
+              </div>
+              <h1 className="font-display text-4xl leading-tight text-primary">{postView.title}</h1>
+              <p className="text-lg text-base-300">{postView.excerpt}</p>
+              <AuthorChip author={postView.author} />
+            </div>
+            <div className="overflow-hidden rounded-3xl border border-line shadow-card">
+              <Image
+                src={postView.hero}
+                alt={postView.title}
+                width={900}
+                height={520}
+                className="h-full w-full object-cover"
+                priority
+                unoptimized={postView.hero.startsWith("/api/files/")}
+              />
+            </div>
+          </div>
+        </header>
+
+        <section className="section-shell grid gap-12 lg:grid-cols-[1fr_280px]">
+          <div
+            className="wysiwyg rounded-3xl border border-line bg-white p-8 shadow-card"
+            dangerouslySetInnerHTML={{ __html: contentHtml }}
+          />
+          <aside className="space-y-6">
+            {/* TOC 目錄導航 */}
+            <div className="hidden lg:block">
+              <Toc contentSelector=".wysiwyg" />
+            </div>
+            
+            {/* 分享按鈕 */}
+            <div className="rounded-2xl border border-line bg-white p-6 shadow-card">
+              <h3 className="mb-3 font-semibold text-primary">分享此文</h3>
+              <ShareButtons url={postUrl} title={postView.title} />
+            </div>
+            
+            {/* 標籤 */}
+            <div className="rounded-2xl border border-line bg-white p-6 shadow-card">
+              <h3 className="font-semibold text-primary">標籤</h3>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {postView.tags.map((tag) => (
+                  <Link
+                    key={tag}
+                    href={`/tag/${encodeURIComponent(tag)}`}
+                    className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-primary transition hover:border-primary/40"
+                  >
+                    #{tag}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            
+            <NewsletterForm />
+          </aside>
+        </section>
+
+        {related.length > 0 && (
+          <section className="section-shell space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-2xl text-primary">延伸閱讀</h2>
+              <Link href="/blog" className="text-sm font-semibold text-accent-600 hover:text-accent-500">
+                查看全部
+              </Link>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {related.map((item) => (
+                <PostCard key={item.slug} post={item} />
+              ))}
+            </div>
+          </section>
+        )}
+      </article>
+    </>
+  );
+}
+
+export async function generateMetadata({ params }: PostPageProps) {
+  const { slug } = await params;
+  const post = await postsUseCases.getPostBySlug(slug);
+  if (!post || post.status !== "PUBLISHED") {
+    return { title: "文章不存在" };
+  }
+  
+  const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const postUrl = `${siteUrl}/blog/${post.slug}`;
+  const title = post.seoTitle || post.title;
+  const description = post.seoDescription || post.excerpt;
+  const image = post.ogImage || post.coverImage || `${siteUrl}/og-default.jpg`;
+  
+  return {
+    title: `${title} | Lin Blog`,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: postUrl,
+      type: "article",
+      images: [{ url: image }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
+  };
+}
