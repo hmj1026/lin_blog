@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AuthorChip } from "@/components/author-chip";
 import { Badge } from "@/components/ui/badge";
-import { NewsletterForm } from "@/components/newsletter-form";
+// TODO: Newsletter 功能暫緩實作
+// import { NewsletterForm } from "@/components/newsletter-form";
 import { PostCard } from "@/components/post-card";
 import { Toc } from "@/components/toc";
 import { ReadingProgress } from "@/components/reading-progress";
@@ -112,7 +113,9 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
               </div>
             </div>
             
+            {/* TODO: Newsletter 功能暫緩實作
             <NewsletterForm compact />
+            */}
           </aside>
         </section>
 
