@@ -8,21 +8,26 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // Mock @aws-sdk/client-s3
-vi.mock("@aws-sdk/client-s3", () => ({
-  S3Client: vi.fn().mockImplementation((config) => ({
-    send: mocks.send,
-    config,
-  })),
-  PutObjectCommand: class MockPutObjectCommand {
-    constructor(public input: unknown) {}
-  },
-  GetObjectCommand: class MockGetObjectCommand {
-    constructor(public input: unknown) {}
-  },
-  DeleteObjectCommand: class MockDeleteObjectCommand {
-    constructor(public input: unknown) {}
-  },
-}));
+vi.mock("@aws-sdk/client-s3", () => {
+  return {
+    S3Client: class MockS3Client {
+      config: unknown;
+      constructor(config?: unknown) {
+        this.config = config;
+      }
+      send = mocks.send;
+    },
+    PutObjectCommand: class MockPutObjectCommand {
+      constructor(public input: unknown) {}
+    },
+    GetObjectCommand: class MockGetObjectCommand {
+      constructor(public input: unknown) {}
+    },
+    DeleteObjectCommand: class MockDeleteObjectCommand {
+      constructor(public input: unknown) {}
+    },
+  };
+});
 
 // Import after mock
 import { S3CompatibleStorageAdapter } from "@/modules/media/infrastructure/storage/s3-compatible.adapter";
