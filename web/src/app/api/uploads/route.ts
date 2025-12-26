@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     maxWidth: env.UPLOAD_IMAGE_MAX_WIDTH,
     quality: env.UPLOAD_IMAGE_QUALITY,
   });
-  buffer = processed.buffer;
+  buffer = Buffer.from(processed.buffer);
   mimeType = processed.mimeType;
 
   // 根據處理後的 mimeType 決定副檔名

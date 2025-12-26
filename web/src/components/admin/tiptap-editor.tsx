@@ -2,7 +2,7 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Image as ResizeImage } from "tiptap-extension-resize-image";
+import ImageResize from "tiptap-extension-resize-image";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
@@ -31,7 +31,7 @@ export function TiptapEditor({ value, onChange }: Props) {
         autolink: true,
         linkOnPaste: true,
       }),
-      ResizeImage.configure({
+      ImageResize.configure({
         allowBase64: true,
       }),
       Underline,
