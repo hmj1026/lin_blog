@@ -7,8 +7,35 @@
 ## 架構流程
 
 ```
-Push to main → GitHub Actions 建置 → ghcr.io → Linode docker pull
+PR/Push → CI (Lint + Type Check + Test + Build) → Docker Build → ghcr.io → Linode deploy
 ```
+
+### CI/CD Workflows
+
+| Workflow | 檔案 | 觸發條件 | 功能 |
+|----------|------|----------|------|
+| **CI** | `ci.yml` | Push/PR to main | Lint、TypeScript、單元測試、Build |
+| **E2E** | `e2e.yml` | Push/PR to main | Playwright 端對端測試 |
+| **Docker Build** | `docker-build.yml` | Push to main (CI 通過後) | 建置並推送 Docker image |
+
+---
+
+## 🔒 Branch Protection 設定
+
+> [!IMPORTANT]
+> 建議設定 Branch Protection 強制 CI 通過才能合併 PR。
+
+### 設定步驟
+
+1. 前往 GitHub Repository → **Settings** → **Branches**
+2. 點擊 **Add branch protection rule**
+3. 設定 Branch name pattern: `main`
+4. 勾選以下選項：
+   - ✅ **Require a pull request before merging**
+   - ✅ **Require status checks to pass before merging**
+     - 搜尋並選擇：`Lint`, `Type Check`, `Unit Tests`, `Build`
+   - ✅ **Require branches to be up to date before merging**
+5. 點擊 **Create** 儲存
 
 ---
 
@@ -84,14 +111,41 @@ curl -I http://localhost:3100
 
 ## 📋 首次部署（伺服器設定）
 
-### 1. 登入 GitHub Container Registry
+### 1. 設定 GitHub Container Registry (ghcr.io)
+
+> [!NOTE]
+> ghcr.io 是 GitHub 內建的 Container Registry，無需額外註冊。
+> GitHub Actions 會自動使用 `GITHUB_TOKEN` 推送 image，無需手動設定。
+
+#### 1.1 建立 Personal Access Token（用於伺服器拉取）
+
+1. 前往 GitHub → **Settings** → **Developer settings**
+2. 點擊 **Personal access tokens** → **Tokens (classic)**
+3. 點擊 **Generate new token (classic)**
+4. 設定：
+   - **Note**: `linode-docker-pull`
+   - **Expiration**: 選擇適當期限或 No expiration
+   - **Scopes**: 勾選 `read:packages`
+5. 點擊 **Generate token** 並複製 token（只會顯示一次）
+
+#### 1.2 在伺服器登入 ghcr.io
 
 ```bash
-# 建立 Personal Access Token (read:packages 權限)
-# GitHub → Settings → Developer settings → Personal access tokens
-
-echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+# 將 YOUR_TOKEN 替換為上一步複製的 token
+# 將 YOUR_GITHUB_USERNAME 替換為您的 GitHub 使用者名稱
+echo YOUR_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
+
+驗證登入成功：
+```bash
+docker pull ghcr.io/hmj1026/lin_blog:latest
+```
+
+#### 1.3 查看已推送的 Images
+
+推送成功後，可在以下位置查看：
+- GitHub Repository → **Packages** 標籤頁
+- 直接訪問：`https://github.com/hmj1026/lin_blog/pkgs/container/lin_blog`
 
 ### 2. Clone 專案並設定環境
 
@@ -261,6 +315,29 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 完整範例見：[.env.production.example](../.env.production.example)
 
 ---
+
+## ☁️ CDN 與 Storage 設定（選用）
+
+> [!TIP]
+> 使用 Cloudflare R2 + CDN 可達到**零流量成本**，推薦生產環境使用。
+
+### 快速設定
+
+1. **建立 R2 Bucket** - 在 Cloudflare Dashboard 建立
+2. **建立 API Token** - 取得 Access Key 和 Endpoint
+3. **設定公開存取** - 使用 Custom Domain 或 R2.dev
+4. **設定環境變數**：
+
+```env
+STORAGE_PROVIDER=r2
+STORAGE_BUCKET=lin-blog-uploads
+STORAGE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+STORAGE_ACCESS_KEY_ID=your-access-key-id
+STORAGE_SECRET_ACCESS_KEY=your-secret-access-key
+NEXT_PUBLIC_UPLOAD_BASE_URL=https://uploads.yourdomain.com
+```
+
+📖 **完整設定步驟請參閱**：[CDN 與 Storage 架構指南](cdn-storage.md)
 
 ## 🔗 延伸閱讀
 
