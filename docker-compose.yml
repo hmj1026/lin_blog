@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   blog:
-    build: ./web
+    image: ghcr.io/hmj1026/lin_blog:latest
     container_name: blog_app
     restart: unless-stopped
     ports:
