@@ -25,7 +25,10 @@ ARG NEXTAUTH_SECRET=build-time-placeholder-secret-32chars
 ARG NEXTAUTH_URL=http://localhost:3000
 ARG DATABASE_URL=postgresql://user:password@localhost:5432/db
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
-ARG NEXT_PUBLIC_UPLOAD_BASE_URL=http://localhost:3000
+# NEXT_PUBLIC_UPLOAD_BASE_URL 不設預設值，local storage 使用相對路徑
+# 切換到 CDN (R2) 時再透過 build-arg 傳入，例如:
+# docker build --build-arg NEXT_PUBLIC_UPLOAD_BASE_URL=https://cdn.example.com
+ARG NEXT_PUBLIC_UPLOAD_BASE_URL=
 ARG NEXT_PUBLIC_APP_ENV=production
 
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET \

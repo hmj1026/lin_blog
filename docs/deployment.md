@@ -321,7 +321,14 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 > [!TIP]
 > 使用 Cloudflare R2 + CDN 可達到**零流量成本**，推薦生產環境使用。
 
-### 快速設定
+### Storage 類型
+
+| 類型 | `NEXT_PUBLIC_UPLOAD_BASE_URL` | 說明 |
+|------|-------------------------------|------|
+| **Local Storage** | 不設定（使用相對路徑） | 圖片檔案存在容器內，透過 `/api/files/...` 存取 |
+| **R2 + CDN** | `https://cdn.yourdomain.com` | 圖片存在 Cloudflare R2，透過 CDN 存取 |
+
+### 快速設定 (R2)
 
 1. **建立 R2 Bucket** - 在 Cloudflare Dashboard 建立
 2. **建立 API Token** - 取得 Access Key 和 Endpoint
