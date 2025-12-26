@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PostCard } from "@/components/post-card";
-import { NewsletterForm } from "@/components/newsletter-form";
+// TODO: Newsletter 功能暫緩實作
+// import { NewsletterForm } from "@/components/newsletter-form";
 import { Pagination } from "@/components/pagination";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsUseCases } from "@/modules/posts";
@@ -132,9 +133,11 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
         )}
       </section>
 
+      {/* TODO: Newsletter 功能暫緩實作
       <section className="section-shell">
         <NewsletterForm />
       </section>
+      */}
     </div>
   );
 }
