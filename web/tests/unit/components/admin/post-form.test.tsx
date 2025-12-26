@@ -49,6 +49,13 @@ const mockInitial = {
   featured: false,
   categoryIds: [],
   tagIds: [],
+  coverImage: null,
+  readingTime: null,
+  publishedAt: null,
+  seoTitle: null,
+  seoDescription: null,
+  seoKeywords: null,
+  ogImage: null,
 };
 
 const mockCategories = [{ id: "cat1", name: "Tech", slug: "tech" }];

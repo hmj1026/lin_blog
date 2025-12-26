@@ -9,11 +9,10 @@ const mocks = vi.hoisted(() => ({
 
 // Mock @aws-sdk/client-s3
 vi.mock("@aws-sdk/client-s3", () => ({
-  S3Client: class MockS3Client {
-    constructor(public config?: unknown) {
-      return { send: mocks.send, config };
-    }
-  },
+  S3Client: vi.fn().mockImplementation((config) => ({
+    send: mocks.send,
+    config,
+  })),
   PutObjectCommand: class MockPutObjectCommand {
     constructor(public input: unknown) {}
   },

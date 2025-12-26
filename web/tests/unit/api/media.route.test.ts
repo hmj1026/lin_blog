@@ -20,9 +20,11 @@ vi.mock("@/modules/media/infrastructure/storage", () => ({
   getStorageAdapter: vi.fn(),
   StorageError: class extends Error {
     isRetryable: boolean;
-    constructor(msg: string, isRetryable = false) {
+    code: string;
+    constructor(msg: string, code: string = "UNKNOWN") {
       super(msg);
-      this.isRetryable = isRetryable;
+      this.code = code;
+      this.isRetryable = code === "TEMPORARY";
     }
   },
 }));
@@ -165,7 +167,7 @@ describe("API: /api/uploads", () => {
         mimeType: "image/jpeg",
       });
 
-      mockStorage.putObject.mockRejectedValue(new StorageError("S3 Error", true));
+      mockStorage.putObject.mockRejectedValue(new StorageError("S3 Error", "TEMPORARY"));
 
       const request = { 
         formData: async () => ({
