@@ -92,3 +92,70 @@ npm run db:migrate:deploy
 1. **Soft Delete**: 使用 `deletedAt` 欄位而非實際刪除
 2. **時間戳記**: 所有 model 應有 `createdAt` 和 `updatedAt`
 3. **索引**: 為常用查詢欄位建立索引
+
+---
+
+## 使用者管理 Scripts
+
+### 建立管理員帳號
+
+使用 `scripts/create-user.js` 建立新使用者：
+
+```bash
+# 本地開發
+cd web
+ADMIN_PASSWORD=your-password node scripts/create-user.js \
+  --email=admin@example.com \
+  --name="Admin" \
+  --role=ADMIN
+
+# Docker 環境
+ADMIN_PASSWORD=your-password docker exec -e ADMIN_PASSWORD blog_app \
+  node scripts/create-user.js \
+  --email=admin@example.com \
+  --name="Admin" \
+  --role=ADMIN
+```
+
+**參數說明**：
+
+| 參數 | 必填 | 說明 |
+|------|:----:|------|
+| `ADMIN_PASSWORD` | ✅ | 環境變數，使用者密碼（至少 6 字元） |
+| `--email` | ✅ | 使用者 Email |
+| `--name` | ❌ | 使用者名稱 |
+| `--role` | ❌ | 角色（預設 `ADMIN`），可選：`ADMIN`, `EDITOR`, `READER` |
+
+### 初始化站點設定
+
+首次部署時執行，建立預設站點設定：
+
+```bash
+# 本地開發
+cd web
+node scripts/init-admin.js
+
+# Docker 環境
+docker exec blog_app node scripts/init-admin.js
+```
+
+### Storage 遷移
+
+將本地檔案遷移到雲端 Storage（R2/S3/GCS）：
+
+```bash
+# 預覽模式（不實際遷移）
+docker exec blog_app node scripts/migrate-storage.js --dry-run
+
+# 執行遷移
+docker exec blog_app node scripts/migrate-storage.js
+
+# 強制覆蓋已存在的檔案
+docker exec blog_app node scripts/migrate-storage.js --force
+```
+
+**前提條件**：
+- 已設定 `STORAGE_PROVIDER=r2` (或 s3/gcs)
+- 已設定 `STORAGE_BUCKET`、`STORAGE_ENDPOINT`、`STORAGE_ACCESS_KEY_ID`、`STORAGE_SECRET_ACCESS_KEY`
+
+

@@ -55,7 +55,7 @@ describe("uploadRepositoryPrisma", () => {
     it("filters by search term", async () => {
       (prisma.upload.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
-      await uploadRepositoryPrisma.list({ search: "test" });
+      await uploadRepositoryPrisma.list({ search: "test", take: 10 });
 
       expect(prisma.upload.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -70,7 +70,7 @@ describe("uploadRepositoryPrisma", () => {
     it("filters by type", async () => {
       (prisma.upload.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
-      await uploadRepositoryPrisma.list({ type: "image/" });
+      await uploadRepositoryPrisma.list({ type: "image/", take: 10 });
 
       expect(prisma.upload.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

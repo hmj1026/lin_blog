@@ -203,7 +203,11 @@ describe("postRepositoryPrisma", () => {
     it("updates post fields and relations", async () => {
       (prisma.post.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
       await postRepositoryPrisma.update("p1", {
+        slug: "new-slug",
         title: "new",
+        excerpt: "new excerpt",
+        content: "new content",
+        status: "DRAFT",
         categoryIds: ["c2"],
         tagIds: [],
       });

@@ -19,7 +19,6 @@ const mockPost: FrontendPost = {
     initials: "TA",
     tone: "blue",
   },
-  content: [],
 };
 
 describe("PostCard", () => {

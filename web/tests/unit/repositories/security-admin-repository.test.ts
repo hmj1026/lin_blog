@@ -142,7 +142,7 @@ describe("securityAdminRepositoryPrisma", () => {
     it("returns users", async () => {
       (prisma.user.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([mockUser]);
 
-      const result = await securityAdminRepositoryPrisma.listUsersWithRoles({});
+      const result = await securityAdminRepositoryPrisma.listUsersWithRoles({ includeDeleted: false });
 
       expect(result).toHaveLength(1);
       expect(result[0].email).toBe(mockUser.email);

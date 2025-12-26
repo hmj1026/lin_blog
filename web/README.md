@@ -83,7 +83,9 @@ npm install
 複製 `.env.example` 並填入設定：
 
 ```bash
+cd ..
 cp .env.example .env
+cd web && ln -sf ../.env .env
 ```
 
 必要設定：

@@ -1,0 +1,105 @@
+name: E2E Tests
+
+# ⚠️ E2E 測試暫時停用自動觸發
+# 需要時可在 GitHub Actions 頁面手動觸發 (Run workflow)
+# 若要啟用自動觸發，取消下方註解：
+on:
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+  workflow_dispatch:  # 僅允許手動觸發
+
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  e2e:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+      NEXTAUTH_SECRET: test-secret-for-ci-minimum-32-characters
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./web
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: ./web
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        working-directory: ./web
+
+      - name: Create test user
+        run: |
+          node scripts/create-user.js \
+            --email "${E2E_ADMIN_EMAIL:-admin@test.com}" \
+            --password "${E2E_ADMIN_PASSWORD:-Test123456!}" \
+            --name "Test Admin"
+        working-directory: ./web
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: ./web
+
+      - name: Build Next.js
+        run: npm run build
+        working-directory: ./web
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+        working-directory: ./web
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: web/test-results/
+          retention-days: 7

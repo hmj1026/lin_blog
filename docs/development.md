@@ -32,7 +32,9 @@ npm install
 複製並編輯環境變數：
 
 ```bash
+cd ..
 cp .env.example .env
+cd web && ln -sf ../.env .env
 ```
 
 編輯 `.env` 填入以下必要設定：
@@ -89,6 +91,7 @@ npm run dev
 | `npm run db:push` | 同步 Schema 到資料庫 |
 | `npm run db:migrate:dev` | 建立 Migration |
 | `npm run db:seed` | 執行 Seed |
+| `npm run key:generate` | 產生 NEXTAUTH_SECRET |
 
 ---
 
@@ -139,11 +142,26 @@ docker start postgres
 
 ### Q: `NEXTAUTH_SECRET` 如何產生
 
+使用內建指令（推薦）：
+
+```bash
+npm run key:generate
+```
+
+輸出範例：
+```
+✨ Generated Secret Key:
+   N6sXo/IuGUgSy2MUmscb3z/iu2OmMbc0OlWDbpr03A0=
+
+📋 Copy to .env file:
+   NEXTAUTH_SECRET="N6sXo/IuGUgSy2MUmscb3z/iu2OmMbc0OlWDbpr03A0="
+```
+
+或使用 openssl：
+
 ```bash
 openssl rand -base64 32
 ```
-
-或使用任何 32 字元以上的隨機字串。
 
 ### Q: 如何重置資料庫
 
