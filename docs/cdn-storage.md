@@ -260,6 +260,29 @@ curl -I https://uploads.yourdomain.com/test-image.webp
 - `MISS` - 首次請求，從源站取得
 - `EXPIRED` - 快取過期，重新驗證
 - `BYPASS` - 繞過快取
+- `DYNAMIC` - 動態內容，未快取（需設定 Cache Rules）
+
+### 6. 快取 API Files 端點（選用）
+
+如果您 **暫時未設定 R2 Public Access**，圖片仍透過 `/api/files/*` 端點存取。
+此時 Cloudflare 預設會回傳 `cf-cache-status: DYNAMIC`，不會快取。
+
+**解決方案**：使用 Cache Rules 或 Page Rules 強制快取：
+
+1. 前往 **Caching** → **Cache Rules**
+2. 點擊 **Create rule**
+3. 設定：
+   ```
+   Rule name: Cache API files
+   When: URI Path starts with "/api/files"
+   Then:
+     - Cache eligibility: Eligible for cache
+     - Edge TTL: Override - 1 year
+     - Browser TTL: Override - 1 month
+   ```
+
+> [!IMPORTANT]
+> 長期來說，建議使用 **R2 Custom Domain** 直接存取圖片，效能更好且不佔用伺服器資源。
 
 ---
 

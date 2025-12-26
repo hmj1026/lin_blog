@@ -139,3 +139,23 @@ node scripts/init-admin.js
 docker exec blog_app node scripts/init-admin.js
 ```
 
+### Storage 遷移
+
+將本地檔案遷移到雲端 Storage（R2/S3/GCS）：
+
+```bash
+# 預覽模式（不實際遷移）
+docker exec blog_app node scripts/migrate-storage.js --dry-run
+
+# 執行遷移
+docker exec blog_app node scripts/migrate-storage.js
+
+# 強制覆蓋已存在的檔案
+docker exec blog_app node scripts/migrate-storage.js --force
+```
+
+**前提條件**：
+- 已設定 `STORAGE_PROVIDER=r2` (或 s3/gcs)
+- 已設定 `STORAGE_BUCKET`、`STORAGE_ENDPOINT`、`STORAGE_ACCESS_KEY_ID`、`STORAGE_SECRET_ACCESS_KEY`
+
+
