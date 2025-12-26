@@ -269,10 +269,10 @@ git push origin develop
 | 項目 | 值 |
 |------|-----|
 | 主機 | Linode |
-| SSH 連線 | `ssh paul@linode` |
-| 專案目錄 | `/root/lin_blog` 或 `/var/www/products` |
-| 網站網址 | https://nx.linstar.win |
-| CDN 網址 | https://cdn.linstar.win |
+| SSH 連線 | `ssh user@your-ip` |
+| 專案目錄 | `/var/www/products` |
+| 網站網址 | https://domain |
+| CDN 網址 | https://your-cdn |
 
 ### 部署步驟
 
@@ -280,13 +280,13 @@ git push origin develop
 
 ```bash
 # 1. SSH 登入伺服器
-ssh paul@linode
+ssh user@your-ip
 
 # 2. 切換到 root
 sudo -i
 
 # 3. 進入專案目錄
-cd /var/www/products  # 或 /root/lin_blog
+cd /var/www/products 
 
 # 4. 執行部署腳本
 ./deploy.sh
@@ -296,7 +296,7 @@ cd /var/www/products  # 或 /root/lin_blog
 
 ```bash
 # 1. SSH 登入
-ssh paul@linode
+ssh user@your-ip
 sudo -i
 
 # 2. 進入專案目錄
@@ -348,7 +348,7 @@ docker ps
 預期輸出：
 ```
 CONTAINER ID   IMAGE                              STATUS          NAMES
-xxxx           ghcr.io/hmj1026/lin_blog:latest   Up X minutes    blog_app
+xxxx           ghcr.io/your-username/lin_blog:latest   Up X minutes    blog_app
 yyyy           postgres:16-alpine                 Up X minutes    blog_db
 ```
 
@@ -364,16 +364,16 @@ docker logs -f blog_app
 
 ### 3. 驗證網站
 
-- 首頁：https://nx.linstar.win
-- 文章頁：https://nx.linstar.win/blog
-- 管理後台：https://nx.linstar.win/admin
+- 首頁：https://domain
+- 文章頁：https://domain/blog
+- 管理後台：https://domain/admin
 
 ### 4. 檢查圖片 CDN
 
 確認圖片從 CDN 載入：
 
 ```bash
-curl -I https://cdn.linstar.win/uploads/sample.jpg
+curl -I https://your-cdn/uploads/sample.jpg
 ```
 
 應該看到 `HTTP/2 200` 回應。
