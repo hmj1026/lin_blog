@@ -14,7 +14,8 @@
     "db:seed": "ts-node -P tsconfig.seed.json prisma/seed.ts",
     "test": "vitest run",
     "test:ui": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "key:generate": "node scripts/generate-secret.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
