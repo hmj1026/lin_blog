@@ -91,7 +91,7 @@ docker-compose down
 docker-compose up -d
 
 # 執行資料庫遷移（如有 schema 變更）
-docker exec blog_app npx prisma migrate deploy
+docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
 ```
 
 ### 3. 驗證部署
@@ -182,7 +182,7 @@ docker network create srl_shared_network
 docker-compose up -d
 
 # 執行資料庫初始化
-docker exec blog_app npx prisma migrate deploy
+docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
 
 # 建立管理員帳號
 docker exec -it blog_app node scripts/create-user.js \
@@ -214,7 +214,7 @@ docker-compose up -d
 sleep 5
 
 # 執行遷移
-docker exec blog_app npx prisma migrate deploy
+docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
 
 # 健康檢查
 if curl -sf http://localhost:3100 > /dev/null; then
