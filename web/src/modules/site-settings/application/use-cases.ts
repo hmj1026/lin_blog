@@ -36,6 +36,15 @@ const defaultRecord: SiteSettingRecord = {
   showContact: false,
   contactTitle: null,
   contactDesc: null,
+  // Social Platforms
+  showFacebook: false,
+  facebookUrl: null,
+  showInstagram: false,
+  instagramUrl: null,
+  showThreads: false,
+  threadsUrl: null,
+  showLine: false,
+  lineUrl: null,
 };
 
 export function createSiteSettingsUseCases(deps: { repo: SiteSettingsRepository }) {
