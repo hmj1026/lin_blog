@@ -32,7 +32,9 @@ npm install
 複製並編輯環境變數：
 
 ```bash
+cd ..
 cp .env.example .env
+cd web && ln -sf ../.env .env
 ```
 
 編輯 `.env` 填入以下必要設定：

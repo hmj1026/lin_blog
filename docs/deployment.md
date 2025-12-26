@@ -159,7 +159,7 @@ git checkout main
 git branch -u origin/main main
 
 # 複製並編輯環境變數
-cp .env.production.example .env
+cp .env.example .env
 nano .env
 ```
 
@@ -312,7 +312,7 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 | `BLOG_PORT` | 對外 Port（預設 3100） | ❌ |
 | `NEXT_PUBLIC_GA_ID` | Google Analytics ID | ❌ |
 
-完整範例見：[.env.production.example](../.env.production.example)
+完整範例見：[.env.example](../.env.example)
 
 ---
 

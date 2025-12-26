@@ -51,7 +51,7 @@ lin_blog/
 │   └── development.md            # 本地開發指南
 ├── nginx/                        # Nginx 配置
 ├── docker-compose.yml            # Docker 部署配置
-└── .env.production.example       # 生產環境變數範例
+└── .env.example                  # 環境變數範例（統一管理）
 ```
 
 ---
@@ -63,7 +63,9 @@ lin_blog/
 ```bash
 cd web
 npm install
-cp .env.example .env  # 編輯 .env 填入設定
+cd .. && cp .env.example .env     # 環境變數統一於根目錄
+cd web && ln -sf ../.env .env     # 建立 symlink
+nano ../.env                      # 編輯設定
 npm run db:push
 npm run db:seed
 npm run dev
@@ -74,7 +76,7 @@ npm run dev
 ### Docker 部署
 
 ```bash
-cp .env.production.example .env  # 編輯 .env
+cp .env.example .env  # 編輯 .env
 docker-compose up -d --build
 ```
 
