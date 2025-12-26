@@ -11,11 +11,25 @@ export async function Footer() {
     { label: "分類：社群", href: "/category/社群" },
   ];
 
+  // 動態值預設
+  let siteName = "Lin Blog";
+  let siteDescription = "分享以社群為中心的內容策略、設計實務與 Newsletter 心法，讓每一篇文章都能啟動對話與行動。";
+  let contactEmail = "hello@lin.blog";
+  let copyrightText = "以內容連結社群";
+
   try {
     const [settings, categories] = await Promise.all([
       siteSettingsUseCases.getDefault(),
       postsUseCases.listActiveCategories({ showInNav: true }),
     ]);
+
+    // 使用資料庫設定或預設值
+    if (settings) {
+      siteName = settings.siteName || siteName;
+      siteDescription = settings.siteDescription || siteDescription;
+      contactEmail = settings.contactEmail || contactEmail;
+      copyrightText = settings.copyrightText || copyrightText;
+    }
 
     const links: Array<{ label: string; href: string }> = [];
     if (settings?.showBlogLink ?? true) links.push({ label: "部落格", href: "/blog" });
@@ -36,7 +50,7 @@ export async function Footer() {
         <div className="space-y-4">
           <Logo />
           <p className="text-sm text-base-300 dark:text-base-600">
-            分享以社群為中心的內容策略、設計實務與 Newsletter 心法，讓每一篇文章都能啟動對話與行動。
+            {siteDescription}
           </p>
         </div>
         <div>
@@ -55,16 +69,16 @@ export async function Footer() {
             需要內容策略、設計審視或社群企劃？留下訊息，我會在兩個工作日內回覆。
           </p>
           <Link
-            href="mailto:hello@lin.blog"
+            href={`mailto:${contactEmail}`}
             className="inline-flex w-fit items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5"
           >
-            hello@lin.blog
+            {contactEmail}
           </Link>
         </div>
       </div>
       <div className="border-t border-line/70 py-4 text-center text-xs text-base-300 dark:text-base-600">
         <span suppressHydrationWarning>
-          © {new Date().getFullYear()} Lin Blog — 以內容連結社群。
+          © {new Date().getFullYear()} {siteName} — {copyrightText}。
         </span>
       </div>
     </footer>

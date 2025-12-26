@@ -34,6 +34,34 @@ export async function PUT(request: Request, context: Context) {
   }
 }
 
+export async function PATCH(request: Request, context: Context) {
+  const authError = await requirePermission("posts:write");
+  if (authError) return authError;
+
+  try {
+    const { id } = await context.params;
+    const raw = await request.json();
+    
+    // 支援局部更新（如切換 featured）
+    if ("featured" in raw && typeof raw.featured === "boolean") {
+      const post = await postsUseCases.getPostById(id);
+      if (!post) return jsonError("文章不存在", 404);
+      
+      await postsUseCases.updatePost(id, {
+        ...post,
+        featured: raw.featured,
+        categoryIds: post.categories.map((c) => c.id),
+        tagIds: post.tags.map((t) => t.id),
+      });
+      return jsonOk({ ok: true, featured: raw.featured });
+    }
+    
+    return jsonError("不支援的更新操作");
+  } catch (error: unknown) {
+    return handleApiError(error);
+  }
+}
+
 export async function DELETE(_req: Request, context: Context) {
   const authError = await requirePermission("posts:write");
   if (authError) return authError;

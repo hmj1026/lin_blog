@@ -15,8 +15,10 @@ export default async function AdminPostsPage() {
   // 轉換為 client 端格式
   const clientPosts = posts.map((p) => ({
     id: p.id,
+    slug: p.slug,
     title: p.title,
     status: p.status,
+    featured: p.featured,
     updatedAt: p.updatedAt.toISOString(),
     categories: p.categories.map((c) => ({ name: c.name })),
     tags: p.tags.map((t) => ({ name: t.name })),

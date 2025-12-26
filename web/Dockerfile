@@ -1,21 +1,17 @@
 # ===================================================
 # Lin Blog - Next.js Production Dockerfile
 # ===================================================
-# 使用多階段建置來最小化最終映像大小
+# 使用 Debian-based 映像以確保 Prisma OpenSSL 相容性
 
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------
 # 階段 1: 安裝依賴
 # ---------------------------------------------------
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
-
-# 複製 package 檔案
 COPY package.json package-lock.json ./
-
-# 安裝所有依賴（包含 devDependencies，因為需要 build）
 RUN npm ci
 
 # ---------------------------------------------------
@@ -24,15 +20,25 @@ RUN npm ci
 FROM base AS builder
 WORKDIR /app
 
-# 複製依賴
+# Build-time 環境變數（僅用於通過 Next.js build 驗證）
+ARG NEXTAUTH_SECRET=build-time-placeholder-secret-32chars
+ARG NEXTAUTH_URL=http://localhost:3000
+ARG DATABASE_URL=postgresql://user:password@localhost:5432/db
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
+ARG NEXT_PUBLIC_UPLOAD_BASE_URL=http://localhost:3000
+ARG NEXT_PUBLIC_APP_ENV=production
+
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET \
+    NEXTAUTH_URL=$NEXTAUTH_URL \
+    DATABASE_URL=$DATABASE_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_UPLOAD_BASE_URL=$NEXT_PUBLIC_UPLOAD_BASE_URL \
+    NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# 產生 Prisma Client
-RUN npx prisma generate
-
-# 建置 Next.js（使用 standalone 模式）
-RUN npm run build
+RUN npx prisma generate && npm run build
 
 # ---------------------------------------------------
 # 階段 3: 執行環境
@@ -40,34 +46,34 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
 
-# 建立非 root 使用者
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# 建立非 root 使用者（含 home 目錄）
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --gid nodejs --create-home nextjs && \
+    mkdir .next && chown nextjs:nodejs .next
 
-# 複製 public 資料夾
+# 複製應用程式檔案
 COPY --from=builder /app/public ./public
-
-# 設定正確的權限
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
-# 複製 standalone 輸出
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# 複製 Prisma 檔案（用於 migration）
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# 複製 Prisma 相關檔案（用於 migration 和初始化）
+# Migration: docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
+# 初始化: docker exec blog_app node scripts/init-admin.js
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 
-# 切換到非 root 使用者
+# 複製 bcryptjs（用於密碼驗證）
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
+
+# 複製初始化腳本
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
 USER nextjs
-
 EXPOSE 3000
-
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
 CMD ["node", "server.js"]

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 type Upload = {
@@ -14,7 +13,6 @@ type Upload = {
 };
 
 export function MediaLibraryClient() {
-  const router = useRouter();
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

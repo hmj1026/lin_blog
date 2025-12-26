@@ -41,13 +41,6 @@ function LoginForm() {
           <p className="mt-1 text-sm text-base-300 dark:text-base-600">管理內容、設定與社群互動</p>
         </div>
       </div>
-      <div className="rounded-2xl border border-line bg-base-50/80 px-4 py-3 text-xs text-base-300 dark:text-base-600">
-        <span className="font-semibold text-primary">預設帳號：</span>
-        admin@lin.blog
-        <span className="mx-2 opacity-60">·</span>
-        <span className="font-semibold text-primary">密碼：</span>
-        admin
-      </div>
       <div className="space-y-3">
         <label className="block text-sm font-semibold text-primary" htmlFor="email">
           Email
@@ -57,8 +50,8 @@ function LoginForm() {
           id="email"
           name="email"
           type="email"
+          placeholder="輸入您的 Email"
           className="w-full rounded-xl border border-line bg-base-50 px-4 py-3 text-sm text-primary outline-none transition placeholder:text-base-300 focus:ring focus:ring-accent/30"
-          defaultValue="admin@lin.blog"
         />
       </div>
       <div className="space-y-3">
@@ -70,8 +63,8 @@ function LoginForm() {
           id="password"
           name="password"
           type="password"
+          placeholder="輸入您的密碼"
           className="w-full rounded-xl border border-line bg-base-50 px-4 py-3 text-sm text-primary outline-none transition placeholder:text-base-300 focus:ring focus:ring-accent/30"
-          defaultValue="admin"
         />
       </div>
       {error && <p className="text-sm font-semibold text-red-600">{error}</p>}

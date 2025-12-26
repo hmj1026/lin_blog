@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 
 // ========== 篩選卡片方案 ==========
 const categories = ["全部分類", "行銷", "策略", "設計", "社群"];

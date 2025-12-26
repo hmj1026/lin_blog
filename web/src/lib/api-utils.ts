@@ -3,6 +3,7 @@ import { getSession } from "./auth";
 import { ApiException } from "./errors";
 import { ApiResponse } from "@/types/api";
 import { securityAdminUseCases } from "@/modules/security-admin";
+import { logger } from "./logger";
 
 /**
  * 建立成功的 JSON 回應
@@ -36,11 +37,14 @@ export function jsonError(message: string, status = 400) {
  */
 export function handleApiError(error: unknown) {
   if (error instanceof ApiException) {
+    logger.warn("API Exception", { message: error.message, status: error.status });
     return jsonError(error.message, error.status);
   }
   if (error instanceof Error) {
+    logger.error("API Error", { message: error.message, stack: error.stack });
     return jsonError(error.message, 400);
   }
+  logger.error("Unknown API Error", { error });
   return jsonError("未知錯誤", 500);
 }
 

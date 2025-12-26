@@ -51,12 +51,22 @@ export function createPostsUseCases(deps: {
      * 取得後台管理用的文章列表
      */
     listAdminPosts: () => deps.posts.listForAdmin(),
+    
+    /** 計算已發布文章總數 */
     countPublishedPosts: () => deps.posts.countPublished(),
+    /** 計算活躍文章總數（含草稿） */
     countActivePosts: () => deps.posts.countActive(),
+    /** 計算活躍分類總數 */
     countActiveCategories: () => deps.categories.countActive(),
+    /** 計算活躍標籤總數 */
     countActiveTags: () => deps.tags.countActive(),
+    
+    /** 取得給 Sitemap 使用的已發布文章列表 */
     listPublishedForSitemap: () => deps.posts.listPublishedForSitemap(),
+    
+    /** 根據 Slug 取得文章 */
     getPostBySlug: (slug: string) => deps.posts.getBySlug(slug),
+    /** 根據 ID 取得文章 */
     getPostById: (id: string) => deps.posts.getById(id),
     /**
      * 取得可閱讀的文章 (已發布或草稿但允許預覽)
@@ -74,11 +84,19 @@ export function createPostsUseCases(deps: {
         tagIds: input.post.tags.map((t) => t.id),
         take: 3,
       }),
+      
+    /** 取得活躍分類列表（有文章的分類） */
     listActiveCategories: (params?: { showInNav?: boolean }) => deps.categories.listActive(params),
+    /** 取得所有分類列表 */
     listAllCategories: () => deps.categories.listAll(),
+    /** 根據 Slug 取得分類 */
     getCategoryBySlug: (slug: string) => deps.categories.getBySlug(slug),
+    
+    /** 取得活躍標籤列表（有文章的標籤） */
     listActiveTags: () => deps.tags.listActive(),
+    /** 取得所有標籤列表 */
     listAllTags: () => deps.tags.listAll(),
+    /** 根據名稱或 Slug 搜尋標籤 */
     findTagsBySlugOrName: (value: string) => deps.tags.findBySlugOrName(value),
     /**
      * 建立新文章

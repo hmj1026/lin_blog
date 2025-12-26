@@ -4,6 +4,9 @@ import { PostCard } from "@/components/post-card";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsUseCases } from "@/modules/posts";
 
+// 強制動態渲染，避免 build 時嘗試連接資料庫
+export const dynamic = "force-dynamic";
+
 type CategoryPageProps = {
   params: Promise<{ category: string }>;
 };

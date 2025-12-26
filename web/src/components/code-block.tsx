@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 // 支援的語言列表
 const SUPPORTED_LANGUAGES = [

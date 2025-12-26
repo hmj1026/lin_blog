@@ -10,6 +10,9 @@ import { toFrontendPost } from "@/lib/frontend/post";
 import { postsUseCases } from "@/modules/posts";
 import { siteSettingsUseCases } from "@/modules/site-settings";
 
+// 強制動態渲染，避免 build 時嘗試連接資料庫
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const [featuredRaw, latestRaw, categories, settings] = await Promise.all([
     postsUseCases.listPublishedPosts({ featured: true, take: 2 }),
@@ -29,6 +32,16 @@ export default async function Home() {
   const statsArticles = settings.statsArticles ?? "120+";
   const statsSubscribers = settings.statsSubscribers ?? "35K";
   const statsRating = settings.statsRating ?? "4.8 ★";
+
+  // 區塊標題（從 settings 讀取）
+  const featuredTitle = settings.featuredTitle ?? "熱門精選：近期最受討論的文章";
+  const featuredDesc = settings.featuredDesc ?? "從設計到營運的實戰拆解，帶你快速套用到自己的內容與社群場景。";
+  const categoriesTitle = settings.categoriesTitle ?? "三大主題，讓內容與社群形成循環";
+  const categoriesDesc = settings.categoriesDesc ?? "從策略到設計、從社群到執行，這些分類幫助你快速找到需要的工具與視角。";
+  const latestTitle = settings.latestTitle ?? "最新文章";
+  const latestDesc = settings.latestDesc ?? "每篇都附上可落地的步驟、檢查清單與案例，直接帶回你的團隊。";
+  const communityTitle = settings.communityTitle ?? "每週 AMA 與讀者共創";
+  const communityDesc = settings.communityDesc ?? "提交你的問題，或分享你的執行成果。精選會被收錄進下一篇案例拆解。";
 
   return (
     <div className="space-y-20">
@@ -53,6 +66,7 @@ export default async function Home() {
                 閱讀最新文章
               </Link>
             </div>
+            {/* 統計區塊 - 暫時隱藏
             <div className="flex flex-wrap gap-6 rounded-2xl border border-line bg-white/80 p-6 shadow-card backdrop-blur dark:bg-base-100 dark:border-base-200">
               <div>
                 <div className="text-3xl font-display text-primary">{statsArticles}</div>
@@ -67,6 +81,7 @@ export default async function Home() {
                 <div className="text-sm text-base-300 dark:text-base-600">讀者評價</div>
               </div>
             </div>
+            */}
           </div>
           <div className="relative">
             <div className="absolute inset-0 -left-10 -z-10 rotate-3 rounded-[36px] bg-gradient-to-br from-orange-100 via-white to-sky-100 dark:from-orange-900/20 dark:via-base-75 dark:to-sky-900/20" />
@@ -99,8 +114,8 @@ export default async function Home() {
       <section className="section-shell space-y-8">
         <SectionHeader
           eyebrow="Featured"
-          title="熱門精選：近期最受討論的文章"
-          description="從設計到營運的實戰拆解，帶你快速套用到自己的內容與社群場景。"
+          title={featuredTitle}
+          description={featuredDesc}
         />
         <div className="grid gap-6 lg:grid-cols-2">
           {featuredPosts.map((post) => (
@@ -113,8 +128,8 @@ export default async function Home() {
       <section className="section-shell space-y-6">
         <SectionHeader
           eyebrow="Categories"
-          title="三大主題，讓內容與社群形成循環"
-          description="從策略到設計、從社群到執行，這些分類幫助你快速找到需要的工具與視角。"
+          title={categoriesTitle}
+          description={categoriesDesc}
         />
         <div className="grid gap-6 md:grid-cols-3">
           {categories.map((category) => (
@@ -139,8 +154,8 @@ export default async function Home() {
       <section className="section-shell space-y-6">
         <SectionHeader
           eyebrow="Latest"
-          title="最新文章"
-          description="每篇都附上可落地的步驟、檢查清單與案例，直接帶回你的團隊。"
+          title={latestTitle}
+          description={latestDesc}
         />
         <div className="grid gap-6 md:grid-cols-2">
           {latestPosts.slice(0, 4).map((post) => (
@@ -156,14 +171,14 @@ export default async function Home() {
         </section>
       )}
 
-      {/* Community & Contact Section */}
+      {/* Community & Contact Section - 暫時隱藏
       <section className="section-shell space-y-8">
         <div className={`grid gap-6 lg:items-center ${settings.showContact ? "lg:grid-cols-[1.1fr_0.9fr]" : ""}`}>
           <div className="space-y-4 rounded-3xl border border-line bg-white p-8 shadow-soft dark:bg-base-100">
             <SectionHeader
               eyebrow="Community"
-              title="每週 AMA 與讀者共創"
-              description="提交你的問題，或分享你的執行成果。精選會被收錄進下一篇案例拆解。"
+              title={communityTitle}
+              description={communityDesc}
             />
             <div className="space-y-3">
               {latestPosts.slice(0, 3).map((post) => (
@@ -187,10 +202,10 @@ export default async function Home() {
               ))}
             </div>
           </div>
-          {/* Contact Section - 依設定顯示/隱藏 */}
-          {settings.showContact && <ContactCard />}
+          {settings.showContact && <ContactCard socialLinks={settings} />}
         </div>
       </section>
+      */}
     </div>
   );
 }

@@ -18,12 +18,28 @@ function toRecord(data: {
   statsArticles: string | null;
   statsSubscribers: string | null;
   statsRating: string | null;
+  featuredTitle: string | null;
+  featuredDesc: string | null;
+  categoriesTitle: string | null;
+  categoriesDesc: string | null;
+  latestTitle: string | null;
+  latestDesc: string | null;
+  communityTitle: string | null;
+  communityDesc: string | null;
   showNewsletter: boolean;
   newsletterTitle: string | null;
   newsletterDesc: string | null;
   showContact: boolean;
   contactTitle: string | null;
   contactDesc: string | null;
+  showFacebook: boolean;
+  facebookUrl: string | null;
+  showInstagram: boolean;
+  instagramUrl: string | null;
+  showThreads: boolean;
+  threadsUrl: string | null;
+  showLine: boolean;
+  lineUrl: string | null;
 }): SiteSettingRecord {
   return {
     showBlogLink: data.showBlogLink,
@@ -39,12 +55,28 @@ function toRecord(data: {
     statsArticles: data.statsArticles,
     statsSubscribers: data.statsSubscribers,
     statsRating: data.statsRating,
+    featuredTitle: data.featuredTitle,
+    featuredDesc: data.featuredDesc,
+    categoriesTitle: data.categoriesTitle,
+    categoriesDesc: data.categoriesDesc,
+    latestTitle: data.latestTitle,
+    latestDesc: data.latestDesc,
+    communityTitle: data.communityTitle,
+    communityDesc: data.communityDesc,
     showNewsletter: data.showNewsletter,
     newsletterTitle: data.newsletterTitle,
     newsletterDesc: data.newsletterDesc,
     showContact: data.showContact,
     contactTitle: data.contactTitle,
     contactDesc: data.contactDesc,
+    showFacebook: data.showFacebook,
+    facebookUrl: data.facebookUrl,
+    showInstagram: data.showInstagram,
+    instagramUrl: data.instagramUrl,
+    showThreads: data.showThreads,
+    threadsUrl: data.threadsUrl,
+    showLine: data.showLine,
+    lineUrl: data.lineUrl,
   };
 }
 
@@ -78,12 +110,28 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
         statsArticles: params.create.statsArticles,
         statsSubscribers: params.create.statsSubscribers,
         statsRating: params.create.statsRating,
+        featuredTitle: params.create.featuredTitle,
+        featuredDesc: params.create.featuredDesc,
+        categoriesTitle: params.create.categoriesTitle,
+        categoriesDesc: params.create.categoriesDesc,
+        latestTitle: params.create.latestTitle,
+        latestDesc: params.create.latestDesc,
+        communityTitle: params.create.communityTitle,
+        communityDesc: params.create.communityDesc,
         showNewsletter: params.create.showNewsletter ?? false,
         newsletterTitle: params.create.newsletterTitle,
         newsletterDesc: params.create.newsletterDesc,
         showContact: params.create.showContact ?? false,
         contactTitle: params.create.contactTitle,
         contactDesc: params.create.contactDesc,
+        showFacebook: params.create.showFacebook ?? false,
+        facebookUrl: params.create.facebookUrl,
+        showInstagram: params.create.showInstagram ?? false,
+        instagramUrl: params.create.instagramUrl,
+        showThreads: params.create.showThreads ?? false,
+        threadsUrl: params.create.threadsUrl,
+        showLine: params.create.showLine ?? false,
+        lineUrl: params.create.lineUrl,
       },
       update: {
         showBlogLink: params.update.showBlogLink,
@@ -99,12 +147,28 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
         statsArticles: params.update.statsArticles,
         statsSubscribers: params.update.statsSubscribers,
         statsRating: params.update.statsRating,
+        featuredTitle: params.update.featuredTitle,
+        featuredDesc: params.update.featuredDesc,
+        categoriesTitle: params.update.categoriesTitle,
+        categoriesDesc: params.update.categoriesDesc,
+        latestTitle: params.update.latestTitle,
+        latestDesc: params.update.latestDesc,
+        communityTitle: params.update.communityTitle,
+        communityDesc: params.update.communityDesc,
         showNewsletter: params.update.showNewsletter,
         newsletterTitle: params.update.newsletterTitle,
         newsletterDesc: params.update.newsletterDesc,
         showContact: params.update.showContact,
         contactTitle: params.update.contactTitle,
         contactDesc: params.update.contactDesc,
+        showFacebook: params.update.showFacebook,
+        facebookUrl: params.update.facebookUrl,
+        showInstagram: params.update.showInstagram,
+        instagramUrl: params.update.instagramUrl,
+        showThreads: params.update.showThreads,
+        threadsUrl: params.update.threadsUrl,
+        showLine: params.update.showLine,
+        lineUrl: params.update.lineUrl,
       },
     });
     return toRecord(result);

@@ -186,6 +186,8 @@ GCS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 
 ## 🧪 測試
 
+測試框架：Vitest + Playwright
+
 ```bash
 # 單元測試
 npm run test
@@ -195,7 +197,21 @@ npm run test:ui
 
 # E2E 測試
 npm run test:e2e
+
+# 覆蓋率報告
+npx vitest run --coverage
 ```
+
+### 測試統計
+
+| 類別 | 測試數量 |
+|------|----------|
+| Use Cases | 56 |
+| Domain | 9 |
+| Validations | 25 |
+| Repositories | 20 |
+| Utilities | 62 |
+| **總計** | **172** |
 
 ---
 
@@ -208,34 +224,32 @@ npm run test:e2e
 3. Build command: `npm run build`
 4. 部署完成後設定 `NEXTAUTH_URL` 為正式域名
 
-### Docker 部署
+### Docker 部署（推薦）
 
-```dockerfile
-# Dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+```bash
+# 建置並啟動
+docker-compose up -d --build
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# 資料庫同步
+docker exec blog_app node node_modules/prisma/build/index.js db push --accept-data-loss
 
-EXPOSE 3000
-CMD ["node", "server.js"]
+# 初始化站點設定
+docker exec blog_app node scripts/init-admin.js
+
+# 建立管理員帳號
+PASSWORD=your-password docker exec -e PASSWORD blog_app node scripts/create-user.js \
+  --email admin@example.com \
+  --name Admin \
+  --role ADMIN
 ```
 
 ```yaml
-# docker-compose.yml
+# docker-compose.yml 範例
 version: '3.8'
 services:
   app:
     build: ./web
+    container_name: blog_app
     ports:
       - "3000:3000"
     environment:
@@ -244,6 +258,8 @@ services:
       - NEXTAUTH_URL=http://localhost:3000
     depends_on:
       - db
+    volumes:
+      - ./web/storage:/app/storage
 
   db:
     image: postgres:15-alpine

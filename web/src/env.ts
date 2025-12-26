@@ -27,6 +27,12 @@ const envSchema = z.object({
   GCS_PRIVATE_KEY: z.string().optional(),
   /** 單檔上傳大小上限（MB），預設 10MB */
   UPLOAD_MAX_FILE_SIZE_MB: z.coerce.number().positive().default(10),
+  /** 是否啟用圖片上傳壓縮（預設 true） */
+  UPLOAD_IMAGE_COMPRESSION: z.coerce.boolean().default(true),
+  /** 圖片最大寬度（預設 1920） */
+  UPLOAD_IMAGE_MAX_WIDTH: z.coerce.number().positive().default(1920),
+  /** 圖片壓縮品質 0-100（預設 85） */
+  UPLOAD_IMAGE_QUALITY: z.coerce.number().min(1).max(100).default(85),
   
   // 前端可見變數
   NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "production"]).default("local"),
@@ -58,6 +64,9 @@ export const env = envSchema.parse({
   GCS_CLIENT_EMAIL: process.env.GCS_CLIENT_EMAIL,
   GCS_PRIVATE_KEY: process.env.GCS_PRIVATE_KEY,
   UPLOAD_MAX_FILE_SIZE_MB: process.env.UPLOAD_MAX_FILE_SIZE_MB,
+  UPLOAD_IMAGE_COMPRESSION: process.env.UPLOAD_IMAGE_COMPRESSION,
+  UPLOAD_IMAGE_MAX_WIDTH: process.env.UPLOAD_IMAGE_MAX_WIDTH,
+  UPLOAD_IMAGE_QUALITY: process.env.UPLOAD_IMAGE_QUALITY,
   // Frontend
   NEXT_PUBLIC_APP_ENV: process.env.NEXT_PUBLIC_APP_ENV,
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,

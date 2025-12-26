@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { mediaUseCases } from "@/modules/media";
 import { toUploadListItemDto } from "@/modules/media/presentation/dto";
 import { getStorageAdapter, StorageError } from "@/modules/media/infrastructure/storage";
+import { processImage } from "@/modules/media/infrastructure/image-processor";
 import { env } from "@/env";
 
 export const runtime = "nodejs";
@@ -50,20 +51,37 @@ export async function POST(request: Request) {
     );
   }
 
-  const ext = path.extname(file.name || "").toLowerCase() || ".bin";
+  const arrayBuffer = await file.arrayBuffer();
+  let buffer = Buffer.from(arrayBuffer);
+  let mimeType = file.type || "application/octet-stream";
+
+  // 圖片壓縮處理
+  const processed = await processImage(buffer, mimeType, {
+    enabled: env.UPLOAD_IMAGE_COMPRESSION,
+    maxWidth: env.UPLOAD_IMAGE_MAX_WIDTH,
+    quality: env.UPLOAD_IMAGE_QUALITY,
+  });
+  buffer = processed.buffer;
+  mimeType = processed.mimeType;
+
+  // 根據處理後的 mimeType 決定副檔名
+  const extMap: Record<string, string> = {
+    "image/webp": ".webp",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/avif": ".avif",
+  };
+  const ext = extMap[mimeType] || path.extname(file.name || "").toLowerCase() || ".bin";
   const safeExt = ext.length <= 10 ? ext : ".bin";
   const fileName = `${randomUUID()}${safeExt}`;
   const storageKey = `uploads/${fileName}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
 
   // 使用 storage adapter 寫入
   const storage = getStorageAdapter();
   try {
     await storage.putObject({
       key: storageKey,
-      contentType: file.type || "application/octet-stream",
+      contentType: mimeType,
       body: buffer,
     });
   } catch (error) {
@@ -77,7 +95,7 @@ export async function POST(request: Request) {
   const created = await mediaUseCases.createUpload({
     originalName: file.name || fileName,
     storageKey,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     size: buffer.length,
     visibility: "PUBLIC",
   });

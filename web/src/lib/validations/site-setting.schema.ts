@@ -17,6 +17,18 @@ export const siteSettingSchema = z.object({
   statsArticles: z.string().nullish(),
   statsSubscribers: z.string().nullish(),
   statsRating: z.string().nullish(),
+  // Featured 區塊
+  featuredTitle: z.string().nullish(),
+  featuredDesc: z.string().nullish(),
+  // Categories 區塊
+  categoriesTitle: z.string().nullish(),
+  categoriesDesc: z.string().nullish(),
+  // Latest 區塊
+  latestTitle: z.string().nullish(),
+  latestDesc: z.string().nullish(),
+  // Community 區塊
+  communityTitle: z.string().nullish(),
+  communityDesc: z.string().nullish(),
   // Newsletter
   showNewsletter: z.boolean().optional(),
   newsletterTitle: z.string().nullish(),

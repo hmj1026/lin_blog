@@ -21,6 +21,7 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
      * 檢查角色是否擁有任一權限
      */
     roleHasAnyPermission: (roleId: string, permissionKeys: string[]) => deps.repo.hasRoleAnyPermission({ roleId, permissionKeys }),
+    /** 列出角色的所有權限 key */
     listRolePermissions: (roleId: string) => deps.repo.listRolePermissionKeys(roleId),
 
     /**
@@ -47,7 +48,9 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
       return deps.repo.updateRole({ id, key: data.key, name: data.name, permissionKeys: data.permissionKeys });
     },
 
+    /** 軟刪除角色 */
     softDeleteRole: (id: string) => deps.repo.softDeleteRole(id),
+    /** 取得所有活躍角色（未刪除） */
     listActiveRoles: () => deps.repo.listActiveRoles(),
 
     /**
@@ -73,7 +76,9 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
       return deps.repo.updateUser({ id, email: data.email, name: data.name, roleId: data.roleId, passwordHash });
     },
 
+    /** 軟刪除使用者 */
     softDeleteUser: (id: string) => deps.repo.softDeleteUser(id),
+    /** 計算活躍使用者總數 */
     countActiveUsers: () => deps.repo.countActiveUsers(),
   };
 }

@@ -8,6 +8,8 @@
 import type { ObjectStorageAdapter } from "./adapter.interface";
 import { LocalStorageAdapter } from "./local.adapter";
 import { InMemoryStorageAdapter } from "./memory.adapter";
+import { S3CompatibleStorageAdapter } from "./s3-compatible.adapter";
+import { GcsStorageAdapter } from "./gcs.adapter";
 
 /**
  * 支援的 Storage Provider 類型
@@ -92,18 +94,34 @@ export function createStorageAdapter(config: StorageConfig): ObjectStorageAdapte
 
     case "s3":
       validateS3Config(config, "s3");
-      // TODO: 實作 S3CompatibleStorageAdapter
-      throw new Error("S3 adapter not yet implemented");
+      return new S3CompatibleStorageAdapter({
+        bucket: config.bucket!,
+        region: config.region,
+        endpoint: config.endpoint,
+        accessKeyId: config.accessKeyId!,
+        secretAccessKey: config.secretAccessKey!,
+        providerName: "s3",
+      });
 
     case "r2":
       validateS3Config(config, "r2");
-      // TODO: 實作 S3CompatibleStorageAdapter (R2 模式)
-      throw new Error("R2 adapter not yet implemented");
+      return new S3CompatibleStorageAdapter({
+        bucket: config.bucket!,
+        region: "auto", // R2 不需要真實 region
+        endpoint: config.endpoint!,
+        accessKeyId: config.accessKeyId!,
+        secretAccessKey: config.secretAccessKey!,
+        providerName: "r2",
+      });
 
     case "gcs":
       validateGcsConfig(config);
-      // TODO: 實作 GcsStorageAdapter
-      throw new Error("GCS adapter not yet implemented");
+      return new GcsStorageAdapter({
+        bucket: config.bucket!,
+        projectId: config.gcsProjectId!,
+        clientEmail: config.gcsClientEmail!,
+        privateKey: config.gcsPrivateKey!,
+      });
 
     default: {
       const _exhaustive: never = config.provider;

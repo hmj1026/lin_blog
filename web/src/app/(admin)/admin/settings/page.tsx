@@ -20,8 +20,8 @@ export default async function AdminSettingsPage() {
     <div className="space-y-6">
       <h1 className="font-display text-3xl text-primary">站點設定</h1>
       <SiteSettingsForm
-        initialShowBlogLink={settings.showBlogLink}
-        initialCategories={categories.map((category) => ({
+        initialSettings={settings}
+        categories={categories.map((category) => ({
           id: category.id,
           name: category.name,
           slug: category.slug,

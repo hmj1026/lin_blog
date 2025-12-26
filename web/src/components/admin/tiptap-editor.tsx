@@ -2,8 +2,10 @@
 
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Image from "@tiptap/extension-image";
+import { Image as ResizeImage } from "tiptap-extension-resize-image";
 import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
+import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -29,9 +31,12 @@ export function TiptapEditor({ value, onChange }: Props) {
         autolink: true,
         linkOnPaste: true,
       }),
-      Image.configure({
-        inline: false,
+      ResizeImage.configure({
         allowBase64: true,
+      }),
+      Underline,
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
       }),
     ],
     content: value,
@@ -115,6 +120,12 @@ export function TiptapEditor({ value, onChange }: Props) {
         <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().toggleItalic().run()}>
           斜體
         </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().toggleUnderline().run()}>
+          底線
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().toggleStrike().run()}>
+          刪除線
+        </Button>
         <Button
           type="button"
           size="sm"
@@ -157,6 +168,18 @@ export function TiptapEditor({ value, onChange }: Props) {
         </Button>
         <Button type="button" size="sm" variant="secondary" onClick={toggleLink}>
           連結
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().setTextAlign("left").run()}>
+          靠左
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().setTextAlign("center").run()}>
+          置中
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().setTextAlign("right").run()}>
+          靠右
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+          分隔線
         </Button>
         <Button
           type="button"

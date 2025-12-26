@@ -27,6 +27,20 @@
   .wysiwyg img {
     @apply my-8 w-full rounded-2xl border border-line shadow-card;
   }
+  /* Image resize styles */
+  .wysiwyg img.ProseMirror-selectednode {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  .wysiwyg .image-resizer {
+    display: inline-block;
+    position: relative;
+  }
+  .wysiwyg .image-resizer img {
+    @apply my-4 rounded-xl border border-line shadow-card;
+    width: auto;
+    max-width: 100%;
+  }
   .wysiwyg a {
     @apply font-semibold text-accent-600 underline decoration-accent-500/30 underline-offset-4 hover:text-accent-500;
   }

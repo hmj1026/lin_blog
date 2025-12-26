@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 
 type TrendData = { date: string; count: number }[];
@@ -22,11 +22,7 @@ export function DashboardCharts() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"device" | "browser" | "os">("device");
 
-  useEffect(() => {
-    fetchData();
-  }, [days]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/analytics/stats?days=${days}`);
@@ -39,7 +35,11 @@ export function DashboardCharts() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [days]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (loading || !data) {
     return <div className="h-64 flex items-center justify-center text-base-300">載入中...</div>;

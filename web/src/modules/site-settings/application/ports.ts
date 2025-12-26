@@ -18,6 +18,18 @@ export type SiteSettingRecord = {
   statsArticles: string | null;
   statsSubscribers: string | null;
   statsRating: string | null;
+  // Featured 區塊
+  featuredTitle: string | null;
+  featuredDesc: string | null;
+  // Categories 區塊
+  categoriesTitle: string | null;
+  categoriesDesc: string | null;
+  // Latest 區塊
+  latestTitle: string | null;
+  latestDesc: string | null;
+  // Community 區塊
+  communityTitle: string | null;
+  communityDesc: string | null;
   // Newsletter
   showNewsletter: boolean;
   newsletterTitle: string | null;
@@ -26,6 +38,15 @@ export type SiteSettingRecord = {
   showContact: boolean;
   contactTitle: string | null;
   contactDesc: string | null;
+  // Social Platforms
+  showFacebook: boolean;
+  facebookUrl: string | null;
+  showInstagram: boolean;
+  instagramUrl: string | null;
+  showThreads: boolean;
+  threadsUrl: string | null;
+  showLine: boolean;
+  lineUrl: string | null;
 };
 
 /**

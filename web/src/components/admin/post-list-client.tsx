@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 
 type Post = {
   id: string;
+  slug: string;
   title: string;
   status: string;
+  featured: boolean;
   updatedAt: string;
   categories: { name: string }[];
   tags: { name: string }[];
@@ -62,6 +64,28 @@ export function PostListClient({ posts }: PostListClientProps) {
       const json = await res.json();
       if (json.success) {
         setSelected(new Set());
+        router.refresh();
+      } else {
+        alert(json.message || "操作失敗");
+      }
+    } catch {
+      alert("操作失敗");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 切換精選狀態
+  const toggleFeatured = async (id: string, currentFeatured: boolean) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/posts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ featured: !currentFeatured }),
+      });
+      const json = await res.json();
+      if (json.success) {
         router.refresh();
       } else {
         alert(json.message || "操作失敗");
@@ -149,6 +173,7 @@ export function PostListClient({ posts }: PostListClientProps) {
                   className="h-4 w-4 accent-primary"
                 />
               </th>
+              <th className="px-4 py-3 w-12">精選</th>
               <th className="px-4 py-3">標題</th>
               <th className="px-4 py-3">分類 / 標籤</th>
               <th className="px-4 py-3">狀態</th>
@@ -166,6 +191,18 @@ export function PostListClient({ posts }: PostListClientProps) {
                     onChange={() => toggleOne(post.id)}
                     className="h-4 w-4 accent-primary"
                   />
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => toggleFeatured(post.id, post.featured)}
+                    disabled={loading}
+                    className={`text-xl transition ${
+                      post.featured ? "text-yellow-500 hover:text-yellow-600" : "text-base-200 hover:text-yellow-500"
+                    } disabled:opacity-50`}
+                    title={post.featured ? "取消精選" : "設為精選"}
+                  >
+                    ★
+                  </button>
                 </td>
                 <td className="px-4 py-3 font-semibold text-primary">{post.title}</td>
                 <td className="px-4 py-3 text-base-300">
@@ -185,7 +222,13 @@ export function PostListClient({ posts }: PostListClientProps) {
                 <td className="px-4 py-3 text-base-300">
                   {formatDateTime(new Date(post.updatedAt))}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 flex items-center gap-2">
+                  <button
+                    onClick={() => window.open(`/blog/${post.slug}?preview=1`, "_blank", "noopener,noreferrer")}
+                    className="text-sm font-semibold text-base-300 hover:text-primary"
+                  >
+                    預覽
+                  </button>
                   <Link href={`/admin/posts/${post.id}`} className="text-sm font-semibold text-accent-600">
                     編輯
                   </Link>
@@ -194,7 +237,7 @@ export function PostListClient({ posts }: PostListClientProps) {
             ))}
             {filteredPosts.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-base-300">
+                <td colSpan={7} className="px-4 py-6 text-center text-base-300">
                   {search ? "找不到符合的文章" : "目前沒有文章，建立一篇吧。"}
                 </td>
               </tr>

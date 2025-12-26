@@ -156,7 +156,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
               onChange={(e) => {
                 const next = e.target.value;
                 setTitle(next);
-                if (!initial.title && !slug) setSlug(slugify(next));
+                if (!initial.title && (!slug || slug === slugify(title)))
+                  setSlug(slugify(next));
               }}
               placeholder="文章標題"
             />

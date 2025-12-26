@@ -16,6 +16,9 @@ import { PostViewTracker } from "@/components/post-view-tracker";
 import { postsUseCases } from "@/modules/posts";
 import { publicEnv } from "@/env.public";
 
+// 強制動態渲染，避免 build 時嘗試連接資料庫
+export const dynamic = "force-dynamic";
+
 type PostPageProps = {
   params: Promise<{
     slug: string;
@@ -24,7 +27,9 @@ type PostPageProps = {
 };
 
 export default async function PostPage({ params, searchParams }: PostPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  // Decode URL-encoded slug (e.g., Chinese characters)
+  const slug = decodeURIComponent(rawSlug);
   const sp = await searchParams;
   const preview = sp?.preview === "1" || sp?.preview === "true";
   const session = await getSession();
@@ -138,7 +143,8 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
 }
 
 export async function generateMetadata({ params }: PostPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug);
   const post = await postsUseCases.getPostBySlug(slug);
   if (!post || post.status !== "PUBLISHED") {
     return { title: "文章不存在" };

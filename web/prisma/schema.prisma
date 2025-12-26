@@ -134,6 +134,18 @@ model SiteSetting {
   statsArticles     String?  // "120+"
   statsSubscribers  String?  // "35K"
   statsRating       String?  // "4.8 ★"
+  // Featured 區塊
+  featuredTitle     String?  // "熱門精選：近期最受討論的文章"
+  featuredDesc      String?
+  // Categories 區塊
+  categoriesTitle   String?  // "三大主題，讓內容與社群形成循環"
+  categoriesDesc    String?
+  // Latest 區塊
+  latestTitle       String?  // "最新文章"
+  latestDesc        String?
+  // Community 區塊
+  communityTitle    String?  // "每週 AMA 與讀者共創"
+  communityDesc     String?
   // Newsletter (暫時隱藏)
   showNewsletter    Boolean  @default(false)
   newsletterTitle   String?
@@ -142,6 +154,15 @@ model SiteSetting {
   showContact       Boolean  @default(false)
   contactTitle      String?
   contactDesc       String?
+  // Social Platforms
+  showFacebook      Boolean  @default(false)
+  facebookUrl       String?
+  showInstagram     Boolean  @default(false)
+  instagramUrl      String?
+  showThreads       Boolean  @default(false)
+  threadsUrl        String?
+  showLine          Boolean  @default(false)
+  lineUrl           String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

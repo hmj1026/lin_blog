@@ -1,0 +1,356 @@
+
+> web@0.1.0 test
+> vitest run --coverage
+
+
+[1m[46m RUN [49m[22m [36mv4.0.16 [39m[90mE:/projects/lin_blog/web[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m tests/unit/components/navbar-client.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 285[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/media-library-client.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 574[2mms[22m[39m
+     [33m[2m✓[22m[39m filters uploads by search and type [33m 341[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/post-list-client.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 590[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/tag-admin-client.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 676[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a new tag [33m 349[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/tiptap-editor.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 785[2mms[22m[39m
+     [33m[2m✓[22m[39m toggles HTML mode [33m 466[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/category-admin-client.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 895[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a new category [33m 408[2mms[22m[39m
+     [33m[2m✓[22m[39m updates a category [33m 395[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/site-settings-form.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1077[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/role-admin-client.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 380[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/dashboard-charts.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 263[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/user-admin-client.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1734[2mms[22m[39m
+     [33m[2m✓[22m[39m creates a new user [33m 755[2mms[22m[39m
+     [33m[2m✓[22m[39m validates creation inputs [33m 558[2mms[22m[39m
+     [33m[2m✓[22m[39m updates a user [33m 313[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/image-cropper-modal.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 201[2mms[22m[39m
+ [32m✓[39m tests/unit/app/preview-page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 339[2mms[22m[39m
+ [32m✓[39m tests/unit/security-admin.use-cases.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 156[2mms[22m[39m
+ [32m✓[39m tests/unit/components/ui/input.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 183[2mms[22m[39m
+ [32m✓[39m tests/unit/components/admin/post-form.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 1769[2mms[22m[39m
+     [33m[2m✓[22m[39m validates required fields [33m 690[2mms[22m[39m
+     [33m[2m✓[22m[39m submits create form [33m 703[2mms[22m[39m
+     [33m[2m✓[22m[39m submits edit form [33m 344[2mms[22m[39m
+ [32m✓[39m tests/unit/components/ui/button.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[32m 133[2mms[22m[39m
+ [32m✓[39m tests/unit/components/pagination.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m tests/unit/components/post-card.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m tests/unit/components/ui/badge.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+[90mstderr[2m | tests/unit/app/home-page.test.tsx[2m > [22m[2mHome Page[2m > [22m[2mrenders hero section and content
+[22m[39mWarning: Received `true` for a non-boolean attribute `priority`.
+
+If you want to write it to the DOM, pass a string instead: priority="true" or priority={value.toString()}.
+    at img
+    at default
+    at div
+    at div
+    at div
+    at section
+    at div
+
+ [32m✓[39m tests/unit/app/blog-page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 39[2mms[22m[39m
+ [32m✓[39m tests/unit/app/home-page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m tests/unit/app/admin-analytics-pages.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m tests/unit/components/ui/card.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+[90mstderr[2m | tests/unit/app/post-page.test.tsx[2m > [22m[2mPost Page[2m > [22m[2mrenders post content
+[22m[39mWarning: Received `true` for a non-boolean attribute `priority`.
+
+If you want to write it to the DOM, pass a string instead: priority="true" or priority={value.toString()}.
+    at img
+    at default
+    at div
+    at div
+    at header
+    at article
+Warning: Received `false` for a non-boolean attribute `unoptimized`.
+
+If you want to write it to the DOM, pass a string instead: unoptimized="false" or unoptimized={value.toString()}.
+
+If you used to conditionally omit it with unoptimized={condition && value}, pass unoptimized={condition ? value : undefined} instead.
+    at img
+    at default
+    at div
+    at div
+    at header
+    at article
+
+ [32m✓[39m tests/unit/app/post-page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m tests/unit/api/posts-id.route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+[90mstderr[2m | tests/unit/api-utils.test.ts[2m > [22m[2mapi-utils[2m > [22m[2mhandleApiError[2m > [22m[2m處理 ApiException
+[22m[39m[33m[WARN][0m API Exception {"message":"Forbidden","status":403}
+
+[90mstderr[2m | tests/unit/api-utils.test.ts[2m > [22m[2mapi-utils[2m > [22m[2mhandleApiError[2m > [22m[2m處理一般 Error
+[22m[39m[31m[ERROR][0m API Error {"message":"System Error","stack":"Error: System Error\n    at E:/projects/lin_blog/web/tests/unit/api-utils.test.ts:66:27\n    at file:///E:/projects/lin_blog/web/node_modules/@vitest/runner/dist/index.js:145:11\n    at file:///E:/projects/lin_blog/web/node_modules/@vitest/runner/dist/index.js:915:26\n    at file:///E:/projects/lin_blog/web/node_modules/@vitest/runner/dist/index.js:1243:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///E:/projects/lin_blog/web/node_modules/@vitest/runner/dist/index.js:1209:10)\n    at file:///E:/projects/lin_blog/web/node_modules/@vitest/runner/dist/index.js:1653:37\n    at Traces.$ (file:///E:/projects/lin_blog/web/node_modules/vitest/dist/chunks/traces.U4xDYhzZ.js:115:27)\n    at trace (file:///E:/projects/lin_blog/web/node_modules/vitest/dist/chunks/test.B8ej_ZHS.js:239:21)\n    at runTest (file:///E:/projects/lin_blog/web/node_modules/@vitest/runner/dist/index.js:1653:12)"}
+
+[90mstderr[2m | tests/unit/api-utils.test.ts[2m > [22m[2mapi-utils[2m > [22m[2mhandleApiError[2m > [22m[2m處理未知錯誤
+[22m[39m[31m[ERROR][0m Unknown API Error {"error":"unknown string error"}
+
+ [32m✓[39m tests/unit/api-utils.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m tests/unit/api/posts.route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m tests/unit/storage/s3-compatible.adapter.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/unit/repositories/posts-repository.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/unit/posts.use-cases.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/unit/api/media.route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/unit/api/users.route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m tests/unit/media/storage-factory.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/api/categories-tags.route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m tests/unit/categories-tags.use-cases.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m tests/unit/repositories/security-admin-repository.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/analytics.use-cases.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/repositories/media-repository.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/unit/media/media.use-cases.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m tests/unit/api/site-settings.route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m tests/unit/site-settings.use-cases.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/unit/sanitize.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/storage/memory.adapter.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/repositories/site-settings-repository.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/validations/role.schema.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/storage/factory.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m tests/unit/validations/post.schema.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/rbac/rbac.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/validations/site-setting.schema.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/middleware/rate-limit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/unit/repositories/analytics-repository.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/validations/user.schema.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/posts.domain.post.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/validations/category.schema.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/seo.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/unit/media/image-processor.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m tests/unit/validations/tag.schema.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/unit/content.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/unit/data/posts.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/unit/posts.domain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/unit/lib/utils.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/unit/analytics.domain.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/unit/design-tokens.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/unit/site-settings.domain.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [2m[90m↓[39m[22m tests/visual/button.spec.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+
+[2m Test Files [22m [1m[32m64 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (65)[39m
+[2m      Tests [22m [1m[32m411 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (412)[39m
+[2m   Start at [22m 14:28:19
+[2m   Duration [22m 9.27s[2m (transform 2.99s, setup 10.00s, import 8.25s, tests 10.71s, environment 33.46s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   53.64 |    45.18 |   58.54 |    55.5 |                   
+ src               |    7.01 |        0 |       0 |    7.84 |                   
+  env.auth.ts      |     100 |      100 |     100 |     100 |                   
+  env.public.ts    |     100 |      100 |     100 |     100 |                   
+  env.ts           |       0 |      100 |     100 |       0 | 4-83              
+  middleware.ts    |       0 |        0 |       0 |       0 | 6-90              
+ src/app           |       0 |        0 |       0 |       0 |                   
+  error.tsx        |       0 |        0 |       0 |       0 | 13-18             
+  global-error.tsx |       0 |        0 |       0 |       0 | 12-17             
+  robots.ts        |       0 |        0 |       0 |       0 | 5-6               
+  sitemap.ts       |       0 |        0 |       0 |       0 | 6-24              
+ ...ontend)/logout |       0 |        0 |       0 |       0 |                   
+  ...ut-client.tsx |       0 |        0 |       0 |       0 | 9-34              
+ ...nalytics/stats |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 5-17              
+ ...nalytics/views |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 5-47              
+ .../[...nextauth] |       0 |      100 |       0 |       0 |                   
+  route.ts         |       0 |      100 |       0 |       0 | 5-14              
+ ...api/categories |   84.61 |    66.66 |     100 |   91.66 |                   
+  route.ts         |   84.61 |    66.66 |     100 |   91.66 | 23                
+ ...ategories/[id] |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 8-34              
+ ...lish-scheduled |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 9-44              
+ ...api/files/[id] |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 6-54              
+ src/app/api/nav   |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 5-15              
+ src/app/api/posts |    92.3 |    83.33 |     100 |   91.66 |                   
+  route.ts         |    92.3 |    83.33 |     100 |   91.66 | 23                
+ ...api/posts/[id] |   81.39 |       75 |   66.66 |   86.84 |                   
+  route.ts         |   81.39 |       75 |   66.66 |   86.84 | 33,53-54,61,74    
+ .../[id]/versions |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 6-22              
+ ...ns/[versionId] |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 7-46              
+ ...pi/posts/batch |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 9-52              
+ ...i/posts/export |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 8-66              
+ ...i/posts/import |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 24-48             
+ src/app/api/roles |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 5-27              
+ ...api/roles/[id] |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 7-31              
+ ...app/api/search |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 6-25              
+ .../site-settings |      90 |      100 |     100 |   88.88 |                   
+  route.ts         |      90 |      100 |     100 |   88.88 | 18                
+ src/app/api/tags  |   84.61 |    66.66 |     100 |   91.66 |                   
+  route.ts         |   84.61 |    66.66 |     100 |   91.66 | 23                
+ .../api/tags/[id] |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 8-34              
+ ...pp/api/uploads |   92.68 |       60 |     100 |   97.43 |                   
+  route.ts         |   92.68 |       60 |     100 |   97.43 | 92                
+ ...i/uploads/[id] |   88.88 |       75 |     100 |     100 |                   
+  route.ts         |   88.88 |       75 |     100 |     100 | 13                
+ ...pi/uploadthing |       0 |      100 |       0 |       0 |                   
+  route.ts         |       0 |      100 |       0 |       0 | 4                 
+ src/app/api/users |   84.61 |       75 |     100 |    90.9 |                   
+  route.ts         |   84.61 |       75 |     100 |    90.9 | 23                
+ ...api/users/[id] |   76.47 |       50 |     100 |   86.66 |                   
+  route.ts         |   76.47 |       50 |     100 |   86.66 | 18,31             
+ src/app/feed.xml  |       0 |        0 |       0 |       0 |                   
+  route.ts         |       0 |        0 |       0 |       0 | 5-52              
+ src/components    |   20.74 |    24.48 |   21.91 |    20.4 |                   
+  ...-provider.tsx |       0 |        0 |       0 |       0 | 8-18              
+  author-chip.tsx  |   36.36 |    18.75 |      50 |   44.44 | 16-20             
+  code-block.tsx   |       0 |        0 |       0 |       0 | 6-93              
+  contact-card.tsx |       0 |        0 |       0 |       0 | 6-13              
+  footer.tsx       |       0 |        0 |       0 |       0 | 7-60              
+  logo.tsx         |       0 |        0 |       0 |       0 | 6                 
+  ...ar-client.tsx |     100 |    83.33 |     100 |     100 | 32,106,167-171    
+  navbar.tsx       |       0 |        0 |       0 |       0 | 8-42              
+  ...tter-form.tsx |       0 |        0 |       0 |       0 | 11-71             
+  pagination.tsx   |     100 |    88.23 |     100 |     100 | 40-46             
+  post-card.tsx    |     100 |      100 |     100 |     100 |                   
+  ...w-tracker.tsx |       0 |        0 |       0 |       0 | 6-16              
+  ...-progress.tsx |       0 |        0 |       0 |       0 | 10-26             
+  ...on-header.tsx |       0 |        0 |       0 |       0 | 9-10              
+  ...e-buttons.tsx |       0 |        0 |       0 |       0 | 16-77             
+  ...-provider.tsx |       0 |        0 |       0 |       0 | 13-91             
+  theme-toggle.tsx |       0 |        0 |       0 |       0 | 11-40             
+  toc.tsx          |       0 |        0 |       0 |       0 | 20-82             
+ ...mponents/admin |   69.37 |    51.25 |   65.39 |    73.8 |                   
+  ...in-client.tsx |   72.85 |    37.73 |   67.85 |      80 | ...87,133,151-165 
+  ...rd-charts.tsx |   97.29 |    80.76 |     100 |   97.05 | 34                
+  ...per-modal.tsx |   36.95 |       50 |   47.05 |   39.47 | 10-59,171         
+  ...rt-client.tsx |       0 |        0 |       0 |       0 | 7-112             
+  ...ry-client.tsx |   89.79 |    63.33 |     100 |   93.02 | 36,61-64          
+  post-form.tsx    |   61.03 |    63.09 |      28 |   69.69 | ...37,172,198-339 
+  ...st-client.tsx |   86.36 |    66.66 |      90 |   88.13 | ...,90-93,139,154 
+  ...in-client.tsx |   77.61 |    36.95 |   74.07 |   88.23 | ...86,111-121,150 
+  sidebar.tsx      |       0 |        0 |       0 |       0 | 6-40              
+  ...ings-form.tsx |   64.51 |       50 |   42.85 |   65.51 | 67,132-342        
+  stats-card.tsx   |       0 |        0 |       0 |       0 | 8                 
+  ...in-client.tsx |    83.6 |    42.22 |   86.36 |   89.79 | 47,58,69,85,137   
+  ...ap-editor.tsx |   73.33 |    71.79 |   58.82 |   81.13 | ...85,115,130-166 
+  ...in-client.tsx |   80.21 |     45.2 |   84.37 |   88.57 | ...11,225-238,277 
+ ...dmin/post-form |    9.19 |     8.16 |   20.83 |   10.12 |                   
+  ...-uploader.tsx |       0 |        0 |       0 |       0 | 16-128            
+  field.tsx        |     100 |      100 |     100 |     100 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  picker.tsx       |   66.66 |       50 |   66.66 |   66.66 | 19                
+  ...iew-modal.tsx |       0 |      100 |       0 |       0 | 9-24              
+  types.ts         |       0 |        0 |       0 |       0 |                   
+  utils.ts         |   17.24 |     12.5 |      25 |   19.23 | 19-48             
+ ...components/dev |       0 |        0 |       0 |       0 |                   
+  dev-toolbar.tsx  |       0 |        0 |       0 |       0 | 11-45             
+ src/components/ui |     100 |      100 |     100 |     100 |                   
+  badge.tsx        |     100 |      100 |     100 |     100 |                   
+  button.tsx       |     100 |      100 |     100 |     100 |                   
+  card.tsx         |     100 |      100 |     100 |     100 |                   
+  input.tsx        |     100 |      100 |     100 |     100 |                   
+ src/data          |     100 |      100 |     100 |     100 |                   
+  posts.ts         |     100 |      100 |     100 |     100 |                   
+ src/lib           |   57.48 |    47.29 |      50 |      60 |                   
+  api-utils.ts     |   94.44 |    89.47 |     100 |     100 | 89-91             
+  auth.ts          |    6.25 |        0 |       0 |     7.4 | 22-72,103         
+  db.ts            |     100 |       75 |     100 |     100 | 10                
+  design-tokens.ts |     100 |      100 |     100 |     100 |                   
+  errors.ts        |      40 |    33.33 |      25 |      40 | 10-18             
+  logger.ts        |   54.76 |    63.63 |    37.5 |   56.09 | ...01-102,109-143 
+  rbac.ts          |     100 |      100 |     100 |     100 |                   
+  utils.ts         |     100 |      100 |     100 |     100 |                   
+ src/lib/frontend  |    90.9 |       75 |     100 |     100 |                   
+  post.ts          |    90.9 |       75 |     100 |     100 | 29,45,47          
+ src/lib/utils     |   88.88 |    85.71 |     100 |     100 |                   
+  content.ts       |    87.5 |       80 |     100 |     100 | 8,13              
+  sanitize.ts      |     100 |      100 |     100 |     100 |                   
+  seo.ts           |     100 |      100 |     100 |     100 |                   
+ ...ib/validations |     100 |      100 |     100 |     100 |                   
+  ...ser.schema.ts |     100 |      100 |     100 |     100 |                   
+  ...ory.schema.ts |     100 |      100 |     100 |     100 |                   
+  post.schema.ts   |     100 |      100 |     100 |     100 |                   
+  role.schema.ts   |     100 |      100 |     100 |     100 |                   
+  ...ing.schema.ts |     100 |      100 |     100 |     100 |                   
+  tag.schema.ts    |     100 |      100 |     100 |     100 |                   
+  user.schema.ts   |     100 |      100 |     100 |     100 |                   
+ ...ules/analytics |       0 |      100 |     100 |       0 |                   
+  index.ts         |       0 |      100 |     100 |       0 | 4                 
+ ...cs/application |    87.2 |    61.03 |     100 |    94.2 |                   
+  ports.ts         |       0 |        0 |       0 |       0 |                   
+  use-cases.ts     |    87.2 |    61.03 |     100 |    94.2 | 21-22,28-29       
+ ...alytics/domain |   66.66 |       50 |     100 |     100 |                   
+  device-type.ts   |     100 |      100 |     100 |     100 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  rules.ts         |   66.66 |       50 |     100 |     100 | 2                 
+  view-tracking.ts |      60 |       50 |     100 |     100 | 10-13             
+ ...ructure/prisma |   59.37 |    22.22 |    62.5 |   60.71 |                   
+  ...ory.prisma.ts |   67.85 |       30 |   71.42 |      68 | 21-29,98-139      
+  mappers.ts       |       0 |        0 |       0 |       0 | 5-10              
+ src/modules/media |       0 |      100 |     100 |       0 |                   
+  index.ts         |       0 |      100 |     100 |       0 | 4                 
+ ...ia/application |     100 |      100 |     100 |     100 |                   
+  ports.ts         |       0 |        0 |       0 |       0 |                   
+  use-cases.ts     |     100 |      100 |     100 |     100 |                   
+ ...s/media/domain |       0 |      100 |       0 |       0 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  ...visibility.ts |       0 |      100 |       0 |       0 | 1-5               
+ ...infrastructure |    87.5 |     87.5 |     100 |    87.5 |                   
+  ...-processor.ts |    87.5 |     87.5 |     100 |    87.5 | 102-103           
+ ...ructure/prisma |     100 |       90 |     100 |     100 |                   
+  ...ory.prisma.ts |     100 |       90 |     100 |     100 | 11                
+ ...ucture/storage |      43 |    38.26 |   57.14 |   41.39 |                   
+  ....interface.ts |     100 |      100 |     100 |     100 |                   
+  factory.ts       |   93.33 |    94.11 |     100 |   94.73 | 127-128           
+  gcs.adapter.ts   |    9.52 |        0 |   14.28 |    9.52 | 37-56,96-172      
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  local.adapter.ts |   11.42 |    23.07 |      20 |   11.42 | 45-128            
+  ...ry.adapter.ts |     100 |    83.33 |     100 |     100 | 40                
+  ...le.adapter.ts |   15.55 |    11.76 |   16.66 |   15.55 | 48-70,121-200     
+ ...a/presentation |     100 |      100 |     100 |     100 |                   
+  dto.ts           |     100 |      100 |     100 |     100 |                   
+ src/modules/posts |       0 |      100 |     100 |       0 |                   
+  index.ts         |       0 |      100 |     100 |       0 | 7                 
+ ...ts/application |   78.65 |    76.85 |      75 |   83.13 |                   
+  ports.ts         |       0 |        0 |       0 |       0 |                   
+  use-cases.ts     |   78.65 |    76.85 |      75 |   83.13 | ...73-178,218,296 
+ ...s/posts/domain |    87.5 |    96.29 |   82.35 |   84.84 |                   
+  errors.ts        |      50 |      100 |      50 |      50 | 5-6               
+  index.ts         |       0 |        0 |       0 |       0 |                   
+  post-status.ts   |      50 |      100 |       0 |      50 | 5                 
+  post.ts          |     100 |      100 |     100 |     100 |                   
+  rules.ts         |    87.5 |      100 |      50 |      80 | 35                
+  slug.ts          |   83.33 |       75 |     100 |      80 | 14                
+ ...ructure/prisma |   58.06 |    63.09 |   56.52 |   62.96 |                   
+  ...ory.prisma.ts |   72.72 |      100 |   57.14 |      70 | 12,23-26          
+  mappers.ts       |      75 |       60 |     100 |   66.66 | 6                 
+  ...ory.prisma.ts |       0 |        0 |       0 |       0 | 4-22              
+  ...ory.prisma.ts |   58.46 |    63.76 |   59.25 |   67.27 | ...96,238,257-261 
+  ...ory.prisma.ts |    62.5 |      100 |   57.14 |    62.5 | 9,18-21           
+ ...security-admin |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+ ...in/application |     100 |      100 |     100 |     100 |                   
+  ports.ts         |       0 |        0 |       0 |       0 |                   
+  use-cases.ts     |     100 |      100 |     100 |     100 |                   
+ ...ructure/prisma |   91.48 |       55 |   95.45 |   92.85 |                   
+  ...ory.prisma.ts |   91.48 |       55 |   95.45 |   92.85 | 15-23             
+ ...n/presentation |       0 |        0 |       0 |       0 |                   
+  dto.ts           |       0 |        0 |       0 |       0 | 27-35             
+ ...modules/shared |       0 |      100 |       0 |       0 |                   
+  result.ts        |       0 |      100 |       0 |       0 | 6-10              
+ .../site-settings |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+ ...gs/application |     100 |      100 |     100 |     100 |                   
+  ports.ts         |       0 |        0 |       0 |       0 |                   
+  use-cases.ts     |     100 |      100 |     100 |     100 |                   
+ ...ettings/domain |     100 |      100 |     100 |     100 |                   
+  constants.ts     |     100 |      100 |     100 |     100 |                   
+  index.ts         |       0 |        0 |       0 |       0 |                   
+ ...ructure/prisma |     100 |      100 |     100 |     100 |                   
+  ...ory.prisma.ts |     100 |      100 |     100 |     100 |                   
+ src/types         |       0 |        0 |       0 |       0 |                   
+  api.ts           |       0 |        0 |       0 |       0 |                   
+-------------------|---------|----------|---------|---------|-------------------
+ERROR: Coverage for branches (45.18%) does not meet global threshold (50%)
