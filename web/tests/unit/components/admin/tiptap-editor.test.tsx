@@ -52,7 +52,7 @@ vi.mock("@tiptap/react", () => ({
 }));
 
 vi.mock("@tiptap/starter-kit", () => ({ default: { configure: vi.fn() } }));
-vi.mock("tiptap-extension-resize-image", () => ({ Image: { configure: vi.fn() } }));
+vi.mock("tiptap-extension-resize-image", () => ({ default: { configure: vi.fn() } }));
 vi.mock("@tiptap/extension-link", () => ({ default: { configure: vi.fn() } }));
 vi.mock("@tiptap/extension-underline", () => ({ default: {} }));
 vi.mock("@tiptap/extension-text-align", () => ({ default: { configure: vi.fn() } }));
