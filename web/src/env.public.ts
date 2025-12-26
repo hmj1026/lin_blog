@@ -1,10 +1,13 @@
 import { z } from "zod";
 
+// 允許空字串，轉換為 undefined（用於 local storage 使用相對路徑）
+const optionalUrl = z.string().optional().transform((val) => (val === "" ? undefined : val)).pipe(z.string().url().optional());
+
 const publicEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "production"]).default("local"),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
-  NEXT_PUBLIC_UPLOAD_BASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_UPLOAD_BASE_URL: optionalUrl,
   NEXT_PUBLIC_GA_ID: z.string().optional(),
   NEXT_PUBLIC_GTM_ID: z.string().optional(),
   NEXT_PUBLIC_FB_PIXEL_ID: z.string().optional(),
