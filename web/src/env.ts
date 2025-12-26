@@ -1,6 +1,9 @@
 import "server-only";
 import { z } from "zod";
 
+// 允許空字串，轉換為 undefined（用於 local storage 使用相對路徑）
+const optionalUrl = z.string().optional().transform((val) => (val === "" ? undefined : val)).pipe(z.string().url().optional());
+
 const envSchema = z.object({
   // 環境識別
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -36,8 +39,8 @@ const envSchema = z.object({
   
   // 前端可見變數
   NEXT_PUBLIC_APP_ENV: z.enum(["local", "staging", "production"]).default("local"),
-  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
-  NEXT_PUBLIC_UPLOAD_BASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SITE_URL: optionalUrl,
+  NEXT_PUBLIC_UPLOAD_BASE_URL: optionalUrl,
 
   // Analytics
   NEXT_PUBLIC_GA_ID: z.string().optional(),
