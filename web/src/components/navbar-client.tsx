@@ -15,7 +15,9 @@ function NavLink({ href, label }: NavItem) {
     <Link
       href={href as never}
       className={`text-sm font-medium transition-colors ${
-        active ? "text-primary" : "text-base-300 hover:text-primary dark:text-base-600"
+        active 
+          ? "text-accent-600 dark:text-accent-400 font-semibold" 
+          : "text-base-300 hover:text-accent-600 dark:text-base-500 dark:hover:text-accent-400"
       }`}
     >
       {label}
@@ -161,7 +163,7 @@ export function NavbarClient({
         </button>
       </div>
       {open && (
-        <div className="border-t border-line bg-white/95 px-6 py-4 shadow-card lg:hidden dark:bg-base-100/95">
+        <div className="border-t border-line bg-white/95 backdrop-blur-md px-6 py-4 shadow-2xl lg:hidden dark:bg-neutral-900/95 dark:border-neutral-800">
           <div className="flex flex-col gap-4">
             {navItems.map((item) => (
               <NavLink key={item.href} {...item} />
