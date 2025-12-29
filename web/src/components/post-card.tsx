@@ -63,7 +63,7 @@ export function PostCard({ post, layout = "vertical" }: PostCardProps) {
       </div>
       
       {/* 內容區域 */}
-      <div className="flex flex-1 flex-col space-y-3 pt-4 md:pt-0">
+      <div className="flex flex-1 flex-col space-y-3 pt-4">
         {/* 分類 + 日期 + 閱讀時間 */}
         <div className="flex items-center gap-2 text-xs text-base-300 dark:text-base-500">
           <Badge variant="accent">{post.category}</Badge>
