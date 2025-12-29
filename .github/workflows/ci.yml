@@ -122,3 +122,4 @@ jobs:
         env:
           NEXTAUTH_SECRET: ci-build-secret-placeholder
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          NEXT_PUBLIC_SITE_URL: https://ci-build.example.com
