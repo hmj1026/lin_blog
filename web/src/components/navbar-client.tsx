@@ -59,9 +59,11 @@ function SearchInput() {
 export function NavbarClient({
   navItems,
   adminUser,
+  siteInfo,
 }: {
   navItems: NavItem[];
   adminUser: null | { email: string; roleName: string };
+  siteInfo?: { siteName?: string; tagline?: string };
 }) {
   const [open, setOpen] = useState(false);
   const adminInitial = adminUser?.email?.[0]?.toUpperCase() ?? "";
@@ -73,7 +75,7 @@ export function NavbarClient({
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 shadow-card backdrop-blur dark:bg-base-50">
       <div className="section-shell flex items-center justify-between py-4">
         <Link href="/" aria-label="返回首頁">
-          <Logo />
+          <Logo siteName={siteInfo?.siteName} tagline={siteInfo?.tagline} />
         </Link>
         <nav className={`hidden items-center ${navGap} lg:flex`}>
           {navItems.map((item) => (

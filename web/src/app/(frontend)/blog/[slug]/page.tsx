@@ -15,6 +15,7 @@ import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
 import { PostViewTracker } from "@/components/post-view-tracker";
 import { postsUseCases } from "@/modules/posts";
+import { siteSettingsUseCases } from "@/modules/site-settings";
 import { getSiteUrl } from "@/lib/utils/url";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
@@ -153,6 +154,15 @@ export async function generateMetadata({ params }: PostPageProps) {
     return { title: "文章不存在" };
   }
   
+  // 取得站點名稱
+  let siteName = "Lin Blog";
+  try {
+    const settings = await siteSettingsUseCases.getDefault();
+    if (settings?.siteName) siteName = settings.siteName;
+  } catch {
+    // 使用預設值
+  }
+  
   const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
   const title = post.seoTitle || post.title;
@@ -160,7 +170,7 @@ export async function generateMetadata({ params }: PostPageProps) {
   const image = post.ogImage || post.coverImage || `${siteUrl}/og-default.jpg`;
   
   return {
-    title: `${title} | Lin Blog`,
+    title: `${title} | ${siteName}`,
     description,
     openGraph: {
       title,
