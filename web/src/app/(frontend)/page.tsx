@@ -112,7 +112,7 @@ export default async function Home() {
         />
         <div className="grid gap-6 lg:grid-cols-2">
           {featuredPosts.map((post) => (
-            <PostCard key={post.slug} post={post} layout="horizontal" />
+            <PostCard key={post.slug} post={post} />
           ))}
         </div>
       </section>

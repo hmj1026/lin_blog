@@ -97,4 +97,33 @@ describe("NavbarClient", () => {
     // Initial: 1 (Desktop). After open: 2 (Desktop + Mobile).
     expect(screen.getAllByText("Blog")).toHaveLength(2);
   });
+
+  it("applies dark mode contrast classes to NavLink", () => {
+    const { container } = render(<NavbarClient navItems={mockNavItems} adminUser={null} />);
+    
+    // Find nav links (desktop nav)
+    const navLinks = container.querySelectorAll("nav a");
+    expect(navLinks.length).toBeGreaterThan(0);
+    
+    // Check that inactive links have dark mode contrast classes with accent hover
+    const blogLink = Array.from(navLinks).find(link => link.textContent === "Blog");
+    expect(blogLink).toBeInTheDocument();
+    // Inactive links should have dark:text-base-500 for better contrast
+    expect(blogLink?.className).toContain("dark:text-base-500");
+    expect(blogLink?.className).toContain("dark:hover:text-accent-400");
+  });
+
+  it("applies accent color to active NavLink", () => {
+    // Home is active since usePathname returns "/"
+    const { container } = render(<NavbarClient navItems={mockNavItems} adminUser={null} />);
+    
+    const navLinks = container.querySelectorAll("nav a");
+    const homeLink = Array.from(navLinks).find(link => link.textContent === "Home");
+    expect(homeLink).toBeInTheDocument();
+    // Active links should have accent color and semibold
+    expect(homeLink?.className).toContain("text-accent-600");
+    expect(homeLink?.className).toContain("dark:text-accent-400");
+    expect(homeLink?.className).toContain("font-semibold");
+  });
 });
+
