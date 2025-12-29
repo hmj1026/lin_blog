@@ -19,14 +19,26 @@ const display = Sen({
 });
 
 import { getSiteUrl } from "@/lib/utils/url";
+import { siteSettingsUseCases } from "@/modules/site-settings";
+
+// 預設值（當資料庫未設定時使用）
+const DEFAULT_SITE_NAME = "Lin Blog";
+const DEFAULT_SITE_TAGLINE = "內容策略、設計與社群洞察";
+const DEFAULT_SITE_DESCRIPTION = "以社群為核心的繁體中文部落格，分享內容策略、設計實務、Newsletter 與社群營運心法。";
 
 // 使用 generateMetadata 函數確保 metadataBase 在 runtime 動態評估
-// （避免 build time 靜態編譯導致使用 Dockerfile 預設值）
+// 並從資料庫讀取站點設定
 export async function generateMetadata(): Promise<Metadata> {
+  const settings = await siteSettingsUseCases.getDefault();
+  
+  const siteName = settings?.siteName || DEFAULT_SITE_NAME;
+  const tagline = settings?.siteTagline || DEFAULT_SITE_TAGLINE;
+  const description = settings?.siteDescription || DEFAULT_SITE_DESCRIPTION;
+  
   return {
     metadataBase: new URL(getSiteUrl()),
-    title: "Lin Blog | 內容策略、設計與社群洞察",
-    description: "以社群為核心的繁體中文部落格，分享內容策略、設計實務、Newsletter 與社群營運心法。",
+    title: `${siteName} | ${tagline}`,
+    description,
   };
 }
 
