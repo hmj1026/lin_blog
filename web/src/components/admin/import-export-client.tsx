@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export function ImportExportClient() {
   const router = useRouter();
@@ -72,20 +73,20 @@ export function ImportExportClient() {
         <h2 className="mb-4 font-semibold text-primary">匯出文章</h2>
         <p className="mb-4 text-sm text-base-300">將所有文章匯出為備份檔案。</p>
         <div className="flex gap-3">
-          <button
+          <Button
             onClick={() => handleExport("json")}
             disabled={exporting}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-card disabled:opacity-50"
+            variant="primary"
           >
             {exporting ? "匯出中..." : "匯出為 JSON"}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => handleExport("markdown")}
             disabled={exporting}
-            className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-primary shadow-card disabled:opacity-50"
+            variant="outline"
           >
             匯出為 Markdown
-          </button>
+          </Button>
         </div>
       </div>
 

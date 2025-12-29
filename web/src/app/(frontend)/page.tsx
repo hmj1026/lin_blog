@@ -3,9 +3,7 @@ import Link from "next/link";
 import { PostCard } from "@/components/post-card";
 import { SectionHeader } from "@/components/section-header";
 import { NewsletterForm } from "@/components/newsletter-form";
-import { ContactCard } from "@/components/contact-card";
 import { Badge } from "@/components/ui/badge";
-import { AuthorChip } from "@/components/author-chip";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsUseCases } from "@/modules/posts";
 import { siteSettingsUseCases } from "@/modules/site-settings";
@@ -29,9 +27,6 @@ export default async function Home() {
   const heroTitle = settings.heroTitle ?? "打造以「社群參與」為核心的內容體驗";
   const heroSubtitle = settings.heroSubtitle ?? "每篇文章都經過設計、敘事與互動的精修，讓讀者不只點擊，更願意分享、回訪與共創。在這裡，你會找到實戰框架、版型拆解與可直接複製的腳本。";
   const heroImage = settings.heroImage ?? "/images/hero-community.svg";
-  const statsArticles = settings.statsArticles ?? "120+";
-  const statsSubscribers = settings.statsSubscribers ?? "35K";
-  const statsRating = settings.statsRating ?? "4.8 ★";
 
   // 區塊標題（從 settings 讀取）
   const featuredTitle = settings.featuredTitle ?? "熱門精選：近期最受討論的文章";
@@ -40,8 +35,6 @@ export default async function Home() {
   const categoriesDesc = settings.categoriesDesc ?? "從策略到設計、從社群到執行，這些分類幫助你快速找到需要的工具與視角。";
   const latestTitle = settings.latestTitle ?? "最新文章";
   const latestDesc = settings.latestDesc ?? "每篇都附上可落地的步驟、檢查清單與案例，直接帶回你的團隊。";
-  const communityTitle = settings.communityTitle ?? "每週 AMA 與讀者共創";
-  const communityDesc = settings.communityDesc ?? "提交你的問題，或分享你的執行成果。精選會被收錄進下一篇案例拆解。";
 
   return (
     <div className="space-y-20">
@@ -101,7 +94,7 @@ export default async function Home() {
                   FEATURED STORY
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-                  <Badge label="社群" tone="accent" />
+                  <Badge variant="accent">社群</Badge>
                   <span>讓讀者參與共創，形成內容飛輪</span>
                 </div>
               </div>
@@ -187,7 +180,7 @@ export default async function Home() {
                   className="flex flex-col gap-2 rounded-2xl border border-line bg-base-50/70 p-4 transition hover:border-accent-500/50 dark:bg-base-75/70"
                 >
                   <div className="flex items-center justify-between text-xs text-base-300 dark:text-base-600">
-                    <Badge label={post.category} />
+                    <Badge>{post.category}</Badge>
                     <span>{post.date}</span>
                   </div>
                   <Link

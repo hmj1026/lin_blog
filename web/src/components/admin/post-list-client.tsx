@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { Button, buttonStyles } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/lib/format";
 
 type Post = {
   id: string;
@@ -11,6 +14,7 @@ type Post = {
   status: string;
   featured: boolean;
   updatedAt: string;
+  publishedAt: string | null;
   categories: { name: string }[];
   tags: { name: string }[];
 };
@@ -114,10 +118,7 @@ export function PostListClient({ posts }: PostListClientProps) {
             className="rounded-xl border border-line bg-white px-4 py-2 text-sm text-primary placeholder:text-base-300 focus:border-primary focus:outline-none"
           />
         </div>
-        <Link
-          href="/admin/posts/new"
-          className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-card"
-        >
+        <Link href="/admin/posts/new" className={buttonStyles({ variant: "primary" })}>
           新增文章
         </Link>
       </div>
@@ -129,34 +130,38 @@ export function PostListClient({ posts }: PostListClientProps) {
             已選取 {selected.size} 篇文章
           </span>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               onClick={() => handleBatch("publish")}
               disabled={loading}
-              className="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              variant="outline"
+              size="sm"
             >
               批次發佈
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleBatch("draft")}
               disabled={loading}
-              className="rounded-full bg-base-300 px-3 py-1 text-xs font-semibold text-white hover:bg-base-400 disabled:opacity-50"
+              variant="secondary"
+              size="sm"
             >
               設為草稿
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleBatch("delete")}
               disabled={loading}
-              className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              variant="danger"
+              size="sm"
             >
               批次刪除
-            </button>
+            </Button>
           </div>
-          <button
+          <Button
             onClick={() => setSelected(new Set())}
-            className="ml-auto text-sm text-base-300 hover:text-primary"
+            variant="ghost"
+            size="sm"
           >
             取消選取
-          </button>
+          </Button>
         </div>
       )}
 
@@ -177,6 +182,7 @@ export function PostListClient({ posts }: PostListClientProps) {
               <th className="px-4 py-3">標題</th>
               <th className="px-4 py-3">分類 / 標籤</th>
               <th className="px-4 py-3">狀態</th>
+              <th className="px-4 py-3">發布時間</th>
               <th className="px-4 py-3">更新時間</th>
               <th className="px-4 py-3">動作</th>
             </tr>
@@ -209,35 +215,39 @@ export function PostListClient({ posts }: PostListClientProps) {
                   {post.categories.map((c) => c.name).join("、")} / {post.tags.map((t) => t.name).join("、")}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    post.status === "PUBLISHED" 
-                      ? "bg-green-100 text-green-700" 
-                      : post.status === "SCHEDULED"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-base-100 text-primary"
-                  }`}>
+                  <Badge variant={post.status === "PUBLISHED" ? "success" : post.status === "SCHEDULED" ? "info" : "default"}>
                     {post.status === "PUBLISHED" ? "已發佈" : post.status === "SCHEDULED" ? "已排程" : "草稿"}
-                  </span>
+                  </Badge>
+                </td>
+                <td className="px-4 py-3 text-base-300">
+                  {post.publishedAt ? formatDateTime(new Date(post.publishedAt)) : "未發布"}
                 </td>
                 <td className="px-4 py-3 text-base-300">
                   {formatDateTime(new Date(post.updatedAt))}
                 </td>
-                <td className="px-4 py-3 flex items-center gap-2">
-                  <button
-                    onClick={() => window.open(`/blog/${post.slug}?preview=1`, "_blank", "noopener,noreferrer")}
-                    className="text-sm font-semibold text-base-300 hover:text-primary"
-                  >
-                    預覽
-                  </button>
-                  <Link href={`/admin/posts/${post.id}`} className="text-sm font-semibold text-accent-600">
-                    編輯
-                  </Link>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`/blog/${post.slug}?preview=1`, "_blank", "noopener,noreferrer")}
+                    >
+                      預覽
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => window.location.href = `/admin/posts/${post.id}`}
+                    >
+                      編輯
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
             {filteredPosts.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-base-300">
+                <td colSpan={8} className="px-4 py-6 text-center text-base-300">
                   {search ? "找不到符合的文章" : "目前沒有文章，建立一篇吧。"}
                 </td>
               </tr>
@@ -247,18 +257,4 @@ export function PostListClient({ posts }: PostListClientProps) {
       </div>
     </div>
   );
-}
-
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function formatDateTime(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = pad2(date.getMonth() + 1);
-  const dd = pad2(date.getDate());
-  const hh = pad2(date.getHours());
-  const mi = pad2(date.getMinutes());
-  const ss = pad2(date.getSeconds());
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 }

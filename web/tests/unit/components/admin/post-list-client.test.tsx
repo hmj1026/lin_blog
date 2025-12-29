@@ -29,6 +29,7 @@ const mockPosts = [
     status: "PUBLISHED",
     featured: true,
     updatedAt: "2023-01-01T10:00:00Z",
+    publishedAt: "2023-01-01T09:00:00Z",
     categories: [{ name: "Tech" }],
     tags: [{ name: "React" }],
   },
@@ -39,6 +40,7 @@ const mockPosts = [
     status: "DRAFT",
     featured: false,
     updatedAt: "2023-01-02T10:00:00Z",
+    publishedAt: null,
     categories: [],
     tags: [],
   },
@@ -57,6 +59,15 @@ describe("PostListClient", () => {
     expect(screen.getByText("Post Two")).toBeInTheDocument();
     expect(screen.getByText("已發佈")).toBeInTheDocument();
     expect(screen.getByText("草稿")).toBeInTheDocument();
+  });
+
+  it("displays published date for published posts and '未發布' for drafts", () => {
+    render(<PostListClient posts={mockPosts as any} />);
+    // 已發布文章應顯示發布時間
+    expect(screen.getByText("發布時間")).toBeInTheDocument(); // 欄位標題
+    expect(screen.getByText(/2023-01-01 17:00/)).toBeInTheDocument(); // UTC+8
+    // 草稿文章應顯示「未發布」
+    expect(screen.getByText("未發布")).toBeInTheDocument();
   });
 
   it("filters posts by title", async () => {

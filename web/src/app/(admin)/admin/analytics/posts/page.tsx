@@ -3,6 +3,9 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
 import { analyticsUseCases } from "@/modules/analytics";
+import { buttonStyles } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/format";
+import { DaysFilter } from "@/components/admin/days-filter";
 
 type Props = { searchParams?: Promise<{ days?: string }> };
 
@@ -22,26 +25,7 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-3xl text-primary">文章統計</h1>
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Link
-            href="/admin/analytics/posts?days=7"
-            className={`rounded-full border px-4 py-2 ${safeDays === 7 ? "border-primary bg-primary text-white" : "border-line bg-white text-primary"}`}
-          >
-            7 天
-          </Link>
-          <Link
-            href="/admin/analytics/posts?days=30"
-            className={`rounded-full border px-4 py-2 ${safeDays === 30 ? "border-primary bg-primary text-white" : "border-line bg-white text-primary"}`}
-          >
-            30 天
-          </Link>
-          <Link
-            href="/admin/analytics/posts?days=90"
-            className={`rounded-full border px-4 py-2 ${safeDays === 90 ? "border-primary bg-primary text-white" : "border-line bg-white text-primary"}`}
-          >
-            90 天
-          </Link>
-        </div>
+        <DaysFilter baseUrl="/admin/analytics/posts" currentDays={safeDays} />
       </div>
 
       <div className="rounded-2xl border border-line bg-white p-6 shadow-card">
@@ -68,24 +52,24 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
                   <td className="px-4 py-3 font-semibold text-primary">{row.uniqueCount}</td>
                   <td className="px-4 py-3 text-base-300">{formatDateTime(row.lastViewedAt)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <a
-                        href={`/blog/${encodeURIComponent(row.slug)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-accent-600"
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a
+                      href={`/blog/${encodeURIComponent(row.slug)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={buttonStyles({ variant: "outline", size: "sm" })}
+                    >
+                      開前台
+                    </a>
+                    {canViewSensitive && (
+                      <Link
+                        href={`/admin/analytics/posts/${row.postId}?days=${safeDays}`}
+                        className={buttonStyles({ variant: "secondary", size: "sm" })}
                       >
-                        開前台
-                      </a>
-                      {canViewSensitive && (
-                        <Link
-                          href={`/admin/analytics/posts/${row.postId}?days=${safeDays}`}
-                          className="text-sm font-semibold text-primary"
-                        >
-                          查看事件
-                        </Link>
-                      )}
-                    </div>
+                        查看事件
+                      </Link>
+                    )}
+                  </div>
                   </td>
                 </tr>
               ))}
@@ -102,18 +86,4 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
       </div>
     </div>
   );
-}
-
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function formatDateTime(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = pad2(date.getMonth() + 1);
-  const dd = pad2(date.getDate());
-  const hh = pad2(date.getHours());
-  const mi = pad2(date.getMinutes());
-  const ss = pad2(date.getSeconds());
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
 }

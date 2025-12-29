@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 type Upload = {
   id: string;
@@ -146,19 +147,21 @@ export function MediaLibraryClient() {
 
               {/* 操作按鈕 */}
               <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition group-hover:opacity-100">
-                <button
+                <Button
                   onClick={() => navigator.clipboard.writeText(upload.src)}
-                  className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-primary shadow"
+                  variant="secondary"
+                  size="sm"
                 >
                   複製連結
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => handleDelete(upload.id)}
                   disabled={deleting === upload.id}
-                  className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white shadow disabled:opacity-50"
+                  variant="danger"
+                  size="sm"
                 >
                   {deleting === upload.id ? "刪除中..." : "刪除"}
-                </button>
+                </Button>
               </div>
             </div>
           ))}

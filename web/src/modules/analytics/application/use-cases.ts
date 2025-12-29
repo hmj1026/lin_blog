@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { AnalyticsRepository, ListPostViewEventsFilter } from "./ports";
-import { clampInt, detectDeviceType, isBotUserAgent, type DeviceType } from "../domain";
+import { clampInt, detectDeviceType, isBotUserAgent, parseSimpleUA, type DeviceType } from "../domain";
 
 export type AnalyticsUseCases = ReturnType<typeof createAnalyticsUseCases>;
 
@@ -10,27 +10,6 @@ const RECENT_FINGERPRINT_WINDOW_MS = 30 * 60 * 1000;
 const TOP_POSTS_LIMIT = 10;
 
 export function createAnalyticsUseCases(deps: { analytics: AnalyticsRepository }) {
-  function parseSimpleUA(ua: string) {
-    const lower = ua.toLowerCase();
-    let browser = "Other";
-    let os = "Other";
-
-    if (lower.includes("windows")) os = "Windows";
-    else if (lower.includes("mac os")) os = "macOS";
-    else if (lower.includes("android")) os = "Android";
-    else if (lower.includes("iphone") || lower.includes("ipad") || lower.includes("ipod")) os = "iOS";
-    else if (lower.includes("linux")) os = "Linux";
-
-    if (lower.includes("edg/")) browser = "Edge";
-    else if (lower.includes("chrome/") && !lower.includes("edg/")) browser = "Chrome";
-    else if (lower.includes("firefox/")) browser = "Firefox";
-    else if (lower.includes("safari/") && !lower.includes("chrome/") && !lower.includes("edg/")) browser = "Safari";
-    else if (lower.includes("trident/") || lower.includes("msie ")) browser = "IE";
-    else if (lower.includes("bot") || lower.includes("crawler") || lower.includes("spider")) browser = "Bot";
-
-    return { browser, os };
-  }
-
   return {
     listPostAnalyticsSummary: async (params: { days: number }) => {
       const safeDays = clampInt(params.days, 1, 90);

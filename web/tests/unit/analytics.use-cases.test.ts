@@ -180,9 +180,12 @@ describe("analytics use cases", () => {
         topPosts: [],
         devices: [],
         userAgents: [
-          { userAgent: "Mozilla/5.0 (Windows NT 10.0) AppleWebKit Chrome/100", count: 10 },
-          { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/605", count: 5 },
-          { userAgent: "Mozilla/5.0 (Linux; Android) Chrome/100", count: 3 },
+          // 完整的 Chrome on Windows UA
+          { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", count: 10 },
+          // 完整的 Safari on macOS UA
+          { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15", count: 5 },
+          // 完整的 Chrome on Android UA
+          { userAgent: "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", count: 3 },
         ],
       });
       const result = await useCases.getDashboardStats({ days: 7 });

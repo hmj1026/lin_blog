@@ -2,14 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { type ApiResponse, parseApiResponse } from "@/lib/api-client";
 
 type Permission = { key: string; name: string };
 type RoleRow = { id: string; key: string; name: string; permissionKeys: string[] };
-type ApiResponse<T> = { success: true; data: T } | { success: false; message?: string; data?: null };
-
-async function parseJson<T>(res: Response): Promise<ApiResponse<T>> {
-  return (await res.json()) as ApiResponse<T>;
-}
 
 function uniq(values: string[]) {
   return Array.from(new Set(values));
@@ -37,7 +33,7 @@ export function RoleAdminClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: "NEW_ROLE", name: "新角色", permissionKeys: [] }),
       });
-      const json = await parseJson<RoleRow>(res);
+      const json = await parseApiResponse<RoleRow>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
       setRoles((prev) => [json.data, ...prev]);
       setMessage("已新增");
@@ -62,7 +58,7 @@ export function RoleAdminClient({
           permissionKeys: uniq(role.permissionKeys),
         }),
       });
-      const json = await parseJson<RoleRow>(res);
+      const json = await parseApiResponse<RoleRow>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "儲存失敗" : "儲存失敗");
       setRoles((prev) => prev.map((r) => (r.id === role.id ? json.data : r)));
       setMessage("已儲存");
@@ -78,7 +74,7 @@ export function RoleAdminClient({
     setMessage(null);
     try {
       const res = await fetch(`/api/roles/${id}`, { method: "DELETE" });
-      const json = await parseJson<{ ok: boolean }>(res);
+      const json = await parseApiResponse<{ ok: boolean }>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "刪除失敗" : "刪除失敗");
       setRoles((prev) => prev.filter((r) => r.id !== id));
       setMessage("已刪除");
@@ -126,7 +122,7 @@ export function RoleAdminClient({
                 <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => save(role)}>
                   儲存
                 </Button>
-                <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => remove(role.id)}>
+                <Button type="button" size="sm" variant="danger" disabled={saving} onClick={() => remove(role.id)}>
                   刪除
                 </Button>
               </div>

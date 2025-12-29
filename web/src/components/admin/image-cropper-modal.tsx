@@ -164,11 +164,11 @@ export function ImageCropperModal({
               </div>
               <input
                 type="range"
-                min={1}
+                min={0.5}
                 max={3}
                 step={0.01}
                 value={zoom}
-                onChange={(e) => setZoom(clamp(Number(e.target.value), 1, 3))}
+                onChange={(e) => setZoom(clamp(Number(e.target.value), 0.5, 3))}
                 className="mt-3 w-full"
               />
             </div>
