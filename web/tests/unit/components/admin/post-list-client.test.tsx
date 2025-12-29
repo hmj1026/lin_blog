@@ -65,7 +65,10 @@ describe("PostListClient", () => {
     render(<PostListClient posts={mockPosts as any} />);
     // 已發布文章應顯示發布時間
     expect(screen.getByText("發布時間")).toBeInTheDocument(); // 欄位標題
-    expect(screen.getByText(/2023-01-01 17:00/)).toBeInTheDocument(); // UTC+8
+    // 發布和更新時間都會顯示日期，用 getAllByText 匹配
+    // 避免時區差異問題 (CI 使用 UTC，本地可能用 UTC+8)
+    const dateElements = screen.getAllByText(/2023-01-0[12] \d{2}:00:\d{2}/);
+    expect(dateElements.length).toBeGreaterThan(0);
     // 草稿文章應顯示「未發布」
     expect(screen.getByText("未發布")).toBeInTheDocument();
   });
