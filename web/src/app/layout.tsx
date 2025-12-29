@@ -20,11 +20,15 @@ const display = Sen({
 
 import { getSiteUrl } from "@/lib/utils/url";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(getSiteUrl()),
-  title: "Lin Blog | 內容策略、設計與社群洞察",
-  description: "以社群為核心的繁體中文部落格，分享內容策略、設計實務、Newsletter 與社群營運心法。",
-};
+// 使用 generateMetadata 函數確保 metadataBase 在 runtime 動態評估
+// （避免 build time 靜態編譯導致使用 Dockerfile 預設值）
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase: new URL(getSiteUrl()),
+    title: "Lin Blog | 內容策略、設計與社群洞察",
+    description: "以社群為核心的繁體中文部落格，分享內容策略、設計實務、Newsletter 與社群營運心法。",
+  };
+}
 
 export default function RootLayout({
   children,
