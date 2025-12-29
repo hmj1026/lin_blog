@@ -13,6 +13,7 @@ export async function Footer() {
 
   // 動態值預設
   let siteName = "Lin Blog";
+  let siteTagline = "內容．社群．設計";
   let siteDescription = "分享以社群為中心的內容策略、設計實務與 Newsletter 心法，讓每一篇文章都能啟動對話與行動。";
   let contactEmail = "hello@lin.blog";
   let copyrightText = "以內容連結社群";
@@ -26,6 +27,7 @@ export async function Footer() {
     // 使用資料庫設定或預設值
     if (settings) {
       siteName = settings.siteName || siteName;
+      siteTagline = settings.siteTagline || siteTagline;
       siteDescription = settings.siteDescription || siteDescription;
       contactEmail = settings.contactEmail || contactEmail;
       copyrightText = settings.copyrightText || copyrightText;
@@ -48,7 +50,7 @@ export async function Footer() {
     <footer className="mt-20 border-t border-line bg-white/90 backdrop-blur dark:bg-base-100">
       <div className="section-shell grid gap-12 py-12 md:grid-cols-[1.2fr_1fr_1fr]">
         <div className="space-y-4">
-          <Logo />
+          <Logo siteName={siteName} tagline={siteTagline} />
           <p className="text-sm text-base-300 dark:text-base-600">
             {siteDescription}
           </p>
