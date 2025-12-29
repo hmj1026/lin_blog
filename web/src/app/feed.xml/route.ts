@@ -1,9 +1,9 @@
 import { postsUseCases } from "@/modules/posts";
-import { publicEnv } from "@/env.public";
+import { getSiteUrl } from "@/lib/utils/url";
 
 export async function GET() {
   const posts = await postsUseCases.listPublishedPosts({ take: 20 });
-  const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = getSiteUrl();
   const now = new Date().toUTCString();
 
   const rssItems = posts

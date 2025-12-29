@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
 import { postsUseCases } from "@/modules/posts";
+import { formatLocalDateTimeInput } from "@/lib/format";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -45,18 +46,4 @@ export default async function AdminPostEditPage({ params }: Props) {
       }}
     />
   );
-}
-
-function pad2(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-function formatLocalDateTimeInput(date: Date) {
-  const yyyy = date.getFullYear();
-  const mm = pad2(date.getMonth() + 1);
-  const dd = pad2(date.getDate());
-  const hh = pad2(date.getHours());
-  const mi = pad2(date.getMinutes());
-  const ss = pad2(date.getSeconds());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`;
 }

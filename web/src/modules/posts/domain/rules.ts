@@ -1,5 +1,4 @@
 import type { PostStatus } from "./post-status";
-import { Post } from "./post";
 
 /**
  * 判斷文章是否可被閱讀

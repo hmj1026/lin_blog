@@ -33,7 +33,7 @@ export function PostCard({ post, layout = "vertical" }: PostCardProps) {
       </div>
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-xs text-base-300 dark:text-base-600">
-          <Badge label={post.category} tone="accent" />
+          <Badge variant="accent">{post.category}</Badge>
           <span>{post.date}</span>
           <span aria-hidden>•</span>
           <span>{post.readingTime}</span>

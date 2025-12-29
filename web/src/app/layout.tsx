@@ -18,10 +18,10 @@ const display = Sen({
   display: "swap",
 });
 
-import { publicEnv } from "@/env.public";
+import { getSiteUrl } from "@/lib/utils/url";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(publicEnv.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  metadataBase: new URL(getSiteUrl()),
   title: "Lin Blog | 內容策略、設計與社群洞察",
   description: "以社群為核心的繁體中文部落格，分享內容策略、設計實務、Newsletter 與社群營運心法。",
 };

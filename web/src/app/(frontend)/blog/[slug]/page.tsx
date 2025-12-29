@@ -15,7 +15,7 @@ import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
 import { PostViewTracker } from "@/components/post-view-tracker";
 import { postsUseCases } from "@/modules/posts";
-import { publicEnv } from "@/env.public";
+import { getSiteUrl } from "@/lib/utils/url";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
   const related = relatedRaw.map(toFrontendPost);
   const contentHtml = sanitizeAndPrepareHtml(post.content);
   const analyticsSource: "frontend" | "preview" = preview || post.status !== "PUBLISHED" ? "preview" : "frontend";
-  const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
 
   return (
@@ -57,7 +57,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
           <div className="section-shell grid gap-8 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3 text-xs text-base-300 dark:text-amber-200/50">
-                <Badge label={postView.category} tone="accent" className="dark:bg-[#4a3f38] dark:text-amber-200 dark:border dark:border-[#5a4d44]" />
+                <Badge variant="accent" className="dark:bg-[#4a3f38] dark:text-amber-200 dark:border dark:border-[#5a4d44]">{postView.category}</Badge>
                 <span>{postView.date}</span>
                 <span aria-hidden>•</span>
                 <span>{postView.readingTime}</span>
@@ -153,7 +153,7 @@ export async function generateMetadata({ params }: PostPageProps) {
     return { title: "文章不存在" };
   }
   
-  const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
   const title = post.seoTitle || post.title;
   const description = post.seoDescription || post.excerpt;

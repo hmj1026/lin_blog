@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { type ApiResponse, parseApiResponse } from "@/lib/api-client";
 
 type Row = {
   id: string;
@@ -12,12 +13,6 @@ type Row = {
   roleName: string;
   deletedAt: string | null;
 };
-
-type ApiResponse<T> = { success: true; data: T } | { success: false; message?: string; data?: null };
-
-async function parseJson<T>(res: Response): Promise<ApiResponse<T>> {
-  return (await res.json()) as ApiResponse<T>;
-}
 
 export function UserAdminClient({
   initialUsers,
@@ -57,7 +52,7 @@ export function UserAdminClient({
           password: newPassword,
         }),
       });
-      const json = await parseJson<Row>(res);
+      const json = await parseApiResponse<Row>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
       setRows((prev) => [json.data, ...prev]);
       setNewEmail("");
@@ -89,7 +84,7 @@ export function UserAdminClient({
           password: password?.trim() ? password.trim() : undefined,
         }),
       });
-      const json = await parseJson<Row>(res);
+      const json = await parseApiResponse<Row>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "更新失敗" : "更新失敗");
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...json.data } : r)));
       setMessage("已更新");
@@ -105,7 +100,7 @@ export function UserAdminClient({
     setMessage(null);
     try {
       const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
-      const json = await parseJson<Row>(res);
+      const json = await parseApiResponse<Row>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "刪除失敗" : "刪除失敗");
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, deletedAt: new Date().toISOString() } : r)));
       setMessage("已刪除");
@@ -252,7 +247,7 @@ function UserRow({
           >
             儲存
           </Button>
-          <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={onDelete}>
+          <Button type="button" size="sm" variant="danger" disabled={saving} onClick={onDelete}>
             刪除
           </Button>
         </div>

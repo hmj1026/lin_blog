@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { type ApiResponse, parseApiResponse } from "@/lib/api-client";
 
 type Row = {
   id: string;
@@ -11,12 +12,6 @@ type Row = {
   navOrder: number;
   deletedAt: string | null;
 };
-
-type ApiResponse<T> = { success: true; data: T } | { success: false; message?: string; data?: null };
-
-async function parseJson<T>(res: Response): Promise<ApiResponse<T>> {
-  return (await res.json()) as ApiResponse<T>;
-}
 
 export function CategoryAdminClient({ initialCategories }: { initialCategories: Row[] }) {
   const [rows, setRows] = useState<Row[]>(initialCategories);
@@ -39,7 +34,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: newSlug.trim(), name: newName.trim(), showInNav: false, navOrder: 0 }),
       });
-      const json = await parseJson<Row>(res);
+      const json = await parseApiResponse<Row>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
       setRows((prev) => [{ ...json.data, deletedAt: null }, ...prev]);
       setNewSlug("");
@@ -64,7 +59,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: row.slug, name: row.name, showInNav: row.showInNav, navOrder: row.navOrder }),
       });
-      const json = await parseJson<Row>(res);
+      const json = await parseApiResponse<Row>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "更新失敗" : "更新失敗");
       setMessage("已更新");
     } catch (error: unknown) {
@@ -79,7 +74,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
     setMessage(null);
     try {
       const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
-      const json = await parseJson<Row>(res);
+      const json = await parseApiResponse<Row>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "刪除失敗" : "刪除失敗");
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, deletedAt: new Date().toISOString() } : r)));
       setMessage("已刪除");
@@ -173,7 +168,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
                     <Button type="button" size="sm" variant="secondary" disabled={saving} onClick={() => update(row)}>
                       儲存
                     </Button>
-                    <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => remove(row.id)}>
+                    <Button type="button" size="sm" variant="danger" disabled={saving} onClick={() => remove(row.id)}>
                       刪除
                     </Button>
                   </div>
