@@ -29,7 +29,14 @@ const DEFAULT_SITE_DESCRIPTION = "以社群為核心的繁體中文部落格，�
 // 使用 generateMetadata 函數確保 metadataBase 在 runtime 動態評估
 // 並從資料庫讀取站點設定
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = await siteSettingsUseCases.getDefault();
+  let settings;
+  
+  try {
+    settings = await siteSettingsUseCases.getDefault();
+  } catch (error) {
+    // 忽略錯誤（例如 DB 連線失敗），使用預設值
+    console.warn("Failed to fetch site settings for metadata:", error);
+  }
   
   const siteName = settings?.siteName || DEFAULT_SITE_NAME;
   const tagline = settings?.siteTagline || DEFAULT_SITE_TAGLINE;

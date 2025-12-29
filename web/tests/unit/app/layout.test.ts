@@ -74,6 +74,31 @@ describe("layout generateMetadata", () => {
     });
   });
 
+  describe("當資料庫拋出錯誤時", () => {
+    it("捕捉錯誤並使用預設值", async () => {
+      const { siteSettingsUseCases } = await import("@/modules/site-settings");
+      // 模擬 DB 連線失敗
+      (siteSettingsUseCases.getDefault as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("DB Connection Failed"));
+      
+      // 監聽 console.warn 以避免測試輸出雜訊，並驗證是否被呼叫
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const { generateMetadata } = await import("@/app/layout");
+      const metadata = await generateMetadata() as Metadata;
+
+      // 驗證是否使用了預設值
+      expect(metadata.title).toBe("Lin Blog | 內容策略、設計與社群洞察");
+      
+      // 驗證錯誤有被捕捉並記錄
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Failed to fetch site settings for metadata:", 
+        expect.any(Error)
+      );
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe("當部分設定為 null 時", () => {
     it("對缺失欄位使用預設值", async () => {
       const { siteSettingsUseCases } = await import("@/modules/site-settings");
