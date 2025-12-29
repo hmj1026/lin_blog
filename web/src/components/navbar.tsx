@@ -36,6 +36,10 @@ export async function Navbar() {
             ? { email: session.user.email, roleName: session.user.roleName ?? session.user.roleKey ?? "" }
             : null
         }
+        siteInfo={{
+          siteName: settings?.siteName ?? undefined,
+          tagline: settings?.siteTagline ?? undefined,
+        }}
       />
     );
   } catch {
