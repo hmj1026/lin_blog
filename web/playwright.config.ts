@@ -24,5 +24,10 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    env: {
+      NEXT_PUBLIC_GA_ID: "G-TEST123",
+      NEXT_PUBLIC_GTM_ID: "GTM-TEST123",
+      NEXT_PUBLIC_FB_PIXEL_ID: "1234567890",
+    },
   },
 });
