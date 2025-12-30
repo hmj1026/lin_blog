@@ -208,12 +208,9 @@ npx vitest run --coverage
 
 | 類別 | 測試數量 |
 |------|----------|
-| Use Cases | 56 |
-| Domain | 9 |
-| Validations | 25 |
-| Repositories | 20 |
-| Utilities | 62 |
-| **總計** | **172** |
+| Unit Tests | 643 |
+| E2E Tests | 20+ |
+| **總計** | **660+** |
 
 ---
 
