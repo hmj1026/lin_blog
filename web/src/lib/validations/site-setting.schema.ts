@@ -37,6 +37,15 @@ export const siteSettingSchema = z.object({
   showContact: z.boolean().optional(),
   contactTitle: z.string().nullish(),
   contactDesc: z.string().nullish(),
+  // Social Platforms
+  showFacebook: z.boolean().optional(),
+  facebookUrl: z.string().url().nullish().or(z.literal("")),
+  showInstagram: z.boolean().optional(),
+  instagramUrl: z.string().url().nullish().or(z.literal("")),
+  showThreads: z.boolean().optional(),
+  threadsUrl: z.string().url().nullish().or(z.literal("")),
+  showLine: z.boolean().optional(),
+  lineUrl: z.string().url().nullish().or(z.literal("")),
 });
 
 export type SiteSettingInput = z.infer<typeof siteSettingSchema>;

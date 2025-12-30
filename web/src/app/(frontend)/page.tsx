@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PostCard } from "@/components/post-card";
 import { SectionHeader } from "@/components/section-header";
 import { NewsletterForm } from "@/components/newsletter-form";
+import { ContactCard } from "@/components/contact-card";
 import { Badge } from "@/components/ui/badge";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsUseCases } from "@/modules/posts";
@@ -164,40 +165,12 @@ export default async function Home() {
         </section>
       )}
 
-      {/* Community & Contact Section - 暫時隱藏
-      <section className="section-shell space-y-8">
-        <div className={`grid gap-6 lg:items-center ${settings.showContact ? "lg:grid-cols-[1.1fr_0.9fr]" : ""}`}>
-          <div className="space-y-4 rounded-3xl border border-line bg-white p-8 shadow-soft dark:bg-base-100">
-            <SectionHeader
-              eyebrow="Community"
-              title={communityTitle}
-              description={communityDesc}
-            />
-            <div className="space-y-3">
-              {latestPosts.slice(0, 3).map((post) => (
-                <div
-                  key={post.slug}
-                  className="flex flex-col gap-2 rounded-2xl border border-line bg-base-50/70 p-4 transition hover:border-accent-500/50 dark:bg-base-75/70"
-                >
-                  <div className="flex items-center justify-between text-xs text-base-300 dark:text-base-600">
-                    <Badge>{post.category}</Badge>
-                    <span>{post.date}</span>
-                  </div>
-                  <Link
-                    href={`/blog/${post.slug}`}
-                    className="font-semibold text-primary transition hover:text-accent-600"
-                  >
-                    {post.title}
-                  </Link>
-                  <p className="text-sm text-base-300 dark:text-base-600 line-clamp-2">{post.excerpt}</p>
-                  <AuthorChip author={post.author} />
-                </div>
-              ))}
-            </div>
-          </div>
-          {settings.showContact && <ContactCard socialLinks={settings} />}
-        </div>
-      </section>
+      {/* Contact Section - 已移至 Footer 顯示社群連結
+      {settings.showContact && (
+        <section className="section-shell">
+          <ContactCard socialLinks={settings} />
+        </section>
+      )}
       */}
     </div>
   );
