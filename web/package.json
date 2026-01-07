@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
+    "@floating-ui/dom": "^1.7.4",
     "@google-cloud/storage": "^7.18.0",
     "@next/third-parties": "^16.1.1",
     "@prisma/client": "^5.22.0",
@@ -31,6 +32,7 @@
     "@tiptap/react": "^3.13.0",
     "@tiptap/starter-kit": "^3.13.0",
     "@types/sharp": "^0.31.1",
+    "cheerio": "^1.1.2",
     "class-variance-authority": "^0.7.0",
     "lucide-react": "^0.562.0",
     "next": "^15.5.9",
