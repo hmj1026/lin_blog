@@ -23,6 +23,7 @@ vi.mock("@/lib/rbac", () => ({
 }));
 
 vi.mock("@/lib/utils/content", () => ({
+  prepareContent: (html: string) => ({ html: `Sanitized: ${html}`, tocItems: [] }),
   sanitizeAndPrepareHtml: (html: string) => `Sanitized: ${html}`,
 }));
 

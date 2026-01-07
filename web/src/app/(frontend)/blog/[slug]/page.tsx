@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 // import { NewsletterForm } from "@/components/newsletter-form";
 import { PostCard } from "@/components/post-card";
 import { Toc } from "@/components/toc";
+import { InlineToc } from "@/components/inline-toc";
 import { ReadingProgress } from "@/components/reading-progress";
 import { ShareButtons } from "@/components/share-buttons";
-import { sanitizeAndPrepareHtml } from "@/lib/utils/content";
+import { prepareContent } from "@/lib/utils/content";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
@@ -44,7 +45,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
 
   const postView = toFrontendPost(post);
   const related = relatedRaw.map(toFrontendPost);
-  const contentHtml = sanitizeAndPrepareHtml(post.content);
+  const { html: contentHtml, tocItems } = prepareContent(post.content);
   const analyticsSource: "frontend" | "preview" = preview || post.status !== "PUBLISHED" ? "preview" : "frontend";
   const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
@@ -82,10 +83,12 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
         </header>
 
         <section className="section-shell grid gap-12 lg:grid-cols-[1fr_280px]">
-          <div
-            className="wysiwyg rounded-3xl border border-line bg-white p-8 shadow-card dark:bg-base-100"
-            dangerouslySetInnerHTML={{ __html: contentHtml }}
-          />
+          <div className="wysiwyg rounded-3xl border border-line bg-white p-8 shadow-card dark:bg-base-100">
+            {/* 內嵌目錄索引區塊 */}
+            <InlineToc items={tocItems} />
+            {/* 文章內容 */}
+            <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
+          </div>
           <aside className="space-y-6">
             {/* TOC 目錄導航 */}
             <div className="hidden lg:block">

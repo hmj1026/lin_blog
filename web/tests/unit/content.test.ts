@@ -32,4 +32,19 @@ describe("sanitizeAndPrepareHtml", () => {
     const out = sanitizeAndPrepareHtml(html);
     expect(out).toContain(`src="https://cdn.example.com/uploads/a.png"`);
   });
+
+  it("adds IDs to headings without ID", () => {
+    const html = `<h2>Introduction</h2><h3>Details</h3>`;
+    const out = sanitizeAndPrepareHtml(html);
+    expect(out).toContain('id="toc-0"');
+    expect(out).toContain('id="toc-1"');
+  });
+
+  it("preserves existing heading IDs", () => {
+    const html = `<h2 id="custom">Title</h2>`;
+    const out = sanitizeAndPrepareHtml(html);
+    expect(out).toContain('id="custom"');
+    expect(out).not.toContain('id="toc-');
+  });
 });
+
