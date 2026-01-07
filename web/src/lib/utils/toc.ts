@@ -34,9 +34,7 @@ export function processHeadings(html: string): {
 } {
   if (!html) return { html: "", items: [] };
 
-  const $ = cheerio.load(html, {
-    decodeEntities: true, // 解碼 HTML entities
-  });
+  const $ = cheerio.load(html);
 
   const items: TocItem[] = [];
   const existingIds = new Set<string>();
@@ -90,7 +88,7 @@ export function processHeadings(html: string): {
 export function extractHeadings(html: string): TocItem[] {
   if (!html) return [];
 
-  const $ = cheerio.load(html, { decodeEntities: true });
+  const $ = cheerio.load(html);
   const items: TocItem[] = [];
 
   $("h2, h3").each((index, el) => {
@@ -119,7 +117,7 @@ export function addHeadingIds(html: string): string {
   
   const { html: result } = processHeadings(html);
   
-  const $ = cheerio.load(result, { decodeEntities: true });
+  const $ = cheerio.load(result);
   const bodyContent = $("body").html();
   
   return bodyContent || html;
