@@ -133,3 +133,60 @@ Every commit must:
 ### 3. Critical Rules (NEVER / ALWAYS)
 -   ⛔ **NEVER**: Use `--no-verify`, disable tests to fix CI, or leave TODOs without issue numbers.
 -   ✅ **ALWAYS**: Self-review before committing. Stop after **3 failed attempts** to reassess the approach.
+
+# PROJECT KNOWLEDGE BASE
+
+**Generated:** 2026-01-07
+**Context**: Next.js 15 Blog System (Monorepo-style)
+
+## OVERVIEW
+Modern blog system using Next.js 15 App Router, PostgreSQL (Prisma), and Clean Architecture/DDD.
+Features RBAC, dual-runner testing (Vitest/Playwright), and multi-provider storage.
+
+## STRUCTURE
+```
+.
+├── web/                  # Core Application (Next.js 15)
+│   ├── src/modules/      # DDD Business Logic (Clean Arch)
+│   ├── src/app/          # App Router (UI Layer)
+│   └── tests/            # Vitest & Playwright Suite
+├── docs/                 # Architecture & ADRs
+├── nginx/                # Reverse Proxy Config
+├── docker-compose.yml    # Production Deployment
+└── openspec/             # Spec & Proposal System
+```
+
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| **Frontend/Backend** | `web/` | All app code |
+| **Business Logic** | `web/src/modules/` | Domain & Use Cases |
+| **API Routes** | `web/src/app/api/` | REST Endpoints |
+| **DB Schema** | `web/prisma/schema.prisma` | PostgreSQL Schema |
+| **CI/CD** | `.github/workflows/` | GitHub Actions |
+| **Specs/Proposals** | `openspec/` | RFCs & Changes |
+
+## WORKFLOWS
+- **Development**:
+  1. `cp .env.example .env` (Root)
+  2. `cd web && ln -sf ../.env .env` (Symlink)
+  3. `web/scripts/init-admin.js` (First run)
+- **Deployment**: `docker-compose up -d --build`
+
+## CONVENTIONS
+- **Env Vars**: Managed in root `.env`, symlinked to `web/`.
+- **Architecture**: Strict Clean Architecture (UI -> App -> Domain).
+- **No Global Go/PHP**: PHP in `node_modules` is ignored.
+
+## COMMANDS
+```bash
+# Root
+docker-compose up -d      # Start production stack
+
+# Web Directory (cd web)
+npm run dev              # Dev server
+npm run db:push          # Sync Prisma schema
+npm run test             # Unit tests (Vitest)
+npm run test:e2e         # E2E tests (Playwright)
+npm run check            # Lint + Typecheck
+```
