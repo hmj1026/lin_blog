@@ -3,6 +3,7 @@
 .agent
 prompt.md
 features
+.shared
 
 # 開發規格文件
 openspec
