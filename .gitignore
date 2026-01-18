@@ -1,6 +1,7 @@
 # 開發工具與 AI 助手設定
 .claude
 .agent
+.worktrees
 prompt.md
 features
 .shared
