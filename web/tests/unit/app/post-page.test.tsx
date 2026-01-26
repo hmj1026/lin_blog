@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PostPage from "@/app/(frontend)/blog/[slug]/page";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
 import { notFound } from "next/navigation";
 
 // Mock dependencies
-vi.mock("@/modules/posts", () => ({
-  postsUseCases: {
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
     getReadablePostBySlug: vi.fn(),
     listRelatedPublishedPosts: vi.fn(),
+  },
+  siteSettingsQueries: {
+    getDefault: vi.fn(),
   },
 }));
 
@@ -79,8 +82,8 @@ const mockPost = {
 describe("Post Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (postsUseCases.getReadablePostBySlug as any).mockResolvedValue(mockPost);
-    (postsUseCases.listRelatedPublishedPosts as any).mockResolvedValue([]);
+    (postsQueries.getReadablePostBySlug as any).mockResolvedValue(mockPost);
+    (postsQueries.listRelatedPublishedPosts as any).mockResolvedValue([]);
     (getSession as any).mockResolvedValue(null);
   });
 
@@ -96,7 +99,7 @@ describe("Post Page", () => {
   });
 
   it("calls notFound if post not found", async () => {
-    (postsUseCases.getReadablePostBySlug as any).mockResolvedValue(null);
+    (postsQueries.getReadablePostBySlug as any).mockResolvedValue(null);
     const params = Promise.resolve({ slug: "not-found" });
     await PostPage({ params });
     expect(notFound).toHaveBeenCalled();
@@ -112,7 +115,7 @@ describe("Post Page", () => {
 
     await PostPage({ params, searchParams });
 
-    expect(postsUseCases.getReadablePostBySlug).toHaveBeenCalledWith(
+    expect(postsQueries.getReadablePostBySlug).toHaveBeenCalledWith(
       expect.objectContaining({ allowDraft: true })
     );
   });
@@ -125,7 +128,7 @@ describe("Post Page", () => {
 
     await PostPage({ params });
 
-    expect(postsUseCases.getReadablePostBySlug).toHaveBeenCalledWith(
+    expect(postsQueries.getReadablePostBySlug).toHaveBeenCalledWith(
       expect.objectContaining({ slug: decodedSlug })
     );
   });
@@ -136,7 +139,7 @@ describe("Post Page", () => {
 
     await PostPage({ params });
 
-    expect(postsUseCases.getReadablePostBySlug).toHaveBeenCalledWith(
+    expect(postsQueries.getReadablePostBySlug).toHaveBeenCalledWith(
       expect.objectContaining({ slug })
     );
   });

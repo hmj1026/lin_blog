@@ -1,19 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import Home from "@/app/(frontend)/page";
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 
 // Mock dependencies
-vi.mock("@/modules/posts", () => ({
-  postsUseCases: {
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
     listPublishedPosts: vi.fn(),
     listActiveCategories: vi.fn(),
   },
-}));
-
-vi.mock("@/modules/site-settings", () => ({
-  siteSettingsUseCases: {
+  siteSettingsQueries: {
     getOrCreateDefault: vi.fn(),
   },
 }));
@@ -68,9 +64,9 @@ const mockCategories = [
 describe("Home Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (siteSettingsUseCases.getOrCreateDefault as any).mockResolvedValue(mockSettings);
-    (postsUseCases.listPublishedPosts as any).mockResolvedValue(mockPosts);
-    (postsUseCases.listActiveCategories as any).mockResolvedValue(mockCategories);
+    (siteSettingsQueries.getOrCreateDefault as any).mockResolvedValue(mockSettings);
+    (postsQueries.listPublishedPosts as any).mockResolvedValue(mockPosts);
+    (postsQueries.listActiveCategories as any).mockResolvedValue(mockCategories);
   });
 
   it("renders hero section and content", async () => {

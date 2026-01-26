@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "@/app/api/posts/import/route";
 import { GET } from "@/app/api/search/route";
 import { requirePermission, jsonOk, jsonError } from "@/lib/api-utils";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { NextRequest } from "next/server";
 
@@ -11,10 +12,15 @@ vi.mock("@/lib/api-utils", () => ({
   jsonError: vi.fn((msg, status) => Response.json({ success: false, message: msg }, { status })),
 }));
 
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
+    searchPosts: vi.fn(),
+  },
+}));
+
 vi.mock("@/modules/posts", () => ({
   postsUseCases: {
     importPosts: vi.fn(),
-    searchPosts: vi.fn(),
   },
 }));
 
@@ -132,7 +138,7 @@ describe("Search API", () => {
     });
 
     it("should search posts with query", async () => {
-      (postsUseCases.searchPosts as any).mockResolvedValue([
+      (postsQueries.searchPosts as any).mockResolvedValue([
         {
           slug: "test",
           title: "Test Post",
@@ -146,12 +152,12 @@ describe("Search API", () => {
       const req = new NextRequest("http://localhost/api/search?q=test");
       await GET(req);
 
-      expect(postsUseCases.searchPosts).toHaveBeenCalledWith({ query: "test", take: 20 });
+      expect(postsQueries.searchPosts).toHaveBeenCalledWith({ query: "test", take: 20 });
       expect(jsonOk).toHaveBeenCalled();
     });
 
     it("should handle posts without categories", async () => {
-      (postsUseCases.searchPosts as any).mockResolvedValue([
+      (postsQueries.searchPosts as any).mockResolvedValue([
         {
           slug: "test",
           title: "Test",

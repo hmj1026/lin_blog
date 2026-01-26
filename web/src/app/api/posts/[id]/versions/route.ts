@@ -1,5 +1,5 @@
 import { jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,7 +14,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { id } = await context.params;
 
-  const result = await postsUseCases.listPostVersions(id);
+  const result = await postsQueries.listPostVersions(id);
   if (!result) return jsonError("文章不存在", 404);
   const { versions } = result;
 

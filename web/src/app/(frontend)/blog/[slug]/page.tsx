@@ -15,8 +15,7 @@ import { toFrontendPost } from "@/lib/frontend/post";
 import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
 import { PostViewTracker } from "@/components/post-view-tracker";
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 import { getSiteUrl } from "@/lib/utils/url";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
@@ -38,10 +37,10 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
   const session = await getSession();
   const canPreviewDraft =
     session?.user?.roleId ? await roleHasPermission(session.user.roleId, "posts:write") : false;
-  const post = await postsUseCases.getReadablePostBySlug({ slug, allowDraft: canPreviewDraft });
+  const post = await postsQueries.getReadablePostBySlug({ slug, allowDraft: canPreviewDraft });
   if (!post) return notFound();
 
-  const relatedRaw = await postsUseCases.listRelatedPublishedPosts({ post });
+  const relatedRaw = await postsQueries.listRelatedPublishedPosts({ post });
 
   const postView = toFrontendPost(post);
   const related = relatedRaw.map(toFrontendPost);
@@ -152,7 +151,7 @@ export default async function PostPage({ params, searchParams }: PostPageProps) 
 export async function generateMetadata({ params }: PostPageProps) {
   const { slug: rawSlug } = await params;
   const slug = decodeURIComponent(rawSlug);
-  const post = await postsUseCases.getPostBySlug(slug);
+  const post = await postsQueries.getPostBySlug(slug);
   if (!post || post.status !== "PUBLISHED") {
     return { title: "文章不存在" };
   }
@@ -160,7 +159,7 @@ export async function generateMetadata({ params }: PostPageProps) {
   // 取得站點名稱
   let siteName = "Lin Blog";
   try {
-    const settings = await siteSettingsUseCases.getDefault();
+    const settings = await siteSettingsQueries.getDefault();
     if (settings?.siteName) siteName = settings.siteName;
   } catch {
     // 使用預設值

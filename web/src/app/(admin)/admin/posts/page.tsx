@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 import { PostListClient } from "@/components/admin/post-list-client";
 
 export default async function AdminPostsPage() {
@@ -10,7 +10,7 @@ export default async function AdminPostsPage() {
   if (!session.user.roleId) redirect("/admin");
   if (!(await roleHasPermission(session.user.roleId, "posts:write"))) redirect("/admin");
 
-  const posts = await postsUseCases.listAdminPosts();
+  const posts = await postsQueries.listAdminPosts();
 
   // 轉換為 client 端格式
   const clientPosts = posts.map((p) => ({

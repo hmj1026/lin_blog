@@ -1,9 +1,8 @@
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 import { SiteSettingsForm } from "@/components/admin/site-settings-form";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
-import { postsUseCases } from "@/modules/posts";
 
 export default async function AdminSettingsPage() {
   const session = await getSession();
@@ -12,8 +11,8 @@ export default async function AdminSettingsPage() {
   if (!(await roleHasPermission(session.user.roleId, "settings:manage"))) redirect("/admin");
 
   const [settings, categories] = await Promise.all([
-    siteSettingsUseCases.getOrCreateDefault(),
-    postsUseCases.listActiveCategories(),
+    siteSettingsQueries.getOrCreateDefault(),
+    postsQueries.listActiveCategories(),
   ]);
 
   return (

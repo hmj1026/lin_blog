@@ -1,9 +1,10 @@
 import { handleApiError, jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { tagSchema } from "@/lib/validations/tag.schema";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 
 export async function GET() {
-  const tags = await postsUseCases.listActiveTags();
+  const tags = await postsQueries.listActiveTags();
   return jsonOk(tags);
 }
 

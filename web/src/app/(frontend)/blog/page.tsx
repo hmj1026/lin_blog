@@ -4,7 +4,7 @@ import { PostCard } from "@/components/post-card";
 // import { NewsletterForm } from "@/components/newsletter-form";
 import { Pagination } from "@/components/pagination";
 import { toFrontendPost } from "@/lib/frontend/post";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
 export const dynamic = "force-dynamic";
@@ -26,9 +26,9 @@ export default async function BlogPage({ searchParams }: BlogPageProps) {
   const currentPage = Math.max(1, Number(params?.page) || 1);
 
   const [categoryRows, tagRows, paginatedResult] = await Promise.all([
-    postsUseCases.listActiveCategories(),
-    postsUseCases.listActiveTags(),
-    postsUseCases.listPublishedPostsPaginated({
+    postsQueries.listActiveCategories(),
+    postsQueries.listActiveTags(),
+    postsQueries.listPublishedPostsPaginated({
       page: currentPage,
       pageSize: PAGE_SIZE,
       categorySlug: activeCategory,

@@ -1,8 +1,7 @@
 import { NavbarClient, type NavItem } from "./navbar-client";
 import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 
 function defaultNavItems(): NavItem[] {
   return [
@@ -21,8 +20,8 @@ export async function Navbar() {
       session?.user?.roleId ? await roleHasPermission(session.user.roleId, "admin:access") : false;
 
     const [settings, categories] = await Promise.all([
-      siteSettingsUseCases.getDefault(),
-      postsUseCases.listActiveCategories({ showInNav: true }),
+      siteSettingsQueries.getDefault(),
+      postsQueries.listActiveCategories({ showInNav: true }),
     ]);
 
     const items: NavItem[] = [{ href: "/", label: "首頁" }];

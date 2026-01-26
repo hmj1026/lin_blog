@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 /**
  * GET /api/posts/export - 匯出文章為 JSON
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const format = searchParams.get("format") || "json";
   const ids = searchParams.get("ids")?.split(",").filter(Boolean) || [];
 
-  const posts = await postsUseCases.exportPosts({ ids: ids.length ? ids : undefined });
+  const posts = await postsQueries.exportPosts({ ids: ids.length ? ids : undefined });
   const exportData = posts.map((p) => ({
     slug: p.slug,
     title: p.title,

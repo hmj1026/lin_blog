@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, PUT, PATCH, DELETE } from "@/app/api/posts/[id]/route";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { requirePermission } from "@/lib/api-utils";
 import { getSession } from "@/lib/auth";
 import { NextRequest } from "next/server";
 
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
+    getPostById: vi.fn(),
+  },
+}));
+
 vi.mock("@/modules/posts", () => ({
   postsUseCases: {
-    getPostById: vi.fn(),
     updatePostWithVersion: vi.fn(),
     updatePost: vi.fn(),
     removePost: vi.fn(),
@@ -35,7 +41,7 @@ describe("API: /api/posts/[id]", () => {
 
   describe("GET", () => {
     it("returns post if found", async () => {
-      (postsUseCases.getPostById as any).mockResolvedValue({ id: "post-1", title: "Test" });
+      (postsQueries.getPostById as any).mockResolvedValue({ id: "post-1", title: "Test" });
       const req = new NextRequest("http://localhost/api/posts/post-1");
       const res = await GET(req, context);
       const json = await res.json();
@@ -44,7 +50,7 @@ describe("API: /api/posts/[id]", () => {
     });
 
     it("returns 404 if not found", async () => {
-      (postsUseCases.getPostById as any).mockResolvedValue(null);
+      (postsQueries.getPostById as any).mockResolvedValue(null);
       const req = new NextRequest("http://localhost/api/posts/post-1");
       const res = await GET(req, context);
       const json = await res.json();
@@ -94,7 +100,7 @@ describe("API: /api/posts/[id]", () => {
   describe("PATCH", () => {
     it("updates featured status", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.getPostById as any).mockResolvedValue({ 
+      (postsQueries.getPostById as any).mockResolvedValue({ 
         id: "post-1", 
         categories: [], tags: [], featured: false 
       });

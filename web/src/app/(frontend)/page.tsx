@@ -3,21 +3,19 @@ import Link from "next/link";
 import { PostCard } from "@/components/post-card";
 import { SectionHeader } from "@/components/section-header";
 import { NewsletterForm } from "@/components/newsletter-form";
-import { ContactCard } from "@/components/contact-card";
 import { Badge } from "@/components/ui/badge";
 import { toFrontendPost } from "@/lib/frontend/post";
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [featuredRaw, latestRaw, categories, settings] = await Promise.all([
-    postsUseCases.listPublishedPosts({ featured: true, take: 2 }),
-    postsUseCases.listPublishedPosts({ take: 6 }),
-    postsUseCases.listActiveCategories({ showInNav: true }),
-    siteSettingsUseCases.getOrCreateDefault(),
+    postsQueries.listPublishedPosts({ featured: true, take: 2 }),
+    postsQueries.listPublishedPosts({ take: 6 }),
+    postsQueries.listActiveCategories({ showInNav: true }),
+    siteSettingsQueries.getOrCreateDefault(),
   ]);
 
   const featuredPosts = featuredRaw.map(toFrontendPost);

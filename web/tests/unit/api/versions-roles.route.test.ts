@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET as getVersions } from "@/app/api/posts/[id]/versions/route";
 import { GET as getRoles, POST as createRole } from "@/app/api/roles/route";
 import { requirePermission, jsonOk, jsonError, handleApiError } from "@/lib/api-utils";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 import { securityAdminUseCases } from "@/modules/security-admin";
 import { toPermissionDto, toRoleDto } from "@/modules/security-admin/presentation/dto";
 
@@ -13,8 +13,8 @@ vi.mock("@/lib/api-utils", () => ({
   handleApiError: vi.fn((e) => Response.json({ message: (e as Error).message }, { status: 500 })),
 }));
 
-vi.mock("@/modules/posts", () => ({
-  postsUseCases: {
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
     listPostVersions: vi.fn(),
   },
 }));
@@ -51,7 +51,7 @@ describe("Versions API", () => {
 
     it("should return 404 if post not found", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.listPostVersions as any).mockResolvedValue(null);
+      (postsQueries.listPostVersions as any).mockResolvedValue(null);
 
       const req = new Request("http://localhost/api/posts/1/versions");
       const context = { params: Promise.resolve({ id: "1" }) };
@@ -62,7 +62,7 @@ describe("Versions API", () => {
 
     it("should return versions list", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.listPostVersions as any).mockResolvedValue({
+      (postsQueries.listPostVersions as any).mockResolvedValue({
         versions: [
           {
             id: "v1",
@@ -83,7 +83,7 @@ describe("Versions API", () => {
 
     it("should handle version without editor", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.listPostVersions as any).mockResolvedValue({
+      (postsQueries.listPostVersions as any).mockResolvedValue({
         versions: [
           {
             id: "v1",
