@@ -1,13 +1,12 @@
 import { jsonOk } from "@/lib/api-utils";
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const [settings, categories] = await Promise.all([
-    siteSettingsUseCases.getDefault(),
-    postsUseCases.listActiveCategories({ showInNav: true }),
+    siteSettingsQueries.getDefault(),
+    postsQueries.listActiveCategories({ showInNav: true }),
   ]);
 
   return jsonOk({

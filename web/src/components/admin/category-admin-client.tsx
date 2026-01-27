@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { type ApiResponse, parseApiResponse } from "@/lib/api-client";
+import { parseApiResponse } from "@/lib/api-client";
 
 type Row = {
   id: string;

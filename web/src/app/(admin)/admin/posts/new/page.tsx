@@ -2,7 +2,7 @@ import { AdminPostForm } from "@/components/admin/post-form";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 export default async function AdminPostNewPage() {
   const session = await getSession();
@@ -11,8 +11,8 @@ export default async function AdminPostNewPage() {
   if (!(await roleHasPermission(session.user.roleId, "posts:write"))) redirect("/admin");
 
   const [categories, tags] = await Promise.all([
-    postsUseCases.listActiveCategories(),
-    postsUseCases.listActiveTags(),
+    postsQueries.listActiveCategories(),
+    postsQueries.listActiveTags(),
   ]);
 
   return (

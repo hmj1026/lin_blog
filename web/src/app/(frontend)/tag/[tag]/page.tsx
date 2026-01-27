@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/post-card";
 import { toFrontendPost } from "@/lib/frontend/post";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
 export const dynamic = "force-dynamic";
@@ -14,11 +14,11 @@ type TagPageProps = {
 export default async function TagPage({ params }: TagPageProps) {
   const { tag } = await params;
   const decoded = decodeURIComponent(tag);
-  const tagRows = await postsUseCases.findTagsBySlugOrName(decoded);
+  const tagRows = await postsQueries.findTagsBySlugOrName(decoded);
   const liveTagRows = tagRows.filter((t) => t.deletedAt == null);
   if (liveTagRows.length === 0) return notFound();
 
-  const filteredRaw = await postsUseCases.listPublishedPosts({ tag: decoded });
+  const filteredRaw = await postsQueries.listPublishedPosts({ tag: decoded });
   const filtered = filteredRaw.map(toFrontendPost);
 
   return (

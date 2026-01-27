@@ -1,9 +1,10 @@
 import { jsonOk, jsonError, handleApiError, requirePermission } from "@/lib/api-utils";
 import { postApiSchema, parsePostApiInput } from "@/lib/validations/post.schema";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 
 export async function GET() {
-  const posts = await postsUseCases.listPublishedPosts();
+  const posts = await postsQueries.listPublishedPosts();
   return jsonOk(posts);
 }
 

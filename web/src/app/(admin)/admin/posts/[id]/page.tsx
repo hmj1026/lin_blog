@@ -3,7 +3,7 @@ import { AdminPostForm } from "@/components/admin/post-form";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 import { formatLocalDateTimeInput } from "@/lib/format";
 
 type Props = { params: Promise<{ id: string }> };
@@ -16,9 +16,9 @@ export default async function AdminPostEditPage({ params }: Props) {
 
   const { id } = await params;
   const [post, categories, tags] = await Promise.all([
-    postsUseCases.getPostById(id),
-    postsUseCases.listActiveCategories(),
-    postsUseCases.listActiveTags(),
+    postsQueries.getPostById(id),
+    postsQueries.listActiveCategories(),
+    postsQueries.listActiveTags(),
   ]);
   if (!post) return notFound();
 

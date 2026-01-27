@@ -1,6 +1,6 @@
 import { jsonOk } from "@/lib/api-utils";
 import { analyticsUseCases } from "@/modules/analytics";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (!slug) return jsonOk({ ignored: true });
   if (body.source === "preview") return jsonOk({ ignored: true });
 
-  const post = await postsUseCases.getPostBySlug(slug);
+  const post = await postsQueries.getPostBySlug(slug);
   if (!post || post.deletedAt || post.status !== "PUBLISHED") return jsonOk({ ignored: true });
 
   const ip = getIp(request.headers);

@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PUT, DELETE } from "@/app/api/categories/[id]/route";
 import { GET as getNav } from "@/app/api/nav/route";
 import { requirePermission, jsonOk, jsonError, handleApiError } from "@/lib/api-utils";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
 
 vi.mock("@/lib/api-utils", () => ({
   requirePermission: vi.fn(),
@@ -12,17 +12,19 @@ vi.mock("@/lib/api-utils", () => ({
   handleApiError: vi.fn((e) => Response.json({ message: (e as Error).message }, { status: 500 })),
 }));
 
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
+    listActiveCategories: vi.fn(),
+  },
+  siteSettingsQueries: {
+    getDefault: vi.fn(),
+  },
+}));
+
 vi.mock("@/modules/posts", () => ({
   postsUseCases: {
     updateCategory: vi.fn(),
     removeCategory: vi.fn(),
-    listActiveCategories: vi.fn(),
-  },
-}));
-
-vi.mock("@/modules/site-settings", () => ({
-  siteSettingsUseCases: {
-    getDefault: vi.fn(),
   },
 }));
 
@@ -133,8 +135,8 @@ describe("Nav API", () => {
 
   describe("GET /api/nav", () => {
     it("should return nav settings and categories", async () => {
-      (siteSettingsUseCases.getDefault as any).mockResolvedValue({ showBlogLink: true });
-      (postsUseCases.listActiveCategories as any).mockResolvedValue([
+      (siteSettingsQueries.getDefault as any).mockResolvedValue({ showBlogLink: true });
+      (postsQueries.listActiveCategories as any).mockResolvedValue([
         { slug: "tech", name: "Technology" },
       ]);
 
@@ -149,8 +151,8 @@ describe("Nav API", () => {
     });
 
     it("should handle null settings", async () => {
-      (siteSettingsUseCases.getDefault as any).mockResolvedValue(null);
-      (postsUseCases.listActiveCategories as any).mockResolvedValue([]);
+      (siteSettingsQueries.getDefault as any).mockResolvedValue(null);
+      (postsQueries.listActiveCategories as any).mockResolvedValue([]);
 
       await getNav();
 

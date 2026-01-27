@@ -1,9 +1,10 @@
 import { handleApiError, jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { categorySchema } from "@/lib/validations/category.schema";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 
 export async function GET() {
-  const categories = await postsUseCases.listActiveCategories();
+  const categories = await postsQueries.listActiveCategories();
   return jsonOk(categories);
 }
 

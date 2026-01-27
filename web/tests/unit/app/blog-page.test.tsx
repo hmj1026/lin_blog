@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import BlogPage from "@/app/(frontend)/blog/page";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 // Mock dependencies
-vi.mock("@/modules/posts", () => ({
-  postsUseCases: {
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
     listActiveCategories: vi.fn(),
     listActiveTags: vi.fn(),
     listPublishedPostsPaginated: vi.fn(),
@@ -54,9 +54,9 @@ const mockPaginatedResult = {
 describe("Blog Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (postsUseCases.listActiveCategories as any).mockResolvedValue(mockCategories);
-    (postsUseCases.listActiveTags as any).mockResolvedValue(mockTags);
-    (postsUseCases.listPublishedPostsPaginated as any).mockResolvedValue(mockPaginatedResult);
+    (postsQueries.listActiveCategories as any).mockResolvedValue(mockCategories);
+    (postsQueries.listActiveTags as any).mockResolvedValue(mockTags);
+    (postsQueries.listPublishedPostsPaginated as any).mockResolvedValue(mockPaginatedResult);
   });
 
   it("renders blog page content", async () => {
@@ -74,7 +74,7 @@ describe("Blog Page", () => {
     const ui = await BlogPage({ searchParams });
     render(ui);
 
-    expect(postsUseCases.listPublishedPostsPaginated).toHaveBeenCalledWith(
+    expect(postsQueries.listPublishedPostsPaginated).toHaveBeenCalledWith(
       expect.objectContaining({
         page: 2,
         categorySlug: "tech",
@@ -83,7 +83,7 @@ describe("Blog Page", () => {
   });
 
   it("renders empty state", async () => {
-    (postsUseCases.listPublishedPostsPaginated as any).mockResolvedValue({
+    (postsQueries.listPublishedPostsPaginated as any).mockResolvedValue({
       data: [],
       pagination: { total: 0, page: 1, pageSize: 10, totalPages: 0 },
     });

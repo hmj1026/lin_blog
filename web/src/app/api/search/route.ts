@@ -1,5 +1,5 @@
 import { jsonOk } from "@/lib/api-utils";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 import { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     return jsonOk([]);
   }
 
-  const posts = await postsUseCases.searchPosts({ query, take: 20 });
+  const posts = await postsQueries.searchPosts({ query, take: 20 });
 
   // 回傳精簡的搜尋結果
   const results = posts.map((post) => ({

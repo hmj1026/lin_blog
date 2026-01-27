@@ -1,8 +1,9 @@
 import { handleApiError, jsonOk, requirePermission } from "@/lib/api-utils";
+import { siteSettingsQueries } from "@/lib/server-queries";
 import { siteSettingsUseCases } from "@/modules/site-settings";
 
 export async function GET() {
-  const settings = await siteSettingsUseCases.getOrCreateDefault();
+  const settings = await siteSettingsQueries.getOrCreateDefault();
   return jsonOk(settings);
 }
 

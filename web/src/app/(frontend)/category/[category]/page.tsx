@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/post-card";
 import { toFrontendPost } from "@/lib/frontend/post";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
 export const dynamic = "force-dynamic";
@@ -14,10 +14,10 @@ type CategoryPageProps = {
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { category } = await params;
   const decoded = decodeURIComponent(category);
-  const categoryRow = await postsUseCases.getCategoryBySlug(decoded);
+  const categoryRow = await postsQueries.getCategoryBySlug(decoded);
   if (!categoryRow) return notFound();
 
-  const filteredRaw = await postsUseCases.listPublishedPosts({ categorySlug: decoded });
+  const filteredRaw = await postsQueries.listPublishedPosts({ categorySlug: decoded });
   const filtered = filteredRaw.map(toFrontendPost);
 
   return (

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { type ApiResponse, parseApiResponse } from "@/lib/api-client";
+import { parseApiResponse } from "@/lib/api-client";
 
 type Permission = { key: string; name: string };
 type RoleRow = { id: string; key: string; name: string; permissionKeys: string[] };

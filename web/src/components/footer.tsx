@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Logo } from "./logo";
 import { SocialLinks } from "./social-links";
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 import type { SiteSettingRecord } from "@/modules/site-settings";
 
 export async function Footer() {
@@ -23,8 +22,8 @@ export async function Footer() {
 
   try {
     const [fetchedSettings, categories] = await Promise.all([
-      siteSettingsUseCases.getDefault(),
-      postsUseCases.listActiveCategories({ showInNav: true }),
+      siteSettingsQueries.getDefault(),
+      postsQueries.listActiveCategories({ showInNav: true }),
     ]);
 
     settings = fetchedSettings;

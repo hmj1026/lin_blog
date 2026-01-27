@@ -1,5 +1,6 @@
 import { jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { getSession } from "@/lib/auth";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 
 type RouteContext = { params: Promise<{ id: string; versionId: string }> };
@@ -15,7 +16,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const { id, versionId } = await context.params;
 
-  const version = await postsUseCases.getPostVersion(id, versionId);
+  const version = await postsQueries.getPostVersion(id, versionId);
   if (!version) return jsonError("版本不存在", 404);
 
   return jsonOk({
