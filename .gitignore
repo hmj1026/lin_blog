@@ -2,6 +2,7 @@
 .claude
 .agent
 .worktrees
+.codex
 prompt.md
 features
 .shared

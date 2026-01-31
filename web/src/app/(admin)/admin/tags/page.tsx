@@ -2,7 +2,7 @@ import { TagAdminClient } from "@/components/admin/tag-admin-client";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 export default async function AdminTagsPage() {
   const session = await getSession();
@@ -10,7 +10,7 @@ export default async function AdminTagsPage() {
   if (!session.user.roleId) redirect("/admin");
   if (!(await roleHasPermission(session.user.roleId, "tags:manage"))) redirect("/admin");
 
-  const tags = await postsUseCases.listAllTags();
+  const tags = await postsQueries.listAllTags();
   return (
     <div className="space-y-6">
       <h1 className="font-display text-3xl text-primary">標籤管理</h1>

@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, PUT } from "@/app/api/site-settings/route";
+import { siteSettingsQueries } from "@/lib/server-queries";
 import { siteSettingsUseCases } from "@/modules/site-settings";
 import { requirePermission } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
 // Mock dependencies
+vi.mock("@/lib/server-queries", () => ({
+  siteSettingsQueries: {
+    getOrCreateDefault: vi.fn(),
+  },
+}));
+
 vi.mock("@/modules/site-settings", () => ({
   siteSettingsUseCases: {
-    getOrCreateDefault: vi.fn(),
     updateDefault: vi.fn(),
   },
 }));
@@ -28,7 +34,7 @@ describe("API: /api/site-settings", () => {
   describe("GET", () => {
     it("returns settings", async () => {
       const mockSettings = { siteName: "My Blog" };
-      (siteSettingsUseCases.getOrCreateDefault as any).mockResolvedValue(mockSettings);
+      (siteSettingsQueries.getOrCreateDefault as any).mockResolvedValue(mockSettings);
 
       const response = await GET();
       const json = await response.json();

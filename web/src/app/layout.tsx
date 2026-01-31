@@ -19,7 +19,7 @@ const display = Sen({
 });
 
 import { getSiteUrl } from "@/lib/utils/url";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { siteSettingsQueries } from "@/lib/server-queries";
 
 // 預設值（當資料庫未設定時使用）
 const DEFAULT_SITE_NAME = "Lin Blog";
@@ -32,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
   let settings;
   
   try {
-    settings = await siteSettingsUseCases.getDefault();
+    settings = await siteSettingsQueries.getDefault();
   } catch (error) {
     // 忽略錯誤（例如 DB 連線失敗），使用預設值
     console.warn("Failed to fetch site settings for metadata:", error);

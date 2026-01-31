@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, POST } from "@/app/api/posts/route";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { requirePermission } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
 // Mock dependencies
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
+    listPublishedPosts: vi.fn(),
+  },
+}));
+
 vi.mock("@/modules/posts", () => ({
   postsUseCases: {
-    listPublishedPosts: vi.fn(),
     createPost: vi.fn(),
   },
 }));
@@ -28,14 +34,14 @@ describe("API: /api/posts", () => {
   describe("GET", () => {
     it("returns published posts", async () => {
       const mockPosts = [{ id: "1", title: "Test" }];
-      (postsUseCases.listPublishedPosts as any).mockResolvedValue(mockPosts);
+      (postsQueries.listPublishedPosts as any).mockResolvedValue(mockPosts);
 
       const response = await GET();
       const json = await response.json();
 
       expect(response.status).toBe(200);
       expect(json.data).toEqual(mockPosts);
-      expect(postsUseCases.listPublishedPosts).toHaveBeenCalled();
+      expect(postsQueries.listPublishedPosts).toHaveBeenCalled();
     });
   });
 

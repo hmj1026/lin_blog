@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PostCard } from "@/components/post-card";
 import { toFrontendPost } from "@/lib/frontend/post";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 // 強制動態渲染，避免 build 時嘗試連接資料庫
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const query = params?.q ? decodeURIComponent(params.q) : "";
 
   const posts = query.trim()
-    ? await postsUseCases.searchPosts({ query, take: 20 })
+    ? await postsQueries.searchPosts({ query, take: 20 })
     : [];
 
   const results = posts.map(toFrontendPost);

@@ -1,5 +1,6 @@
 import { handleApiError, jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { postApiSchema, parsePostApiInput } from "@/lib/validations/post.schema";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { getSession } from "@/lib/auth";
 
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, context: Context) {
   const { id } = await context.params;
-  const post = await postsUseCases.getPostById(id);
+  const post = await postsQueries.getPostById(id);
   if (!post) return jsonOk(null, { status: 404 });
   return jsonOk(post);
 }
@@ -39,12 +40,12 @@ export async function PATCH(request: Request, context: Context) {
   if (authError) return authError;
 
   try {
-    const { id } = await context.params;
-    const raw = await request.json();
+      const { id } = await context.params;
+      const raw = await request.json();
     
     // 支援局部更新（如切換 featured）
     if ("featured" in raw && typeof raw.featured === "boolean") {
-      const post = await postsUseCases.getPostById(id);
+      const post = await postsQueries.getPostById(id);
       if (!post) return jsonError("文章不存在", 404);
       
       await postsUseCases.updatePost(id, {

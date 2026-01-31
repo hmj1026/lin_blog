@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "@/app/api/posts/batch/route";
 import { GET } from "@/app/api/posts/export/route";
 import { requirePermission } from "@/lib/api-utils";
+import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { NextRequest } from "next/server";
 
@@ -9,10 +10,15 @@ vi.mock("@/lib/api-utils", () => ({
   requirePermission: vi.fn(),
 }));
 
+vi.mock("@/lib/server-queries", () => ({
+  postsQueries: {
+    exportPosts: vi.fn(),
+  },
+}));
+
 vi.mock("@/modules/posts", () => ({
   postsUseCases: {
     batchPostAction: vi.fn(),
-    exportPosts: vi.fn(),
   },
 }));
 
@@ -155,7 +161,7 @@ describe("Posts Batch/Export API", () => {
 
     it("should export posts as JSON", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.exportPosts as any).mockResolvedValue(mockPosts);
+      (postsQueries.exportPosts as any).mockResolvedValue(mockPosts);
 
       const req = new NextRequest("http://localhost/api/posts/export?format=json");
       const res = await GET(req);
@@ -167,7 +173,7 @@ describe("Posts Batch/Export API", () => {
 
     it("should export posts as Markdown", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.exportPosts as any).mockResolvedValue(mockPosts);
+      (postsQueries.exportPosts as any).mockResolvedValue(mockPosts);
 
       const req = new NextRequest("http://localhost/api/posts/export?format=markdown");
       const res = await GET(req);
@@ -178,18 +184,18 @@ describe("Posts Batch/Export API", () => {
 
     it("should export specific posts by IDs", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.exportPosts as any).mockResolvedValue(mockPosts);
+      (postsQueries.exportPosts as any).mockResolvedValue(mockPosts);
 
       const req = new NextRequest("http://localhost/api/posts/export?ids=id1,id2");
       await GET(req);
 
-      expect(postsUseCases.exportPosts).toHaveBeenCalledWith({ ids: ["id1", "id2"] });
+      expect(postsQueries.exportPosts).toHaveBeenCalledWith({ ids: ["id1", "id2"] });
     });
 
     it("should handle posts without publishedAt", async () => {
       (requirePermission as any).mockResolvedValue(null);
       const postsNoPub = [{ ...mockPosts[0], publishedAt: null }];
-      (postsUseCases.exportPosts as any).mockResolvedValue(postsNoPub);
+      (postsQueries.exportPosts as any).mockResolvedValue(postsNoPub);
 
       const req = new NextRequest("http://localhost/api/posts/export?format=json");
       const res = await GET(req);

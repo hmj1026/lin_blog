@@ -6,8 +6,8 @@ vi.mock("@/lib/utils/url", () => ({
   getSiteUrl: vi.fn(() => "https://example.com"),
 }));
 
-vi.mock("@/modules/site-settings", () => ({
-  siteSettingsUseCases: {
+vi.mock("@/lib/server-queries", () => ({
+  siteSettingsQueries: {
     getDefault: vi.fn(),
   },
 }));
@@ -30,8 +30,8 @@ describe("layout generateMetadata", () => {
 
   describe("當資料庫有站點設定時", () => {
     it("使用資料庫中的 siteName 和 siteTagline", async () => {
-      const { siteSettingsUseCases } = await import("@/modules/site-settings");
-      (siteSettingsUseCases.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue({
+      const { siteSettingsQueries } = await import("@/lib/server-queries");
+      (siteSettingsQueries.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue({
         siteName: "我的部落格",
         siteTagline: "分享技術心得",
         siteDescription: "這是網站描述",
@@ -45,8 +45,8 @@ describe("layout generateMetadata", () => {
     });
 
     it("使用正確的 metadataBase URL", async () => {
-      const { siteSettingsUseCases } = await import("@/modules/site-settings");
-      (siteSettingsUseCases.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue({
+      const { siteSettingsQueries } = await import("@/lib/server-queries");
+      (siteSettingsQueries.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue({
         siteName: "Test Blog",
         siteTagline: "Test Tagline",
         siteDescription: "Test Description",
@@ -61,8 +61,8 @@ describe("layout generateMetadata", () => {
 
   describe("當資料庫沒有站點設定時", () => {
     it("使用預設的 siteName、siteTagline 和 siteDescription", async () => {
-      const { siteSettingsUseCases } = await import("@/modules/site-settings");
-      (siteSettingsUseCases.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      const { siteSettingsQueries } = await import("@/lib/server-queries");
+      (siteSettingsQueries.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const { generateMetadata } = await import("@/app/layout");
       const metadata = await generateMetadata() as Metadata;
@@ -76,9 +76,9 @@ describe("layout generateMetadata", () => {
 
   describe("當資料庫拋出錯誤時", () => {
     it("捕捉錯誤並使用預設值", async () => {
-      const { siteSettingsUseCases } = await import("@/modules/site-settings");
+      const { siteSettingsQueries } = await import("@/lib/server-queries");
       // 模擬 DB 連線失敗
-      (siteSettingsUseCases.getDefault as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("DB Connection Failed"));
+      (siteSettingsQueries.getDefault as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("DB Connection Failed"));
       
       // 監聽 console.warn 以避免測試輸出雜訊，並驗證是否被呼叫
       const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -101,8 +101,8 @@ describe("layout generateMetadata", () => {
 
   describe("當部分設定為 null 時", () => {
     it("對缺失欄位使用預設值", async () => {
-      const { siteSettingsUseCases } = await import("@/modules/site-settings");
-      (siteSettingsUseCases.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue({
+      const { siteSettingsQueries } = await import("@/lib/server-queries");
+      (siteSettingsQueries.getDefault as ReturnType<typeof vi.fn>).mockResolvedValue({
         siteName: "Custom Name",
         siteTagline: null, // 缺失
         siteDescription: null, // 缺失

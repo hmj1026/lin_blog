@@ -1,5 +1,4 @@
-import { postsUseCases } from "@/modules/posts";
-import { siteSettingsUseCases } from "@/modules/site-settings";
+import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 import { getSiteUrl } from "@/lib/utils/url";
 
 export async function GET() {
@@ -9,7 +8,7 @@ export async function GET() {
   
   // 嘗試從資料庫讀取站點設定
   try {
-    const settings = await siteSettingsUseCases.getDefault();
+    const settings = await siteSettingsQueries.getDefault();
     if (settings) {
       siteName = settings.siteName || siteName;
       siteDescription = settings.siteDescription || siteDescription;
@@ -18,7 +17,7 @@ export async function GET() {
     // 使用預設值
   }
   
-  const posts = await postsUseCases.listPublishedPosts({ take: 20 });
+  const posts = await postsQueries.listPublishedPosts({ take: 20 });
   const siteUrl = getSiteUrl();
   const now = new Date().toUTCString();
 

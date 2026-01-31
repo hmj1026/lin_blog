@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next";
 import { publicEnv } from "@/env.public";
-import { postsUseCases } from "@/modules/posts";
+import { postsQueries } from "@/lib/server-queries";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = publicEnv.NEXT_PUBLIC_SITE_URL || "https://example.com";
@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const posts = await postsUseCases.listPublishedForSitemap();
+    const posts = await postsQueries.listPublishedForSitemap();
     return [
       ...base,
       ...posts.map((post) => ({
