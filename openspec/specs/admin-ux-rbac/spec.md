@@ -40,3 +40,25 @@ TBD - created by archiving change enhance-admin-ux-and-rbac. Update Purpose afte
 - **WHEN** 使用者未登入
 - **THEN** 前台不顯示後台入口與帳號資訊
 
+
+### Requirement: Admin Sidebar Responsive Layout
+後台側邊欄與主版面 SHALL 在行動裝置寬度下維持可操作性：側邊欄於窄螢幕收合，並提供展開/收合的觸發入口；主內容區的留白間距 SHALL 隨螢幕寬度斷點調整，不得在手機寬度下固定佔用過大留白。
+
+#### Scenario: Sidebar collapses on mobile width
+- **WHEN** 管理者以手機寬度（375px 或更窄）檢視後台頁面
+- **THEN** 固定寬度側邊欄不直接佔用版面，改為可透過觸發入口（如 hamburger 按鈕）展開的抽屜選單
+
+#### Scenario: Sidebar remains visible on desktop
+- **WHEN** 管理者以桌面寬度（md 斷點以上）檢視後台頁面
+- **THEN** 側邊欄維持固定顯示，不需額外操作即可看到全部導覽項目
+
+#### Scenario: Main content padding adapts to breakpoint
+- **WHEN** 管理者以手機寬度檢視後台頁面
+- **THEN** 主內容區 padding 縮小以保留更多可用內容寬度，桌面寬度則維持原有較大留白
+
+### Requirement: Admin Loading State
+後台 (admin) route group SHALL 提供有樣式的載入中畫面，取代瀏覽器/框架預設的無樣式載入畫面。
+
+#### Scenario: Loading state shown while admin page data resolves
+- **WHEN** 管理者導覽至任一後台頁面且該頁面資料尚未就緒
+- **THEN** 系統顯示符合後台版面風格的載入中畫面，而非空白或無樣式畫面

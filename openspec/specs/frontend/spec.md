@@ -275,3 +275,16 @@ The application SHALL use Suspense boundaries strategically to enable streaming 
 - **THEN** these components SHALL be dynamically imported
 - **AND** a loading skeleton SHALL be displayed during load
 
+
+### Requirement: Site-Wide Styled Not-Found State
+系統 SHALL 提供統一且符合站點視覺風格的找不到頁面（404），取代框架預設的無樣式畫面。前台動態路由（文章/分類/標籤）觸發的 `notFound()` SHALL 回傳 HTTP `404` 狀態碼，不得因套用會觸發串流（streaming）的 route-group／根層 `loading.tsx` 而使狀態碼降級為 `200`。
+
+> 實作註記：Next.js 15 App Router 中，任一祖先層級的 `loading.tsx` 會為其下動態路由建立 Suspense streaming 邊界，於送出 loading shell 時即提交 HTTP `200`，使其後的 `notFound()` 無法再改寫狀態碼。因此前台不提供 route-group／根層載入骨架（前台頁面以 ISR 快取、載入骨架效益低），以維持草稿/不存在內容之 `404` 契約（見 `update-frontend-ui-cohesion`／`fix-perf-caching` 之草稿不外洩不變式）。載入骨架僅於後台提供（見 `admin-ux-rbac` 之 Admin Loading State）。
+
+#### Scenario: Styled not-found page for missing content
+- **WHEN** 使用者造訪不存在的文章、分類或標籤頁面（觸發 `notFound()`）
+- **THEN** 系統顯示符合站點視覺風格的 404 頁面，而非框架預設的無樣式畫面
+
+#### Scenario: notFound() on frontend dynamic routes preserves 404 status
+- **WHEN** 匿名使用者直接請求不存在或未授權（草稿）的文章/分類/標籤路由，觸發 `notFound()`
+- **THEN** HTTP 回應狀態碼為 `404`（而非因載入骨架串流而降級為 `200`），且已發布內容仍正常回傳 `200`
