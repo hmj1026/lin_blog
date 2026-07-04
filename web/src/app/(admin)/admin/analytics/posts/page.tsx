@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { roleHasPermission } from "@/lib/rbac";
+import { sessionHasPermission } from "@/lib/rbac";
 import { analyticsUseCases } from "@/modules/analytics";
 import { buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
@@ -13,12 +13,12 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
   if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "analytics:view"))) redirect("/admin");
+  if (!sessionHasPermission(session, "analytics:view")) redirect("/admin");
 
   const params = await searchParams;
   const days = Number(params?.days ?? "7");
   const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
-  const canViewSensitive = await roleHasPermission(session.user.roleId, "analytics:view_sensitive");
+  const canViewSensitive = sessionHasPermission(session, "analytics:view_sensitive");
   const list = await analyticsUseCases.listPostAnalyticsSummary({ days: safeDays });
 
   return (

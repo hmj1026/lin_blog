@@ -80,6 +80,11 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
     softDeleteUser: (id: string) => deps.repo.softDeleteUser(id),
     /** 計算活躍使用者總數 */
     countActiveUsers: () => deps.repo.countActiveUsers(),
+
+    /** 取得全域權限版本號 */
+    getPermissionsVersion: () => deps.repo.getPermissionsVersion(),
+    /** 取得使用者當前的授權快照（角色與權限） */
+    getUserAuthSnapshot: (userId: string) => deps.repo.getUserAuthSnapshot(userId),
   };
 }
 

@@ -1,14 +1,14 @@
 import { CategoryAdminClient } from "@/components/admin/category-admin-client";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { roleHasPermission } from "@/lib/rbac";
+import { sessionHasPermission } from "@/lib/rbac";
 import { postsQueries } from "@/lib/server-queries";
 
 export default async function AdminCategoriesPage() {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
   if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "categories:manage"))) redirect("/admin");
+  if (!sessionHasPermission(session, "categories:manage")) redirect("/admin");
 
   const categories = await postsQueries.listAllCategories();
   return (

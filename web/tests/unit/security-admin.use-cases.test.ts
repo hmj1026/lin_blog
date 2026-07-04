@@ -17,6 +17,8 @@ describe("security-admin use cases", () => {
     updateUser: vi.fn(),
     softDeleteUser: vi.fn(),
     countActiveUsers: vi.fn(),
+    getPermissionsVersion: vi.fn(),
+    getUserAuthSnapshot: vi.fn(),
   };
 
   const useCases = createSecurityAdminUseCases({ repo });

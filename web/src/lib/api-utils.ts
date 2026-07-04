@@ -3,7 +3,6 @@ import { ZodError } from "zod";
 import { getSession } from "./auth";
 import { ApiException } from "./errors";
 import { ApiResponse } from "@/types/api";
-import { securityAdminUseCases } from "@/modules/security-admin";
 import { logger } from "./logger";
 
 /**
@@ -80,8 +79,7 @@ export async function requirePermission(permissionKey: string) {
   const roleId = session.user.roleId;
   if (!roleId) return jsonError("禁止存取", 403);
 
-  const ok = await securityAdminUseCases.roleHasPermission(roleId, permissionKey);
-  if (!ok) return jsonError("禁止存取", 403);
+  if (!session.user.permissions?.includes(permissionKey)) return jsonError("禁止存取", 403);
   return null;
 }
 
@@ -97,7 +95,6 @@ export async function requireAnyPermission(permissionKeys: string[]) {
   const roleId = session.user.roleId;
   if (!roleId) return jsonError("禁止存取", 403);
 
-  const ok = await securityAdminUseCases.roleHasAnyPermission(roleId, permissionKeys);
-  if (!ok) return jsonError("禁止存取", 403);
+  if (!permissionKeys.some((k) => session.user!.permissions?.includes(k))) return jsonError("禁止存取", 403);
   return null;
 }

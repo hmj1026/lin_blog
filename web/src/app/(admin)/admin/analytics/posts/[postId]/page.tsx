@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { roleHasPermission } from "@/lib/rbac";
+import { sessionHasPermission } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 import { analyticsUseCases } from "@/modules/analytics";
 import { DEVICE_TYPES, isDeviceType, type DeviceType } from "@/modules/analytics/domain";
@@ -29,7 +29,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
   if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "analytics:view_sensitive"))) redirect("/admin");
+  if (!sessionHasPermission(session, "analytics:view_sensitive")) redirect("/admin");
 
   const { postId } = await params;
   const sp = await searchParams;

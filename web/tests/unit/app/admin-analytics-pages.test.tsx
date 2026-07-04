@@ -4,7 +4,6 @@ import AdminPostAnalyticsPage from "@/app/(admin)/admin/analytics/posts/page";
 import AdminPostEventBrowserPage from "@/app/(admin)/admin/analytics/posts/[postId]/page";
 import { analyticsUseCases } from "@/modules/analytics";
 import { getSession } from "@/lib/auth";
-import { roleHasPermission } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 
 // Mock dependencies
@@ -20,10 +19,6 @@ vi.mock("@/lib/auth", () => ({
   getSession: vi.fn(),
 }));
 
-vi.mock("@/lib/rbac", () => ({
-  roleHasPermission: vi.fn(),
-}));
-
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(() => { throw new Error("Redirected"); }),
 }));
@@ -33,7 +28,16 @@ vi.mock("next/link", () => ({
 }));
 
 // Mock data
-const mockSession = { user: { roleId: "admin", email: "admin@example.com" } };
+const mockSession = {
+  user: {
+    roleId: "admin",
+    email: "admin@example.com",
+    permissions: ["analytics:view", "analytics:view_sensitive"],
+  },
+};
+const mockSessionNoPermission = {
+  user: { roleId: "admin", email: "admin@example.com", permissions: [] },
+};
 const mockAnalyticsList = [
   {
     postId: "1",
@@ -68,7 +72,6 @@ describe("Admin Post Analytics Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (getSession as any).mockResolvedValue(mockSession);
-    (roleHasPermission as any).mockResolvedValue(true);
     (analyticsUseCases.listPostAnalyticsSummary as any).mockResolvedValue(mockAnalyticsList);
   });
 
@@ -87,7 +90,7 @@ describe("Admin Post Analytics Page", () => {
   });
 
   it("redirects if no permission", async () => {
-    (roleHasPermission as any).mockResolvedValue(false);
+    (getSession as any).mockResolvedValue(mockSessionNoPermission);
     try {
       await AdminPostAnalyticsPage({ searchParams: Promise.resolve({}) });
     } catch (e: any) {
@@ -103,7 +106,6 @@ describe("Admin Post Event Browser Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (getSession as any).mockResolvedValue(mockSession);
-    (roleHasPermission as any).mockResolvedValue(true);
     (analyticsUseCases.getPostSummary as any).mockResolvedValue(mockPostSummary);
     (analyticsUseCases.listPostViewEvents as any).mockResolvedValue(mockEvents);
   });

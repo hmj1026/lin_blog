@@ -1,7 +1,7 @@
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { roleHasPermission } from "@/lib/rbac";
+import { sessionHasPermission } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   const roleId = session.user.roleId;
   if (!roleId) redirect("/login");
-  const canAccess = await roleHasPermission(roleId, "admin:access");
+  const canAccess = sessionHasPermission(session, "admin:access");
   if (!canAccess) redirect("/login");
   return (
     <div className="admin-layout flex min-h-screen bg-base-50">

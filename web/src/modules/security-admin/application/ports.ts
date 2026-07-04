@@ -57,5 +57,8 @@ export interface SecurityAdminRepository {
   }): Promise<AdminUserRecord>;
   softDeleteUser(id: string): Promise<AdminUserRecord>;
   countActiveUsers(): Promise<number>;
+
+  getPermissionsVersion(): Promise<number>;
+  getUserAuthSnapshot(userId: string): Promise<{ roleId: string; roleKey: string; roleName: string; permissionKeys: string[] } | null>;
 }
 

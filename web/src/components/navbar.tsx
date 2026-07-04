@@ -1,6 +1,6 @@
 import { NavbarClient, type NavItem } from "./navbar-client";
 import { getSession } from "@/lib/auth";
-import { roleHasPermission } from "@/lib/rbac";
+import { sessionHasPermission } from "@/lib/rbac";
 import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 
 function defaultNavItems(): NavItem[] {
@@ -17,7 +17,7 @@ export async function Navbar() {
   try {
     const session = await getSession();
     const canAdmin =
-      session?.user?.roleId ? await roleHasPermission(session.user.roleId, "admin:access") : false;
+      session?.user?.roleId ? sessionHasPermission(session, "admin:access") : false;
 
     const [settings, categories] = await Promise.all([
       siteSettingsQueries.getDefault(),

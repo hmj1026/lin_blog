@@ -10,7 +10,9 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/modules/security-admin", () => ({
     securityAdminUseCases: {
         roleHasPermission: vi.fn(),
-        roleHasAnyPermission: vi.fn()
+        roleHasAnyPermission: vi.fn(),
+        getPermissionsVersion: vi.fn(),
+        getUserAuthSnapshot: vi.fn(),
     }
 }));
 
@@ -116,14 +118,13 @@ describe("api-utils", () => {
              expect(result?.status).toBe(401);
         });
 
-        it("requirePermission returns null if authorized", async () => {
-            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1" } });
-            (securityAdminUseCases.roleHasPermission as any).mockResolvedValue(true);
-            
+        it("requirePermission returns null if authorized, without querying DB", async () => {
+            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["posts:write"] } });
+
             const result = await requirePermission("posts:write");
-            
+
             expect(result).toBeNull();
-            expect(securityAdminUseCases.roleHasPermission).toHaveBeenCalledWith("r1", "posts:write");
+            expect(securityAdminUseCases.roleHasPermission).not.toHaveBeenCalled();
         });
 
         it("requirePermission returns 401 if not logged in", async () => {
@@ -138,23 +139,20 @@ describe("api-utils", () => {
             expect(result?.status).toBe(403);
         });
 
-        it("requirePermission returns 403 if permission denied", async () => {
-            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1" } });
-            (securityAdminUseCases.roleHasPermission as any).mockResolvedValue(false);
+        it("requirePermission returns 403 if permission missing", async () => {
+            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["other:perm"] } });
             const result = await requirePermission("perm");
             expect(result?.status).toBe(403);
         });
 
         it("requireAnyPermission returns null if authorized", async () => {
-            (getSession as any).mockResolvedValue({ user: { roleId: "r1" } });
-            (securityAdminUseCases.roleHasAnyPermission as any).mockResolvedValue(true);
-            const result = await requireAnyPermission(["p1", "p2"]);
+            (getSession as any).mockResolvedValue({ user: { roleId: "r1", permissions: ["b"] } });
+            const result = await requireAnyPermission(["a", "b"]);
             expect(result).toBeNull();
         });
 
         it("requireAnyPermission returns 403 if denied", async () => {
-            (getSession as any).mockResolvedValue({ user: { roleId: "r1" } });
-            (securityAdminUseCases.roleHasAnyPermission as any).mockResolvedValue(false);
+            (getSession as any).mockResolvedValue({ user: { roleId: "r1", permissions: [] } });
             const result = await requireAnyPermission(["p1"]);
             expect(result?.status).toBe(403);
         });

@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "./db";
 import bcrypt from "bcryptjs";
 import { authEnv } from "@/env.auth";
+import { securityAdminUseCases } from "@/modules/security-admin";
 
 // 安全的 cache 包裝，當 React.cache 不可用時（如測試環境）提供 fallback
 const safeCache = <T extends (...args: any[]) => any>(fn: T): T => {
@@ -34,7 +35,14 @@ export const authOptions = {
       },
       authorize: async (credentials) => {
         if (!credentials?.email || !credentials?.password) return null;
-        const user = await prisma.user.findUnique({ where: { email: credentials.email }, include: { role: true } });
+        // 先讀全域權限版本，再讀使用者權限：確保 token 標記的版本 <= 權限快照對應的版本。
+        // 若登入當下發生權限異動，最壞情況只是下一請求多刷新一次，
+        // 不會出現「token 帶舊權限卻標記新版本而永不刷新」的時間差窗口。
+        const permissionsVersion = await securityAdminUseCases.getPermissionsVersion();
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+          include: { role: { include: { perms: true } } },
+        });
         if (!user || !user.password) return null;
         if (user.deletedAt) return null;
         if (user.role.deletedAt) return null;
@@ -47,6 +55,8 @@ export const authOptions = {
           roleId: user.roleId,
           roleKey: user.role.key,
           roleName: user.role.name,
+          permissions: user.role.perms.map((p) => p.permissionKey),
+          permissionsVersion,
         };
       },
     }),
@@ -56,32 +66,51 @@ export const authOptions = {
   callbacks: {
     async jwt({ token, user }: { token: any; user: any }) {
       if (user) {
-        const typed = user as { roleId?: string; roleKey?: string; roleName?: string };
+        const typed = user as { roleId?: string; roleKey?: string; roleName?: string; permissions?: string[]; permissionsVersion?: number };
         token.roleId = typed.roleId;
         token.roleKey = typed.roleKey;
         token.roleName = typed.roleName;
+        token.permissions = typed.permissions ?? [];
+        // 使用 authorize 於「讀權限之前」擷取的版本；缺漏時才退回即時查詢。
+        token.permissionsVersion = typed.permissionsVersion ?? (await securityAdminUseCases.getPermissionsVersion());
+        token.invalid = false;
+      } else {
+        // 沒有 sub 的 token（例如舊版/異常 token）無法查詢使用者，直接標記失效而非讓 DB 查詢拋錯
+        if (!token.sub) {
+          token.invalid = true;
+          token.permissions = [];
+          return token;
+        }
+        // 版本比對：僅在全域權限版本變動時才重新查詢資料庫，避免每個請求都打 DB
+        const current = await securityAdminUseCases.getPermissionsVersion();
+        if (token.permissionsVersion !== current) {
+          const snap = await securityAdminUseCases.getUserAuthSnapshot(token.sub as string);
+          if (!snap) {
+            token.invalid = true;
+            token.permissions = [];
+          } else {
+            token.roleId = snap.roleId;
+            token.roleKey = snap.roleKey;
+            token.roleName = snap.roleName;
+            token.permissions = snap.permissionKeys;
+            token.invalid = false;
+          }
+          token.permissionsVersion = current;
+        }
       }
       return token;
     },
     async session({ session, token }: { session: any; token: any }) {
-      if (session.user && token.sub) {
-        // 重新從資料庫查詢用戶的最新角色資訊，確保權限變更能即時生效
-        const user = await prisma.user.findUnique({
-          where: { id: token.sub },
-          include: { role: true },
-        });
-
-        // 如果用戶或角色已被刪除，清空 session user
-        if (!user || user.deletedAt || !user.role || user.role.deletedAt) {
-          session.user = undefined;
-          return session;
-        }
-
-        // 使用資料庫中的最新角色資訊
-        session.user.id = user.id;
-        session.user.roleId = user.roleId;
-        session.user.roleKey = user.role.key;
-        session.user.roleName = user.role.name;
+      if (token.invalid || !token.sub) {
+        session.user = undefined;
+        return session;
+      }
+      if (session.user) {
+        session.user.id = token.sub;
+        session.user.roleId = token.roleId;
+        session.user.roleKey = token.roleKey;
+        session.user.roleName = token.roleName;
+        session.user.permissions = token.permissions ?? [];
       }
       return session;
     },
@@ -105,6 +134,7 @@ export type AppSession = {
     roleId?: string;
     roleKey?: string;
     roleName?: string;
+    permissions?: string[];
   };
 } | null;
 
