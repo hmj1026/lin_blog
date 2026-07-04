@@ -67,13 +67,25 @@ describe("api-utils", () => {
             expect(json.message).toBe("Forbidden");
         });
 
-        it("處理一般 Error", async () => {
-            const error = new Error("System Error");
+        it("一般 Error 回傳泛化訊息與 500，不外洩原始訊息", async () => {
+            const error = new Error("System Error: sensitive db detail");
             const response = handleApiError(error);
             const json = await response.json();
 
-            expect(response.status).toBe(400); // Default for standard Error
-            expect(json.message).toBe("System Error");
+            expect(response.status).toBe(500);
+            expect(json.message).toBe("系統發生錯誤，請稍後再試");
+            expect(json.message).not.toContain("sensitive db detail");
+        });
+
+        it("ZodError 回傳欄位層級訊息與 400", async () => {
+            const { z } = await import("zod");
+            const schema = z.object({ title: z.string().min(1, "標題必填") });
+            const parsed = schema.safeParse({ title: "" });
+            expect(parsed.success).toBe(false);
+            const response = handleApiError((parsed as any).error);
+            const json = await response.json();
+            expect(response.status).toBe(400);
+            expect(json.message).toContain("標題必填");
         });
 
         it("處理未知錯誤", async () => {
@@ -81,7 +93,7 @@ describe("api-utils", () => {
             const json = await response.json();
 
             expect(response.status).toBe(500);
-            expect(json.message).toBe("未知錯誤");
+            expect(json.message).toBe("系統發生錯誤，請稍後再試");
         });
     });
 

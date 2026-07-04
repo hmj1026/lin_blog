@@ -3,6 +3,7 @@ import { postApiSchema, parsePostApiInput } from "@/lib/validations/post.schema"
 import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { getSession } from "@/lib/auth";
+import { toPostByIdResponse } from "@/lib/frontend/post";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -12,7 +13,15 @@ export async function GET(_req: Request, context: Context) {
   const { id } = await context.params;
   const post = await postsQueries.getPostById(id);
   if (!post) return jsonOk(null, { status: 404 });
-  return jsonOk(post);
+
+  if (post.status !== "PUBLISHED") {
+    // 未發佈文章需具備後台讀取權限；失敗一律回 404（而非 requirePermission 的 401/403），
+    // 避免揭露「此 ID 存在但你看不到」。
+    const authError = await requirePermission("posts:write");
+    if (authError) return jsonOk(null, { status: 404 });
+  }
+
+  return jsonOk(toPostByIdResponse(post));
 }
 
 export async function PUT(request: Request, context: Context) {

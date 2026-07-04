@@ -12,7 +12,8 @@ const envSchema = z.object({
   // 資料庫與認證
   DATABASE_URL: z.string().url(),
   NEXTAUTH_SECRET: z.string().min(1),
-  
+  CRON_SECRET: z.string().min(1),
+
   // 外部服務
   FIGMA_TOKEN: z.string().optional(),
   UPLOADTHING_TOKEN: z.string().optional(),
@@ -53,6 +54,7 @@ export const env = envSchema.parse({
   APP_ENV: process.env.APP_ENV,
   DATABASE_URL: process.env.DATABASE_URL,
   NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+  CRON_SECRET: process.env.CRON_SECRET,
   FIGMA_TOKEN: process.env.FIGMA_TOKEN,
   UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
   // Storage

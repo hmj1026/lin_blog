@@ -1,5 +1,7 @@
 import { postsUseCases } from "@/modules/posts";
 import { NextRequest } from "next/server";
+import { env } from "@/env";
+import { logger } from "@/lib/logger";
 
 /**
  * 排程發佈檢查 API
@@ -11,9 +13,13 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   // 驗證 cron secret（防止未授權呼叫）
   const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  const cronSecret = env.CRON_SECRET;
+
+  if (!cronSecret) {
+    logger.error("CRON_SECRET is not configured; rejecting cron request (fail-closed)");
+    return new Response("Server misconfiguration", { status: 500 });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
 
