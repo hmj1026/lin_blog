@@ -62,30 +62,29 @@ describe("securityAdminRepositoryPrisma", () => {
     updatedAt: new Date(),
   };
 
-  describe("hasRolePermission", () => {
-    it("returns true if role has permission", async () => {
-      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(mockRole);
-
-      const result = await securityAdminRepositoryPrisma.hasRolePermission({
-        roleId: "role-1",
-        permissionKey: "MANAGE_POSTS",
+  describe("getRoleAccessState", () => {
+    it("returns raw deletedAt and permissionKeys without validity judgment", async () => {
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        deletedAt: null,
+        perms: [{ permissionKey: "MANAGE_POSTS" }],
       });
-
-      expect(result).toBe(true);
-      expect(prisma.role.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "role-1" },
-        })
-      );
+      const result = await securityAdminRepositoryPrisma.getRoleAccessState("role-1");
+      expect(result).toEqual({ deletedAt: null, permissionKeys: ["MANAGE_POSTS"] });
     });
 
-    it("returns false if role not found", async () => {
-      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      const result = await securityAdminRepositoryPrisma.hasRolePermission({
-        roleId: "role-1",
-        permissionKey: "MANAGE_POSTS",
+    it("returns raw state even for a soft-deleted role (no judgment in repo)", async () => {
+      const when = new Date();
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        deletedAt: when,
+        perms: [{ permissionKey: "MANAGE_POSTS" }],
       });
-      expect(result).toBe(false);
+      const result = await securityAdminRepositoryPrisma.getRoleAccessState("role-1");
+      expect(result).toEqual({ deletedAt: when, permissionKeys: ["MANAGE_POSTS"] });
+    });
+
+    it("returns null if role not found", async () => {
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      expect(await securityAdminRepositoryPrisma.getRoleAccessState("role-1")).toBeNull();
     });
   });
 

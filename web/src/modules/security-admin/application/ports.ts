@@ -1,3 +1,5 @@
+import type { RoleAccessState } from "../domain/rules";
+
 export type PermissionRecord = {
   key: string;
   name: string;
@@ -35,8 +37,7 @@ export type AdminUserRecord = {
 };
 
 export interface SecurityAdminRepository {
-  hasRolePermission(params: { roleId: string; permissionKey: string }): Promise<boolean>;
-  hasRoleAnyPermission(params: { roleId: string; permissionKeys: string[] }): Promise<boolean>;
+  getRoleAccessState(roleId: string): Promise<RoleAccessState | null>;
   listRolePermissionKeys(roleId: string): Promise<string[]>;
 
   listRolesWithPermissions(): Promise<RoleRecord[]>;

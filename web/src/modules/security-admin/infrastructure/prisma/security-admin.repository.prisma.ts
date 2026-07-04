@@ -13,25 +13,13 @@ const bumpVersion = (tx: Prisma.TransactionClient) =>
   });
 
 export const securityAdminRepositoryPrisma: SecurityAdminRepository = {
-  async hasRolePermission(params) {
+  async getRoleAccessState(roleId) {
     const role = await prisma.role.findUnique({
-      where: { id: params.roleId },
-      select: { deletedAt: true, perms: { where: { permissionKey: params.permissionKey }, select: { id: true } } },
+      where: { id: roleId },
+      select: { deletedAt: true, perms: { select: { permissionKey: true } } },
     });
-    if (!role || role.deletedAt) return false;
-    return role.perms.length > 0;
-  },
-
-  async hasRoleAnyPermission(params) {
-    const role = await prisma.role.findUnique({
-      where: { id: params.roleId },
-      select: {
-        deletedAt: true,
-        perms: { where: { permissionKey: { in: params.permissionKeys } }, select: { id: true } },
-      },
-    });
-    if (!role || role.deletedAt) return false;
-    return role.perms.length > 0;
+    if (!role) return null;
+    return { deletedAt: role.deletedAt, permissionKeys: role.perms.map((p) => p.permissionKey) };
   },
 
   async listRolePermissionKeys(roleId) {
