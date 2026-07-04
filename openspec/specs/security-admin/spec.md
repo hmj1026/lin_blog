@@ -84,3 +84,21 @@ TBD - created by archiving change secure-storage-soft-delete-rbac. Update Purpos
 - **WHEN** 該例外經過全域錯誤處理函式處理
 - **THEN** client 收到的回應 SHALL 為該 `ApiException` 原本設計的訊息與狀態碼
 
+### Requirement: Domain Layer For Access Control Rules
+The security-admin module SHALL encapsulate role and permission validity rules in a `domain/` layer of pure functions, consistent with the other four modules (posts, media, analytics, site-settings). The infrastructure (repository) layer SHALL only return raw data and SHALL NOT contain semantic authorization judgments.
+
+#### Scenario: Repository returns raw role data only
+- **GIVEN** `web/src/modules/security-admin/infrastructure/prisma/security-admin.repository.prisma.ts` queries a role or its permissions
+- **WHEN** the query completes
+- **THEN** the repository SHALL return the raw `Role`/`Permission` records without evaluating soft-delete or validity state
+
+#### Scenario: Soft-deleted role is treated as having no permission
+- **GIVEN** a role has `deletedAt` set (soft-deleted)
+- **WHEN** the use case checks whether that role has a given permission via `web/src/modules/security-admin/domain/rules.ts`
+- **THEN** the domain rule SHALL return `false` regardless of the role's assigned permissions
+
+#### Scenario: Permission check is unit-testable without Prisma
+- **GIVEN** the domain rule functions (`isRoleActive`, `roleHasPermission`, `roleHasAnyPermission`) in `security-admin/domain/`
+- **WHEN** a unit test invokes them with plain in-memory role/permission objects
+- **THEN** the test SHALL pass without importing Prisma or any infrastructure code
+

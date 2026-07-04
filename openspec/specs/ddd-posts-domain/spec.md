@@ -27,3 +27,16 @@ TBD - created by archiving change refactor-ddd-posts-domain. Update Purpose afte
 - **WHEN** 執行 create post use case
 - **THEN** 寫入資料的 content 會被 sanitize 後再儲存
 
+### Requirement: Frontend Mapper Completeness
+`toFrontendPost` (`web/src/lib/frontend/post.ts`) SHALL be the sole mapper from a domain/Prisma post shape to `FrontendPost`, and SHALL map all fields the UI needs to render a post, including content and SEO metadata. UI code SHALL consume only `FrontendPost` and SHALL NOT read domain/Prisma post fields directly.
+
+#### Scenario: Blog detail page reads content via FrontendPost
+- **GIVEN** `web/src/app/(frontend)/blog/[slug]/page.tsx` renders a post's body content
+- **WHEN** it accesses the post's content
+- **THEN** it SHALL read the field from the `FrontendPost` object returned by `toFrontendPost`, not from the raw domain/Prisma post
+
+#### Scenario: Blog detail page reads SEO metadata via FrontendPost
+- **GIVEN** `web/src/app/(frontend)/blog/[slug]/page.tsx` builds page metadata (title, description, OG image)
+- **WHEN** it accesses SEO-related fields
+- **THEN** it SHALL read them from the `FrontendPost` object returned by `toFrontendPost`, not from the raw domain/Prisma post
+
