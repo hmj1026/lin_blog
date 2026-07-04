@@ -10,7 +10,7 @@ type AdminTableProps = {
  */
 export function AdminTable({ children, className }: AdminTableProps) {
   return (
-    <div className={cn("overflow-hidden rounded-xl border border-line", className)}>
+    <div className={cn("overflow-x-auto rounded-xl border border-line", className)}>
       <table className="min-w-full text-sm">{children}</table>
     </div>
   );
