@@ -56,6 +56,12 @@ model RolePermission {
   @@index([permissionKey])
 }
 
+model PermissionVersion {
+  id        String   @id
+  value     Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model Post {
   id             String         @id @default(cuid())
   slug           String         @unique
