@@ -19,12 +19,12 @@ TBD - created by archiving change secure-storage-soft-delete-rbac. Update Purpos
 - **THEN** 前台/後台列表預設不顯示該分類
 
 ### Requirement: Private Storage For Uploads
-系統 SHALL 將上傳檔案存放於非公開目錄，並僅透過受控端點輸出，以避免以 URL 直接存取原始檔案路徑。
+系統 SHALL 將上傳檔案存放於**非公開**的儲存後端（local disk 或 cloud bucket），並僅透過受控端點輸出，以避免以 URL 直接存取原始檔案路徑或 object key。
 
 #### Scenario: Upload cannot be accessed via direct public path
-- **GIVEN** 檔案已上傳到 storage
-- **WHEN** 使用者嘗試用 `public/` 路徑直接存取
-- **THEN** 無法取得檔案內容
+- **GIVEN** 檔案已上傳到 storage（local 或 cloud）
+- **WHEN** 使用者嘗試以「直接路徑 / bucket URL / object key」存取
+- **THEN** 無法取得檔案內容（因為 storage 設定為 private 或不提供直出）
 
 #### Scenario: Image is delivered via controlled endpoint
 - **WHEN** 前台渲染文章內容圖片

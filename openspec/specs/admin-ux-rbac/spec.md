@@ -34,12 +34,19 @@ TBD - created by archiving change enhance-admin-ux-and-rbac. Update Purpose afte
 - **THEN** 新視窗顯示文章前台呈現結果
 
 ### Requirement: Frontend Admin Link And Account Info
-前台導覽 SHALL 僅在登入的管理者可見後台入口，並顯示目前登入帳號與角色且可登出。
+前台導覽 SHALL 僅在登入的管理者可見後台入口，並以一致的帳號控制區塊顯示帳號與角色資訊，且提供一致風格的登出確認流程。
 
 #### Scenario: Logged out user does not see admin entry
 - **WHEN** 使用者未登入
 - **THEN** 前台不顯示後台入口與帳號資訊
 
+#### Scenario: Logged in admin sees account control
+- **WHEN** 管理者登入前台
+- **THEN** 導覽列顯示一致的帳號區塊，包含帳號、角色與後台/登出入口
+
+#### Scenario: Sign-out confirmation matches site UI
+- **WHEN** 管理者點擊登出
+- **THEN** 系統顯示符合站點設計語言的登出確認介面並於確認後完成登出
 
 ### Requirement: Admin Sidebar Responsive Layout
 後台側邊欄與主版面 SHALL 在行動裝置寬度下維持可操作性：側邊欄於窄螢幕收合，並提供展開/收合的觸發入口；主內容區的留白間距 SHALL 隨螢幕寬度斷點調整，不得在手機寬度下固定佔用過大留白。
@@ -62,3 +69,4 @@ TBD - created by archiving change enhance-admin-ux-and-rbac. Update Purpose afte
 #### Scenario: Loading state shown while admin page data resolves
 - **WHEN** 管理者導覽至任一後台頁面且該頁面資料尚未就緒
 - **THEN** 系統顯示符合後台版面風格的載入中畫面，而非空白或無樣式畫面
+

@@ -70,7 +70,7 @@ The system SHALL provide syntax highlighting for code blocks in blog posts.
 ---
 
 ### Requirement: Dark Mode
-The system SHALL support dark mode for the frontend with proper contrast for all UI elements.
+The system SHALL support dark mode for the frontend with readable contrast for text and interactive elements across primary pages and shared components.
 
 #### Scenario: System preference detection
 - **WHEN** a user visits with system dark mode enabled
@@ -84,15 +84,9 @@ The system SHALL support dark mode for the frontend with proper contrast for all
 - **WHEN** a user selects a theme preference
 - **THEN** the preference SHALL be saved for future visits
 
-#### Scenario: Navbar link contrast in dark mode
+#### Scenario: Readable contrast on dark surfaces
 - **WHEN** the site is in dark mode
-- **THEN** inactive navbar links SHALL have sufficient contrast (text-base-400) and hover to white
-
-#### Scenario: Card shadow in dark mode
-- **WHEN** the site is in dark mode
-- **THEN** PostCard components SHALL have visible shadows (shadow-lg shadow-black/10)
-
----
+- **THEN** primary text, secondary text, and key UI surfaces SHALL maintain readable contrast on navigation, hero, and card components
 
 ### Requirement: Theme Toggle Integration
 The system SHALL integrate the theme toggle into the navigation bar.
@@ -275,7 +269,6 @@ The application SHALL use Suspense boundaries strategically to enable streaming 
 - **THEN** these components SHALL be dynamically imported
 - **AND** a loading skeleton SHALL be displayed during load
 
-
 ### Requirement: Site-Wide Styled Not-Found State
 系統 SHALL 提供統一且符合站點視覺風格的找不到頁面（404），取代框架預設的無樣式畫面。前台動態路由（文章/分類/標籤）觸發的 `notFound()` SHALL 回傳 HTTP `404` 狀態碼，不得因套用會觸發串流（streaming）的 route-group／根層 `loading.tsx` 而使狀態碼降級為 `200`。
 
@@ -288,3 +281,4 @@ The application SHALL use Suspense boundaries strategically to enable streaming 
 #### Scenario: notFound() on frontend dynamic routes preserves 404 status
 - **WHEN** 匿名使用者直接請求不存在或未授權（草稿）的文章/分類/標籤路由，觸發 `notFound()`
 - **THEN** HTTP 回應狀態碼為 `404`（而非因載入骨架串流而降級為 `200`），且已發布內容仍正常回傳 `200`
+

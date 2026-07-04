@@ -31,3 +31,24 @@ The system SHALL allow deleting uploaded files.
 - **WHEN** an admin clicks delete
 - **THEN** a confirmation dialog SHALL appear
 
+### Requirement: Configurable Upload Storage Backend
+The system SHALL support switching the upload storage backend via environment configuration, without changing the upload/read API contracts.
+
+#### Scenario: Use local storage in development
+- **GIVEN** `STORAGE_PROVIDER=local`
+- **WHEN** an admin uploads an image
+- **THEN** the file SHALL be persisted to local disk storage
+- **AND** the image SHALL be readable via `/api/files/<id>`
+
+#### Scenario: Use S3-compatible storage in production
+- **GIVEN** `STORAGE_PROVIDER` is `s3` or `r2`
+- **WHEN** an admin uploads an image
+- **THEN** the file SHALL be persisted to the configured bucket
+- **AND** the image SHALL be readable via `/api/files/<id>`
+
+#### Scenario: Use Google Cloud Storage in production
+- **GIVEN** `STORAGE_PROVIDER=gcs`
+- **WHEN** an admin uploads an image
+- **THEN** the file SHALL be persisted to the configured GCS bucket
+- **AND** the image SHALL be readable via `/api/files/<id>`
+

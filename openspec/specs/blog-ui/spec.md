@@ -26,15 +26,19 @@ The UI SHALL visually match the provided Figma design (Client-First Template 12 
 - **THEN** the layout, typography scales, and stacking order match the Figma frames for smaller breakpoints.
 
 ### Requirement: Navigation and Header
-The site SHALL provide a global navigation bar with logo/branding, primary links, and call-to-action elements styled per Figma, with responsive behavior.
+The site SHALL provide a global navigation bar with logo/branding, primary links, call-to-action elements, and an optional signed-in account control, styled per design tokens with responsive behavior that avoids crowding.
 
 #### Scenario: Desktop navigation mirrors Figma
 - **WHEN** viewing on desktop,
-- **THEN** the navbar shows logo, nav links, and CTA(s) in the order and styling from Figma with hover/focus states.
+- **THEN** the navbar shows logo, nav links, and CTA(s) in the order and styling from the design system with hover/focus states.
 
 #### Scenario: Mobile navigation collapses
 - **WHEN** viewing on mobile,
-- **THEN** the navigation collapses into the mobile pattern shown in Figma (e.g., menu toggle/drawer) while preserving links and CTA access.
+- **THEN** the navigation collapses into the mobile pattern shown in the design system (e.g., menu toggle/drawer) while preserving links and CTA access.
+
+#### Scenario: Signed-in admin state stays cohesive
+- **WHEN** an admin user is signed in on desktop,
+- **THEN** the navbar SHALL present account information and actions as a compact control that preserves readable spacing for links and CTA buttons.
 
 ### Requirement: Landing Page Content
 The landing/home page SHALL render all hero, featured content, category highlights, and community/CTA sections depicted in the Figma file with correct copy structure and imagery placement.
