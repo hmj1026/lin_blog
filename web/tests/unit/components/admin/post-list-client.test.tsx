@@ -192,7 +192,7 @@ describe("PostListClient", () => {
     await userEvent.click(previewButtons[0]);
 
     expect(openMock).toHaveBeenCalledWith(
-      "/blog/post-one?preview=1",
+      "/api/preview?slug=post-one",
       "_blank",
       "noopener,noreferrer"
     );

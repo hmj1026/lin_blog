@@ -6,7 +6,7 @@ import { Pagination } from "@/components/pagination";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsQueries } from "@/lib/server-queries";
 
-// 強制動態渲染，避免 build 時嘗試連接資料庫
+// 讀取 searchParams（category/tag/page）→ Next 強制 per-request 動態渲染，ISR 無法快取（見 fix-perf-caching）
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 10;

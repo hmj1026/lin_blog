@@ -3,7 +3,7 @@ import { PostCard } from "@/components/post-card";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsQueries } from "@/lib/server-queries";
 
-// 強制動態渲染，避免 build 時嘗試連接資料庫
+// 依查詢字串動態渲染，output 隨 ?q 變動，無法用 ISR 快取（見 fix-perf-caching spec Scenario 4）
 export const dynamic = "force-dynamic";
 
 type SearchPageProps = {

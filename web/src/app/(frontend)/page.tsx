@@ -7,16 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 
-// 強制動態渲染，避免 build 時嘗試連接資料庫
-export const dynamic = "force-dynamic";
+// ISR：60 秒重新驗證快取
+export const revalidate = 60;
 
 export default async function Home() {
-  const [featuredRaw, latestRaw, categories, settings] = await Promise.all([
-    postsQueries.listPublishedPosts({ featured: true, take: 2 }),
-    postsQueries.listPublishedPosts({ take: 6 }),
-    postsQueries.listActiveCategories({ showInNav: true }),
-    siteSettingsQueries.getOrCreateDefault(),
-  ]);
+  let featuredRaw: Awaited<ReturnType<typeof postsQueries.listPublishedPosts>> = [];
+  let latestRaw: typeof featuredRaw = [];
+  let categories: Awaited<ReturnType<typeof postsQueries.listActiveCategories>> = [];
+  let settings = {} as Awaited<ReturnType<typeof siteSettingsQueries.getOrCreateDefault>>;
+  try {
+    [featuredRaw, latestRaw, categories, settings] = await Promise.all([
+      postsQueries.listPublishedPosts({ featured: true, take: 2 }),
+      postsQueries.listPublishedPosts({ take: 6 }),
+      postsQueries.listActiveCategories({ showInNav: true }),
+      siteSettingsQueries.getOrCreateDefault(),
+    ]);
+  } catch {
+    // build 階段無 DB 連線時容錯（CI build 無 postgres）；首個 runtime 請求會 ISR 重新產生真實內容
+  }
 
   const featuredPosts = featuredRaw.map(toFrontendPost);
   const latestPosts = latestRaw.map(toFrontendPost);
