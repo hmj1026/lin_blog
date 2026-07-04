@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMediaUseCases } from "@/modules/media/application/use-cases";
-import type { UploadRepository, UploadRecord } from "@/modules/media/application/ports";
+import type { UploadRepository, UploadRecord, StoragePort, ImageProcessorPort } from "@/modules/media/application/ports";
 
 // Mock repository
 const createMockRepo = (): UploadRepository => ({
@@ -8,6 +8,15 @@ const createMockRepo = (): UploadRepository => ({
   getById: vi.fn(),
   create: vi.fn(),
   softDelete: vi.fn(),
+});
+
+const createMockStorage = (): StoragePort => ({
+  putObject: vi.fn().mockResolvedValue({ ok: true }),
+  getObjectStream: vi.fn(),
+});
+
+const createMockImageProcessor = (): ImageProcessorPort => ({
+  process: vi.fn().mockImplementation(async (buffer: Buffer, mimeType: string) => ({ buffer, mimeType })),
 });
 
 const mockUpload: UploadRecord = {
@@ -23,11 +32,15 @@ const mockUpload: UploadRecord = {
 
 describe("mediaUseCases", () => {
   let mockRepo: UploadRepository;
+  let mockStorage: StoragePort;
+  let mockImageProcessor: ImageProcessorPort;
   let useCases: ReturnType<typeof createMediaUseCases>;
 
   beforeEach(() => {
     mockRepo = createMockRepo();
-    useCases = createMediaUseCases({ uploads: mockRepo });
+    mockStorage = createMockStorage();
+    mockImageProcessor = createMockImageProcessor();
+    useCases = createMediaUseCases({ uploads: mockRepo, storage: mockStorage, imageProcessor: mockImageProcessor });
   });
 
   describe("listUploads", () => {
@@ -121,6 +134,59 @@ describe("mediaUseCases", () => {
       const result = await useCases.softDeleteUpload("upload-1");
       expect(result).toEqual({ ok: false, error: "not-found" });
       expect(mockRepo.softDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("uploadFile", () => {
+    it("processes, stores, and records the upload, returning id + src", async () => {
+      (mockImageProcessor.process as ReturnType<typeof vi.fn>).mockResolvedValue({
+        buffer: Buffer.from("processed"),
+        mimeType: "image/webp",
+      });
+      (mockRepo.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "up-1" });
+
+      const result = await useCases.uploadFile({
+        buffer: Buffer.from("orig"),
+        mimeType: "image/jpeg",
+        originalName: "photo.jpg",
+      });
+
+      expect(result).toEqual({ ok: true, id: "up-1", src: "/api/files/up-1" });
+      expect(mockStorage.putObject).toHaveBeenCalledWith(
+        expect.objectContaining({ contentType: "image/webp", key: expect.stringMatching(/^uploads\/.+\.webp$/) })
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ storageKey: expect.stringMatching(/^uploads\/.+\.webp$/), mimeType: "image/webp", visibility: "PUBLIC" })
+      );
+    });
+
+    it("returns a retryable storage failure without creating a record", async () => {
+      (mockImageProcessor.process as ReturnType<typeof vi.fn>).mockResolvedValue({
+        buffer: Buffer.from("processed"),
+        mimeType: "image/jpeg",
+      });
+      (mockStorage.putObject as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, retryable: true, message: "S3 down" });
+
+      const result = await useCases.uploadFile({
+        buffer: Buffer.from("orig"),
+        mimeType: "image/jpeg",
+        originalName: "photo.jpg",
+      });
+
+      expect(result).toEqual({ ok: false, error: "storage", retryable: true, message: "S3 down" });
+      expect(mockRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("openFileStream", () => {
+    it("delegates to storage.getObjectStream by key", async () => {
+      const streamResult = { ok: true, stream: new ReadableStream(), contentType: "image/png", contentLength: 3 };
+      (mockStorage.getObjectStream as ReturnType<typeof vi.fn>).mockResolvedValue(streamResult);
+
+      const result = await useCases.openFileStream("uploads/k1.png");
+
+      expect(result).toBe(streamResult);
+      expect(mockStorage.getObjectStream).toHaveBeenCalledWith({ key: "uploads/k1.png" });
     });
   });
 });

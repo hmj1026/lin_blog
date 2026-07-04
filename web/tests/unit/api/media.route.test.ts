@@ -3,34 +3,14 @@ import { GET, POST } from "@/app/api/uploads/route";
 import { DELETE } from "@/app/api/uploads/[id]/route";
 import { mediaUseCases } from "@/modules/media";
 import { requirePermission } from "@/lib/api-utils";
-import { getStorageAdapter, StorageError } from "@/modules/media/infrastructure/storage";
-import { processImage } from "@/modules/media/infrastructure/image-processor";
-import { NextResponse } from "next/server";
 
 // Mock dependencies
 vi.mock("@/modules/media", () => ({
   mediaUseCases: {
     listUploads: vi.fn(),
-    createUpload: vi.fn(),
+    uploadFile: vi.fn(),
     softDeleteUpload: vi.fn(),
   },
-}));
-
-vi.mock("@/modules/media/infrastructure/storage", () => ({
-  getStorageAdapter: vi.fn(),
-  StorageError: class extends Error {
-    isRetryable: boolean;
-    code: string;
-    constructor(msg: string, code: string = "UNKNOWN") {
-      super(msg);
-      this.code = code;
-      this.isRetryable = code === "TEMPORARY";
-    }
-  },
-}));
-
-vi.mock("@/modules/media/infrastructure/image-processor", () => ({
-  processImage: vi.fn(),
 }));
 
 vi.mock("@/lib/api-utils", async (importOriginal) => {
@@ -52,13 +32,8 @@ vi.mock("@/env", () => ({
 }));
 
 describe("API: /api/uploads", () => {
-  const mockStorage = {
-    putObject: vi.fn(),
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
-    (getStorageAdapter as any).mockReturnValue(mockStorage);
   });
 
   describe("GET", () => {
@@ -87,41 +62,19 @@ describe("API: /api/uploads", () => {
   describe("POST", () => {
     it("uploads file successfully", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      
+
       const file = new File(["content"], "test.jpg", { type: "image/jpeg" });
-      // Mock arrayBuffer since jsdom/node File might not have it or we want to control it
-      Object.defineProperty(file, "arrayBuffer", {
-        value: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-      });
+      Object.defineProperty(file, "arrayBuffer", { value: vi.fn().mockResolvedValue(new ArrayBuffer(8)) });
 
-      const formData = new FormData();
-      formData.append("file", file);
+      (mediaUseCases.uploadFile as any).mockResolvedValue({ ok: true, id: "123", src: "/api/files/123" });
 
-      // Mock processing
-      (processImage as any).mockResolvedValue({
-        buffer: Buffer.from("processed"),
-        mimeType: "image/jpeg",
-        width: 100,
-        height: 100,
-      });
-
-      // Mock DB creation
-      (mediaUseCases.createUpload as any).mockResolvedValue({ id: "123" });
-
-      // Mock Request
-      const request = {
-        formData: async () => ({
-           get: (key: string) => (key === "file" ? file : null),
-        }),
-      };
+      const request = { formData: async () => ({ get: (key: string) => (key === "file" ? file : null) }) };
 
       const response = await POST(request as any);
       const json = await response.json();
 
       expect(response.status).toBe(200);
-      expect(processImage).toHaveBeenCalled();
-      expect(mockStorage.putObject).toHaveBeenCalled();
-      expect(mediaUseCases.createUpload).toHaveBeenCalled();
+      expect(mediaUseCases.uploadFile).toHaveBeenCalled();
       expect(json.data.id).toBe("123");
     });
 
@@ -157,26 +110,13 @@ describe("API: /api/uploads", () => {
     it("handles storage error", async () => {
       (requirePermission as any).mockResolvedValue(null);
       const file = new File(["content"], "test.jpg", { type: "image/jpeg" });
-      Object.defineProperty(file, "arrayBuffer", {
-        value: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
-      });
+      Object.defineProperty(file, "arrayBuffer", { value: vi.fn().mockResolvedValue(new ArrayBuffer(8)) });
 
-      // Mock processing
-      (processImage as any).mockResolvedValue({
-        buffer: Buffer.from("processed"),
-        mimeType: "image/jpeg",
-      });
+      (mediaUseCases.uploadFile as any).mockResolvedValue({ ok: false, error: "storage", retryable: true, message: "S3 Error" });
 
-      mockStorage.putObject.mockRejectedValue(new StorageError("S3 Error", "TEMPORARY"));
-
-      const request = { 
-        formData: async () => ({
-            get: (key: string) => (key === "file" ? file : null)
-        }) 
-      };
+      const request = { formData: async () => ({ get: (key: string) => (key === "file" ? file : null) }) };
 
       const response = await POST(request as any);
-      
       expect(response.status).toBe(503);
     });
   });
