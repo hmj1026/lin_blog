@@ -191,3 +191,87 @@ The system SHALL display social media links in the footer when configured in sit
 - **WHEN** a user hovers over a social link button
 - **THEN** the button SHALL transition to filled brand color with white icon
 
+### Requirement: Public Page Incremental Static Regeneration
+
+Public-facing content pages SHALL use Incremental Static Regeneration
+(ISR) instead of fully dynamic rendering, so that repeat requests within
+the revalidation window are served from cache instead of re-querying the
+database on every request.
+
+#### Scenario: Home, blog list, post detail, category and tag pages are cached
+- **GIVEN** a visitor requests the home page, blog list, a post detail
+  page, a category page, or a tag page
+- **WHEN** the page has already been rendered within its revalidation
+  window
+- **THEN** the system SHALL serve the cached render instead of
+  re-executing the page's data-fetching logic against the database
+
+#### Scenario: Content becomes visible again after the revalidation window
+- **GIVEN** a cached public page has passed its revalidation window
+- **WHEN** a new request arrives
+- **THEN** the system SHALL regenerate the page in the background (or on
+  next request) and SHALL reflect content changes made since the last
+  render within a bounded, documented time window
+
+#### Scenario: Draft preview does not block caching of published content
+- **GIVEN** the post detail page supports session-based draft preview
+- **WHEN** a request does not carry an active draft-preview context (e.g.
+  no draft mode / preview cookie)
+- **THEN** the system SHALL NOT perform a session lookup that would force
+  the page out of the cached/ISR rendering path
+- **AND** a request that does carry an active draft-preview context SHALL
+  still be able to view the current draft content
+
+#### Scenario: Search remains fully dynamic
+- **GIVEN** the search page renders results based on a query string
+- **WHEN** a visitor performs a search
+- **THEN** the system SHALL continue to render this page dynamically per
+  request, as its output is inherently query-dependent and not
+  cacheable via ISR
+
+### Requirement: Bundle Optimization
+
+The frontend application SHALL optimize bundle size through proper import patterns.
+
+#### Scenario: Lucide React Icons Import Optimization
+- **WHEN** components import icons from lucide-react
+- **THEN** Next.js optimizePackageImports SHALL automatically transform barrel imports to direct imports
+- **AND** development server boot time SHALL be reduced
+
+#### Scenario: Third-Party Library Lazy Loading
+- **WHEN** the application loads analytics providers (GA, GTM, Facebook Pixel)
+- **THEN** these scripts SHALL be loaded after hydration using dynamic imports with `ssr: false`
+- **AND** the initial bundle size SHALL not include these libraries
+
+---
+
+### Requirement: Request Deduplication
+
+The application SHALL use React.cache() to deduplicate data fetching within a single request.
+
+#### Scenario: Session Data Deduplication
+- **WHEN** multiple components call getSession() within a single request
+- **THEN** the session SHALL only be fetched once from the database
+- **AND** subsequent calls SHALL return the cached result
+
+#### Scenario: Site Settings Deduplication
+- **WHEN** multiple components call siteSettingsUseCases.getDefault() within a single request
+- **THEN** the settings SHALL only be queried once
+- **AND** subsequent calls SHALL return the cached result
+
+---
+
+### Requirement: Streaming Rendering
+
+The application SHALL use Suspense boundaries strategically to enable streaming rendering where appropriate.
+
+#### Scenario: Page Layout with Data Loading
+- **WHEN** a page has data-dependent sections
+- **THEN** static layout elements SHALL render immediately
+- **AND** data-dependent sections SHALL stream in with loading states
+
+#### Scenario: Heavy Components Lazy Loading
+- **WHEN** heavy components (e.g., TiptapEditor) are used in admin pages
+- **THEN** these components SHALL be dynamically imported
+- **AND** a loading skeleton SHALL be displayed during load
+

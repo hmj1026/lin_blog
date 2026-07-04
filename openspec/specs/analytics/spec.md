@@ -92,3 +92,25 @@ The system SHALL support querying view events over up to one year without requir
 - **WHEN** the system counts or groups view events since a start date
 - **THEN** the underlying storage SHALL provide an index supporting `deletedAt` + `viewedAt` filtering
 
+### Requirement: Bounded Analytics Stats Range
+
+The analytics stats endpoint SHALL validate and bound the requested date
+range so that a client-supplied `days` parameter cannot request an
+unbounded or invalid range.
+
+#### Scenario: Days parameter within valid range is accepted
+- **GIVEN** a request to `/api/analytics/stats` with a `days` query
+  parameter within the supported range (e.g. 1 to 365)
+- **WHEN** the system processes the request
+- **THEN** it SHALL query `PostViewEvent` data for exactly that many days
+
+#### Scenario: Out-of-range or invalid days parameter is rejected or clamped
+- **GIVEN** a request to `/api/analytics/stats` with a `days` query
+  parameter that is missing, non-numeric, zero, negative, or exceeds the
+  supported maximum
+- **WHEN** the system processes the request
+- **THEN** it SHALL either reject the request with an error response or
+  clamp the value to the nearest valid bound
+- **AND** it SHALL NOT execute a query for an unbounded or negative date
+  range
+

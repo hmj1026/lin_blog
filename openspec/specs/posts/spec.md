@@ -258,3 +258,23 @@ The system SHALL load summary fields for post lists and SHALL NOT fetch full `Po
 - **WHEN** `GET /api/posts/[id]` 回傳成功回應
 - **THEN** 回應資料 SHALL 為經過白名單 DTO 映射後的結果，而非未過濾的 domain/Prisma 物件序列化
 
+### Requirement: Bounded Post List Queries
+
+Post list queries (admin listing and public listing) SHALL enforce an
+upper bound on the number of records fetched per query, and SHALL NOT
+perform unbounded full-table reads.
+
+#### Scenario: Admin post list is bounded
+- **GIVEN** an admin requests the post list (`listForAdmin`)
+- **WHEN** the system queries the database
+- **THEN** it SHALL apply a maximum page size (`take`) to the query
+- **AND** it SHALL NOT fetch the entire `Post` table in a single query
+
+#### Scenario: Public post list is bounded
+- **GIVEN** a visitor or the frontend requests published posts
+  (`listPublished`)
+- **WHEN** the system queries the database
+- **THEN** it SHALL apply a maximum page size (`take`) to the query
+- **AND** it SHALL NOT fetch the entire published `Post` set in a single
+  query
+
