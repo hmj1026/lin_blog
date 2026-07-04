@@ -8,6 +8,7 @@ vi.mock("@/modules/posts", () => ({
 
 import { GET, POST } from "@/app/api/cron/publish-scheduled/route";
 import { env } from "@/env";
+import { postsUseCases } from "@/modules/posts";
 
 function req(auth?: string) {
   const headers = new Headers();
@@ -44,5 +45,43 @@ describe("cron publish-scheduled auth (fail-closed)", () => {
   it("POST accepts when Authorization header matches", async () => {
     const res = await POST(req("Bearer test-cron-secret"));
     expect(res.status).toBe(200);
+  });
+});
+
+describe("cron publish-scheduled state transition", () => {
+  beforeEach(() => {
+    (env as any).CRON_SECRET = "test-cron-secret";
+    (postsUseCases.publishScheduledPosts as any).mockClear();
+  });
+
+  it("publishes due scheduled posts and reports the count", async () => {
+    (postsUseCases.publishScheduledPosts as any).mockResolvedValueOnce({
+      count: 2,
+      published: [
+        { id: "p1", slug: "a", publishedAt: new Date("2024-01-01") },
+        { id: "p2", slug: "b", publishedAt: new Date("2024-01-02") },
+      ],
+    });
+
+    const res = await GET(req("Bearer test-cron-secret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.published).toHaveLength(2);
+    expect(body.message).toContain("2");
+  });
+
+  it("is a no-op when there are no due posts", async () => {
+    (postsUseCases.publishScheduledPosts as any).mockResolvedValueOnce({
+      count: 0,
+      published: [],
+    });
+
+    const res = await GET(req("Bearer test-cron-secret"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.published).toEqual([]);
+    expect(body.message).toBe("No scheduled posts to publish");
+    expect(postsUseCases.publishScheduledPosts).toHaveBeenCalledTimes(1);
   });
 });

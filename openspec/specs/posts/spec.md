@@ -219,3 +219,42 @@ The system SHALL load summary fields for post lists and SHALL NOT fetch full `Po
 - **WHEN** the system queries the post by slug/id
 - **THEN** it SHALL include `Post.content` for rendering
 
+### Requirement: Post By-ID Read Authorization
+系統 SHALL 對 `GET /api/posts/[id]` 依文章狀態進行授權檢查：僅 `status = PUBLISHED` 的文章可被任何呼叫者讀取；`DRAFT` 或 `SCHEDULED` 狀態的文章僅允許具備 `posts:read`（或等同後台讀取）權限的已登入使用者讀取，其餘一律視為不存在。
+
+#### Scenario: Anonymous user cannot read a draft post by ID
+- **GIVEN** 一篇文章狀態為 `DRAFT`
+- **WHEN** 未登入的使用者以該文章 ID 呼叫 `GET /api/posts/[id]`
+- **THEN** 系統回傳 404，且不揭露該文章存在
+
+#### Scenario: Anonymous user cannot read a scheduled post by ID
+- **GIVEN** 一篇文章狀態為 `SCHEDULED`
+- **WHEN** 未登入的使用者以該文章 ID 呼叫 `GET /api/posts/[id]`
+- **THEN** 系統回傳 404，且不揭露該文章存在
+
+#### Scenario: Authenticated user without posts:read permission cannot read a draft post
+- **GIVEN** 使用者已登入但不具備 `posts:read` 權限
+- **WHEN** 該使用者以某 `DRAFT` 文章 ID 呼叫 `GET /api/posts/[id]`
+- **THEN** 系統回傳 404
+
+#### Scenario: Authenticated user with posts:read permission can read a draft post
+- **GIVEN** 使用者已登入且具備 `posts:read` 權限
+- **WHEN** 該使用者以某 `DRAFT` 文章 ID 呼叫 `GET /api/posts/[id]`
+- **THEN** 系統回傳該文章內容
+
+#### Scenario: Anyone can read a published post by ID
+- **GIVEN** 一篇文章狀態為 `PUBLISHED`
+- **WHEN** 任何呼叫者（含未登入）以該文章 ID 呼叫 `GET /api/posts/[id]`
+- **THEN** 系統回傳該文章內容
+
+### Requirement: Post By-ID Response Excludes Author Credentials
+系統 SHALL 確保 `GET /api/posts/[id]` 的成功回應資料經過白名單映射，不得包含作者的憑證或機敏個資欄位（包含但不限於 `password`、密碼雜湊）。
+
+#### Scenario: Response omits author password hash
+- **WHEN** 任何呼叫者成功取得 `GET /api/posts/[id]` 的回應
+- **THEN** 回應內容中不存在 `author.password` 或任何形式的密碼雜湊欄位
+
+#### Scenario: Response does not leak raw domain object
+- **WHEN** `GET /api/posts/[id]` 回傳成功回應
+- **THEN** 回應資料 SHALL 為經過白名單 DTO 映射後的結果，而非未過濾的 domain/Prisma 物件序列化
+
