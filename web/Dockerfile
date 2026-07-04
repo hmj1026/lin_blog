@@ -24,6 +24,7 @@ WORKDIR /app
 ARG NEXTAUTH_SECRET=build-time-placeholder-secret-32chars
 ARG NEXTAUTH_URL=http://localhost:3000
 ARG DATABASE_URL=postgresql://user:password@localhost:5432/db
+ARG CRON_SECRET=build-time-placeholder-cron-secret-32chars
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 # NEXT_PUBLIC_UPLOAD_BASE_URL 不設預設值，local storage 使用相對路徑
 # 切換到 CDN (R2) 時再透過 build-arg 傳入，例如:
@@ -37,6 +38,7 @@ ARG NEXT_PUBLIC_FB_PIXEL_ID=
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET \
     NEXTAUTH_URL=$NEXTAUTH_URL \
     DATABASE_URL=$DATABASE_URL \
+    CRON_SECRET=$CRON_SECRET \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_UPLOAD_BASE_URL=$NEXT_PUBLIC_UPLOAD_BASE_URL \
     NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV \
