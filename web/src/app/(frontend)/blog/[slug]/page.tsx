@@ -38,7 +38,7 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const postView = toFrontendPost(post);
   const related = relatedRaw.map(toFrontendPost);
-  const { html: contentHtml, tocItems } = prepareContent(post.content);
+  const { html: contentHtml, tocItems } = prepareContent(postView.content);
   const analyticsSource: "frontend" | "preview" = allowDraft || post.status !== "PUBLISHED" ? "preview" : "frontend";
   const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
@@ -149,7 +149,8 @@ export async function generateMetadata({ params }: PostPageProps) {
   if (!post || post.status !== "PUBLISHED") {
     return { title: "文章不存在" };
   }
-  
+  const postView = toFrontendPost(post);
+
   // 取得站點名稱
   let siteName = "Lin Blog";
   try {
@@ -160,11 +161,11 @@ export async function generateMetadata({ params }: PostPageProps) {
   }
   
   const siteUrl = getSiteUrl();
-  const postUrl = `${siteUrl}/blog/${post.slug}`;
-  const title = post.seoTitle || post.title;
-  const description = post.seoDescription || post.excerpt;
-  const image = post.ogImage || post.coverImage || `${siteUrl}/og-default.jpg`;
-  
+  const postUrl = `${siteUrl}/blog/${postView.slug}`;
+  const title = postView.seo.title;
+  const description = postView.seo.description;
+  const image = postView.seo.ogImage || `${siteUrl}/og-default.jpg`;
+
   return {
     title: `${title} | ${siteName}`,
     description,

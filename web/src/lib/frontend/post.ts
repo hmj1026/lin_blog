@@ -5,6 +5,10 @@ export type PostWithRelations = {
   title: string;
   excerpt: string;
   coverImage: string | null;
+  content?: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  ogImage: string | null;
   readingTime: string | null;
   featured: boolean;
   publishedAt: Date | null;
@@ -25,6 +29,12 @@ export type FrontendPost = {
   author: { name: string; title?: string | null; initials?: string | null; tone?: "amber" | "teal" | "blue" | "rose" | null };
   hero: string;
   featured?: boolean;
+  content: string;
+  seo: {
+    title: string;
+    description: string;
+    ogImage: string | null;
+  };
 };
 
 function formatDate(value: Date | null | undefined) {
@@ -49,6 +59,12 @@ export function toFrontendPost(post: PostWithRelations): FrontendPost {
     author: { name: post.author?.name ?? "Lin Blog" },
     hero,
     featured: post.featured,
+    content: post.content ?? "",
+    seo: {
+      title: post.seoTitle || post.title,
+      description: post.seoDescription || post.excerpt,
+      ogImage: post.ogImage || post.coverImage || null,
+    },
   };
 }
 
