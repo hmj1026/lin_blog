@@ -76,9 +76,26 @@ npm run dev
 ### Docker 部署
 
 ```bash
-cp .env.example .env  # 編輯 .env
-docker-compose up -d --build
+cp .env.example .env        # 複製並編輯環境變數（DB 帳密、NEXTAUTH_SECRET 等）
+docker compose up -d --build  # 由 ./web 建置映像並啟動 app + postgres
 ```
+
+啟動後：
+
+```bash
+docker compose exec blog node node_modules/prisma/build/index.js migrate deploy  # 套用 migration
+docker compose exec blog node scripts/init-admin.js                              # 首次建立管理員
+```
+
+- app 對外埠由 `BLOG_PORT`（預設 `3100`）控制，容器內固定 `3000`。
+- 正式環境可改用 CI 推送至 GHCR 的映像：`docker compose pull blog && docker compose up -d`。
+
+### CI / CD
+
+- **CI**（`.github/workflows/ci.yml`）：每個對 `main` 的 PR 與 push 會在 Node 18／20 上執行 ESLint、TypeScript 型別檢查、Vitest 單元測試與 Next.js build。
+- **映像建置**（`.github/workflows/docker-build.yml`）：push 到 `main` 時，於 CI 通過後由 `./web` 建置並推送映像至 GHCR（`ghcr.io/<repo>`）。
+- **CD**（`.github/workflows/cd.yml`，選配）：push 到 `develop` 自動部署至 Staging，Production 透過手動觸發（workflow_dispatch）部署。
+- **Branch protection（建議）**：`main` 應啟用保護規則——要求上述 CI 通過並取得 Code Review 核准後方可合併。此為 GitHub 儲存庫設定，需由具 admin 權限者於 repo Settings → Branches 手動啟用。
 
 ---
 

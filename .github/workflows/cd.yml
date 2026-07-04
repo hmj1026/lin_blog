@@ -1,0 +1,86 @@
+name: CD
+
+# 持續部署（選配）：
+#   - push 到 develop  → 自動部署至 Staging
+#   - 手動觸發          → 部署至 Production（可指定版本）
+#
+# 部署方式沿用專案的 Docker / ghcr 影像 + docker-compose（見 docker-compose.yml）。
+# 需在 GitHub 的 Environments（staging / production）設定下列 secrets：
+#   DEPLOY_HOST      部署主機位址
+#   DEPLOY_USER      SSH 使用者
+#   DEPLOY_SSH_KEY   SSH 私鑰
+#   DEPLOY_PATH      主機上放置 docker-compose.yml 的目錄
+# 若改採平台原生部署（如 Vercel），可停用此 workflow。
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "要部署至 Production 的影像 tag（預設 latest）"
+        type: string
+        required: false
+        default: latest
+
+concurrency:
+  group: cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # 部署前先跑完整 CI 品質閘門
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [ci]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            docker compose pull blog
+            docker compose up -d --remove-orphans
+            docker compose exec -T blog node node_modules/prisma/build/index.js migrate deploy
+
+  deploy-production:
+    name: Deploy to Production
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to production host
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            export BLOG_IMAGE_TAG="${IMAGE_TAG:-latest}"
+            docker compose pull blog
+            docker compose up -d --remove-orphans
+            docker compose exec -T blog node node_modules/prisma/build/index.js migrate deploy
