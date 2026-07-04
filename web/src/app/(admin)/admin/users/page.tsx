@@ -2,7 +2,7 @@ import { UserAdminClient } from "@/components/admin/user-admin-client";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { sessionHasPermission } from "@/lib/rbac";
-import { securityAdminUseCases } from "@/modules/security-admin";
+import { securityAdminQueries } from "@/lib/server-queries";
 
 export default async function AdminUsersPage() {
   const session = await getSession();
@@ -11,8 +11,8 @@ export default async function AdminUsersPage() {
   if (!sessionHasPermission(session, "users:manage")) redirect("/admin");
 
   const [users, roles] = await Promise.all([
-    securityAdminUseCases.listUsers({ includeDeleted: true }),
-    securityAdminUseCases.listActiveRoles(),
+    securityAdminQueries.listUsers({ includeDeleted: true }),
+    securityAdminQueries.listActiveRoles(),
   ]);
   return (
     <div className="space-y-6">

@@ -2,13 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AdminPostAnalyticsPage from "@/app/(admin)/admin/analytics/posts/page";
 import AdminPostEventBrowserPage from "@/app/(admin)/admin/analytics/posts/[postId]/page";
-import { analyticsUseCases } from "@/modules/analytics";
+import { analyticsQueries } from "@/lib/server-queries";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 // Mock dependencies
 vi.mock("@/modules/analytics", () => ({
-  analyticsUseCases: {
+  DEVICE_TYPES: ["DESKTOP", "MOBILE", "TABLET", "BOT", "OTHER"],
+  isDeviceType: (v: string) => ["DESKTOP", "MOBILE", "TABLET", "BOT", "OTHER"].includes(v),
+}));
+
+vi.mock("@/lib/server-queries", () => ({
+  analyticsQueries: {
     listPostAnalyticsSummary: vi.fn(),
     getPostSummary: vi.fn(),
     listPostViewEvents: vi.fn(),
@@ -72,7 +77,7 @@ describe("Admin Post Analytics Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (getSession as any).mockResolvedValue(mockSession);
-    (analyticsUseCases.listPostAnalyticsSummary as any).mockResolvedValue(mockAnalyticsList);
+    (analyticsQueries.listPostAnalyticsSummary as any).mockResolvedValue(mockAnalyticsList);
   });
 
   it("renders analytics list", async () => {
@@ -106,8 +111,8 @@ describe("Admin Post Event Browser Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (getSession as any).mockResolvedValue(mockSession);
-    (analyticsUseCases.getPostSummary as any).mockResolvedValue(mockPostSummary);
-    (analyticsUseCases.listPostViewEvents as any).mockResolvedValue(mockEvents);
+    (analyticsQueries.getPostSummary as any).mockResolvedValue(mockPostSummary);
+    (analyticsQueries.listPostViewEvents as any).mockResolvedValue(mockEvents);
   });
 
   it("renders event details", async () => {
@@ -122,7 +127,7 @@ describe("Admin Post Event Browser Page", () => {
   });
 
   it("redirects if post not found", async () => {
-    (analyticsUseCases.getPostSummary as any).mockResolvedValue(null);
+    (analyticsQueries.getPostSummary as any).mockResolvedValue(null);
     try {
       await AdminPostEventBrowserPage({ params, searchParams: Promise.resolve({}) });
     } catch (e: any) {

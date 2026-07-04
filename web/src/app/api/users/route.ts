@@ -1,5 +1,6 @@
 import { jsonOk, handleApiError, requirePermission } from "@/lib/api-utils";
 import { securityAdminUseCases } from "@/modules/security-admin";
+import { securityAdminQueries } from "@/lib/server-queries";
 import { toUserAdminRowDto } from "@/modules/security-admin/presentation/dto";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export async function GET() {
   const authError = await requirePermission("users:manage");
   if (authError) return authError;
 
-  const users = await securityAdminUseCases.listUsers({ includeDeleted: false });
+  const users = await securityAdminQueries.listUsers({ includeDeleted: false });
   return jsonOk(users.map(toUserAdminRowDto));
 }
 

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { sessionHasPermission } from "@/lib/rbac";
 import { redirect } from "next/navigation";
-import { analyticsUseCases } from "@/modules/analytics";
-import { DEVICE_TYPES, isDeviceType, type DeviceType } from "@/modules/analytics/domain";
+import { analyticsQueries } from "@/lib/server-queries";
+import { DEVICE_TYPES, isDeviceType, type DeviceType } from "@/modules/analytics";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { DaysFilter } from "@/components/admin/days-filter";
@@ -51,10 +51,10 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
   const page = Math.max(1, Number(sp?.page ?? "1") || 1);
   const pageSize = Math.min(100, Math.max(1, Number(sp?.pageSize ?? "50") || 50));
 
-  const post = await analyticsUseCases.getPostSummary(postId);
+  const post = await analyticsQueries.getPostSummary(postId);
   if (!post || post.deletedAt) redirect("/admin/analytics/posts");
 
-  const { total, events } = await analyticsUseCases.listPostViewEvents({
+  const { total, events } = await analyticsQueries.listPostViewEvents({
     postId,
     from: derivedFrom,
     to: derivedTo ?? undefined,

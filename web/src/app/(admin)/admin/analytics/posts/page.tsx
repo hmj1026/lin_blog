@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { sessionHasPermission } from "@/lib/rbac";
-import { analyticsUseCases } from "@/modules/analytics";
+import { analyticsQueries } from "@/lib/server-queries";
 import { buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { DaysFilter } from "@/components/admin/days-filter";
@@ -19,7 +19,7 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
   const days = Number(params?.days ?? "7");
   const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
   const canViewSensitive = sessionHasPermission(session, "analytics:view_sensitive");
-  const list = await analyticsUseCases.listPostAnalyticsSummary({ days: safeDays });
+  const list = await analyticsQueries.listPostAnalyticsSummary({ days: safeDays });
 
   return (
     <div className="space-y-6">

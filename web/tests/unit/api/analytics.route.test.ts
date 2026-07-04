@@ -18,11 +18,14 @@ vi.mock("@/lib/server-queries", () => ({
   postsQueries: {
     getPostBySlug: vi.fn(),
   },
+  analyticsQueries: {
+    getDashboardStats: vi.fn(),
+  },
 }));
 
 import { requirePermission, jsonOk } from "@/lib/api-utils";
 import { analyticsUseCases } from "@/modules/analytics";
-import { postsQueries } from "@/lib/server-queries";
+import { postsQueries, analyticsQueries } from "@/lib/server-queries";
 
 describe("Analytics API", () => {
   beforeEach(() => {
@@ -32,11 +35,11 @@ describe("Analytics API", () => {
   describe("GET /api/analytics/stats", () => {
     it("stats returns aggregated data when authorized", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (analyticsUseCases.getDashboardStats as any).mockResolvedValue({ totalViews: 42 });
+      (analyticsQueries.getDashboardStats as any).mockResolvedValue({ totalViews: 42 });
 
       const res = await getStats(new Request("http://localhost/api/analytics/stats?days=7") as any);
       expect(res.status).toBe(200);
-      expect(analyticsUseCases.getDashboardStats).toHaveBeenCalledWith({ days: 7 });
+      expect(analyticsQueries.getDashboardStats).toHaveBeenCalledWith({ days: 7 });
       expect(jsonOk).toHaveBeenCalledWith({ totalViews: 42 });
     });
 
@@ -45,7 +48,7 @@ describe("Analytics API", () => {
 
       const res = await getStats(new Request("http://localhost/api/analytics/stats") as any);
       expect(res.status).toBe(401);
-      expect(analyticsUseCases.getDashboardStats).not.toHaveBeenCalled();
+      expect(analyticsQueries.getDashboardStats).not.toHaveBeenCalled();
     });
   });
 

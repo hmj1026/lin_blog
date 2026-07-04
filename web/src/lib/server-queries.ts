@@ -4,6 +4,9 @@ import { cache as reactCache } from "react";
 import { postsUseCases } from "@/modules/posts";
 import { siteSettingsUseCases } from "@/modules/site-settings";
 import { isReadablePost } from "@/modules/posts/domain";
+import { analyticsUseCases } from "@/modules/analytics";
+import { mediaUseCases } from "@/modules/media";
+import { securityAdminUseCases } from "@/modules/security-admin";
 
 const NO_PARAMS_KEY = "__no-params__";
 
@@ -166,4 +169,64 @@ const getOrCreateDefault = cacheFn(() => siteSettingsUseCases.getOrCreateDefault
 export const siteSettingsQueries = {
   getDefault,
   getOrCreateDefault,
+};
+
+// --- Analytics read queries (per-request dedupe) ---
+const getPostSummary = cacheFn((postId: string) => analyticsUseCases.getPostSummary(postId));
+const listPostAnalyticsSummary = cacheByObject((params: { days: number }) => analyticsUseCases.listPostAnalyticsSummary(params));
+const countViews = cacheByObject((params: { days: number }) => analyticsUseCases.countViews(params));
+const getDashboardStats = cacheByObject((params: { days: number }) => analyticsUseCases.getDashboardStats(params));
+
+type ListPostViewEventsParams = Parameters<typeof analyticsUseCases.listPostViewEvents>[0];
+
+/**
+ * listPostViewEvents 的 from/to 是 Date 物件；cache key 以 JSON 序列化會轉成字串，
+ * 因此在還原時必須把 from/to 重新轉回 Date，維持與底層 use case 相同的型別語意。
+ */
+const listPostViewEventsCached = cacheFn((key: string) => {
+  const p = fromCacheKey<ListPostViewEventsParams>(key)!;
+  return analyticsUseCases.listPostViewEvents({
+    ...p,
+    from: p.from ? new Date(p.from) : undefined,
+    to: p.to ? new Date(p.to) : undefined,
+  });
+});
+
+/**
+ * Analytics read queries (per-request dedupe).
+ */
+export const analyticsQueries = {
+  getPostSummary,
+  listPostAnalyticsSummary,
+  countViews,
+  getDashboardStats,
+  listPostViewEvents: (params: ListPostViewEventsParams) => listPostViewEventsCached(toCacheKey(params)),
+};
+
+// --- Media read queries (per-request dedupe) ---
+const listUploads = cacheByObject((params: { search?: string; type?: string; take?: number }) => mediaUseCases.listUploads(params));
+const getUploadById = cacheFn((id: string) => mediaUseCases.getUploadById(id));
+
+/**
+ * Media read queries (per-request dedupe).
+ */
+export const mediaQueries = {
+  listUploads,
+  getUploadById,
+};
+
+// --- Security-admin read queries (per-request dedupe) ---
+const countActiveUsers = cacheFn(() => securityAdminUseCases.countActiveUsers());
+const listUsers = cacheByOptionalObject((params?: { includeDeleted?: boolean }) => securityAdminUseCases.listUsers(params));
+const listActiveRoles = cacheFn(() => securityAdminUseCases.listActiveRoles());
+const listRolesAndPermissions = cacheFn(() => securityAdminUseCases.listRolesAndPermissions());
+
+/**
+ * Security-admin read queries (per-request dedupe).
+ */
+export const securityAdminQueries = {
+  countActiveUsers,
+  listUsers,
+  listActiveRoles,
+  listRolesAndPermissions,
 };
