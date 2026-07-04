@@ -6,6 +6,20 @@ import { prisma } from "./db";
 import bcrypt from "bcryptjs";
 import { authEnv } from "@/env.auth";
 
+// 安全的 cache 包裝，當 React.cache 不可用時（如測試環境）提供 fallback
+const safeCache = <T extends (...args: any[]) => any>(fn: T): T => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { cache } = require("react");
+    if (typeof cache === "function") {
+      return cache(fn);
+    }
+  } catch {
+    // React.cache 不可用，返回原函數
+  }
+  return fn;
+};
+
 /**
  * NextAuth 的設定選項
  * 包含 Providers, Callbacks, Pages 等設定
@@ -97,8 +111,10 @@ export type AppSession = {
 /**
  * 取得目前的 Server Session
  * 
+ * 使用 React.cache() 包裝實現請求級去重，同一請求中多次調用只會執行一次實際查詢
+ * 
  * @returns 回傳目前的 Session 物件，若未登入則為 null
  */
-export async function getSession(): Promise<AppSession> {
+export const getSession = safeCache(async (): Promise<AppSession> => {
   return getServerSession(authOptions as any);
-}
+});
