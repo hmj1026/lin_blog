@@ -14,6 +14,13 @@ The system SHALL have unit tests for all Zod validation schemas in `lib/validati
 - **WHEN** a valid `PostApiInput` with ISO date string is provided to `parsePostApiInput()`
 - **THEN** the `publishedAt` field is converted to a `Date` object
 
+#### Scenario: All validation schemas covered
+- **GIVEN** all schemas in `lib/validations/`
+- **WHEN** running unit tests
+- **THEN** each schema has at least one valid and one invalid input test case
+
+---
+
 ### Requirement: API Utilities Unit Tests
 The system SHALL have unit tests for API utility functions in `lib/api-utils.ts`.
 
@@ -135,4 +142,38 @@ The system SHALL maintain a documented evaluation of remaining test-coverage gap
 #### Scenario: Visual regression status is recorded
 - **WHEN** reviewing `tests/visual/button.spec.ts`
 - **THEN** its current `it.skip` placeholder status and the evaluation conclusion on whether to wire it to real Playwright screenshot comparison are documented for a future change to act on
+
+### Requirement: Site Settings Use Cases Unit Tests Fix
+The system SHALL have working unit tests for `siteSettingsUseCases` that correctly mock Prisma upsert behavior.
+
+#### Scenario: updateDefault correctly calls upsert
+- **WHEN** `updateDefault({ showBlogLink: false })` is called
+- **THEN** the Prisma upsert is called with correct `where`, `create`, and `update` parameters
+
+---
+
+### Requirement: Media Module Unit Tests
+The system SHALL have unit tests for `modules/media` use cases.
+
+#### Scenario: Upload validation
+- **WHEN** a file exceeds size limit is uploaded
+- **THEN** an error is returned
+
+#### Scenario: File retrieval
+- **WHEN** a valid file ID is requested
+- **THEN** the file metadata is returned
+
+---
+
+### Requirement: E2E Test Coverage
+The system SHALL have working E2E tests for critical user flows.
+
+#### Scenario: Post creation flow
+- **GIVEN** an authenticated admin user
+- **WHEN** creating a new post through the admin interface
+- **THEN** the post is saved and visible in the post list
+
+#### Scenario: Blog viewing flow
+- **WHEN** a visitor navigates to a published blog post
+- **THEN** the post content and metadata are displayed correctly
 

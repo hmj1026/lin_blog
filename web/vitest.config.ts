@@ -26,8 +26,12 @@ export default defineConfig({
         "src/**/*.test.ts",
         "src/**/*.spec.ts",
         "src/test/**",
-        "src/app/**/layout.tsx",
-        "src/app/**/page.tsx",
+        // 展示層（Next.js App Router 與 React 元件）— 依提案非目標，
+        // 不做 Component／Snapshot 測試，此層由 E2E 覆蓋；
+        // 單元覆蓋率聚焦 domain／application／lib 業務關鍵路徑。
+        "src/app/**",
+        "src/components/**",
+        "src/env.public.ts",
         // 環境配置 - 不需單元測試
         "src/env.ts",
         "src/middleware.ts",
@@ -45,10 +49,10 @@ export default defineConfig({
         "src/types/**",
       ],
       thresholds: {
-        lines: 50,
-        functions: 50,
-        branches: 50,
-        statements: 50,
+        lines: 70,
+        functions: 70,
+        branches: 70,
+        statements: 70,
       },
     },
   },
