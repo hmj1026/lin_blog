@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
-import { TiptapEditor } from "@/components/admin/tiptap-editor";
 import {
   type PostStatus,
   type CategoryOption,
@@ -18,6 +18,16 @@ import { Field } from "./post-form/field";
 import { Picker } from "./post-form/picker";
 import { PreviewModal } from "./post-form/preview-modal";
 import { CoverUploader } from "./post-form/cover-uploader";
+
+const TiptapEditor = dynamic(
+  () => import("@/components/admin/tiptap-editor").then((m) => m.TiptapEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[360px] animate-pulse rounded-2xl border border-line bg-white shadow-card" />
+    ),
+  }
+);
 
 type Props = {
   mode: "create" | "edit";

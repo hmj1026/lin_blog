@@ -10,6 +10,11 @@ const nextConfig = {
       },
     ],
   },
+  // 優化 barrel imports，減少 bundle size 和加速 dev/build
+  // https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
 };
 
 export default nextConfig;
