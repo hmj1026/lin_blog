@@ -116,8 +116,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
             <h2 className="font-semibold text-primary">基本資訊</h2>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">站點名稱</label>
+                <label htmlFor="setting-siteName" className="mb-1 block text-sm font-semibold text-primary">站點名稱</label>
                 <input
+                  id="setting-siteName"
                   type="text"
                   value={settings.siteName || ""}
                   onChange={(e) => updateSetting("siteName", e.target.value)}
@@ -126,8 +127,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">站點標語</label>
+                <label htmlFor="setting-siteTagline" className="mb-1 block text-sm font-semibold text-primary">站點標語</label>
                 <input
+                  id="setting-siteTagline"
                   type="text"
                   value={settings.siteTagline || ""}
                   onChange={(e) => updateSetting("siteTagline", e.target.value)}
@@ -136,8 +138,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-semibold text-primary">站點描述</label>
+                <label htmlFor="setting-siteDescription" className="mb-1 block text-sm font-semibold text-primary">站點描述</label>
                 <textarea
+                  id="setting-siteDescription"
                   value={settings.siteDescription || ""}
                   onChange={(e) => updateSetting("siteDescription", e.target.value)}
                   rows={2}
@@ -146,8 +149,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">聯絡信箱</label>
+                <label htmlFor="setting-contactEmail" className="mb-1 block text-sm font-semibold text-primary">聯絡信箱</label>
                 <input
+                  id="setting-contactEmail"
                   type="email"
                   value={settings.contactEmail || ""}
                   onChange={(e) => updateSetting("contactEmail", e.target.value)}
@@ -156,8 +160,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">版權文字</label>
+                <label htmlFor="setting-copyrightText" className="mb-1 block text-sm font-semibold text-primary">版權文字</label>
                 <input
+                  id="setting-copyrightText"
                   type="text"
                   value={settings.copyrightText || ""}
                   onChange={(e) => updateSetting("copyrightText", e.target.value)}
@@ -208,8 +213,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
           <div className="space-y-4">
             <h2 className="font-semibold text-primary">Hero 區塊設定</h2>
             <div>
-              <label className="mb-1 block text-sm font-semibold text-primary">Badge 文字</label>
+              <label htmlFor="setting-heroBadge" className="mb-1 block text-sm font-semibold text-primary">Badge 文字</label>
               <input
+                id="setting-heroBadge"
                 type="text"
                 value={settings.heroBadge || ""}
                 onChange={(e) => updateSetting("heroBadge", e.target.value)}
@@ -218,8 +224,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-semibold text-primary">主標題</label>
+              <label htmlFor="setting-heroTitle" className="mb-1 block text-sm font-semibold text-primary">主標題</label>
               <input
+                id="setting-heroTitle"
                 type="text"
                 value={settings.heroTitle || ""}
                 onChange={(e) => updateSetting("heroTitle", e.target.value)}
@@ -228,8 +235,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-semibold text-primary">副標題</label>
+              <label htmlFor="setting-heroSubtitle" className="mb-1 block text-sm font-semibold text-primary">副標題</label>
               <textarea
+                id="setting-heroSubtitle"
                 value={settings.heroSubtitle || ""}
                 onChange={(e) => updateSetting("heroSubtitle", e.target.value)}
                 rows={3}
@@ -251,8 +259,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
             <div className="space-y-4">
               <h3 className="font-semibold text-primary">Featured（熱門精選）</h3>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
+                <label htmlFor="setting-featuredTitle" className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
                 <input
+                  id="setting-featuredTitle"
                   type="text"
                   value={settings.featuredTitle || "熱門精選：近期最受討論的文章"}
                   onChange={(e) => updateSetting("featuredTitle", e.target.value)}
@@ -261,8 +270,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 <p className="mt-1 text-xs text-base-300">顯示目前前台使用的值</p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
+                <label htmlFor="setting-featuredDesc" className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
                 <textarea
+                  id="setting-featuredDesc"
                   value={settings.featuredDesc || "從設計到營運的實戰拆解，帶你快速套用到自己的內容與社群場景。"}
                   onChange={(e) => updateSetting("featuredDesc", e.target.value)}
                   rows={2}
@@ -277,8 +287,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
             <div className="space-y-4">
               <h3 className="font-semibold text-primary">Categories（分類）</h3>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
+                <label htmlFor="setting-categoriesTitle" className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
                 <input
+                  id="setting-categoriesTitle"
                   type="text"
                   value={settings.categoriesTitle || "三大主題，讓內容與社群形成循環"}
                   onChange={(e) => updateSetting("categoriesTitle", e.target.value)}
@@ -287,8 +298,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 <p className="mt-1 text-xs text-base-300">顯示目前前台使用的值</p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
+                <label htmlFor="setting-categoriesDesc" className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
                 <textarea
+                  id="setting-categoriesDesc"
                   value={settings.categoriesDesc || "從策略到設計、從社群到執行，這些分類幫助你快速找到需要的工具與視角。"}
                   onChange={(e) => updateSetting("categoriesDesc", e.target.value)}
                   rows={2}
@@ -303,8 +315,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
             <div className="space-y-4">
               <h3 className="font-semibold text-primary">Latest（最新文章）</h3>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
+                <label htmlFor="setting-latestTitle" className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
                 <input
+                  id="setting-latestTitle"
                   type="text"
                   value={settings.latestTitle || "最新文章"}
                   onChange={(e) => updateSetting("latestTitle", e.target.value)}
@@ -313,8 +326,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 <p className="mt-1 text-xs text-base-300">顯示目前前台使用的值</p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
+                <label htmlFor="setting-latestDesc" className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
                 <textarea
+                  id="setting-latestDesc"
                   value={settings.latestDesc || "每篇都附上可落地的步驟、檢查清單與案例，直接帶回你的團隊。"}
                   onChange={(e) => updateSetting("latestDesc", e.target.value)}
                   rows={2}
@@ -329,8 +343,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
             <div className="space-y-4">
               <h3 className="font-semibold text-primary">Community（社群）</h3>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
+                <label htmlFor="setting-communityTitle" className="mb-1 block text-sm font-semibold text-primary">區塊標題</label>
                 <input
+                  id="setting-communityTitle"
                   type="text"
                   value={settings.communityTitle || "每週 AMA 與讀者共創"}
                   onChange={(e) => updateSetting("communityTitle", e.target.value)}
@@ -339,8 +354,9 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 <p className="mt-1 text-xs text-base-300">顯示目前前台使用的值</p>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
+                <label htmlFor="setting-communityDesc" className="mb-1 block text-sm font-semibold text-primary">區塊描述</label>
                 <textarea
+                  id="setting-communityDesc"
                   value={settings.communityDesc || "提交你的問題，或分享你的執行成果。精選會被收錄進下一篇案例拆解。"}
                   onChange={(e) => updateSetting("communityDesc", e.target.value)}
                   rows={2}
@@ -441,6 +457,7 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                   onChange={(e) => updateSetting("facebookUrl", e.target.value)}
                   className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary"
                   placeholder="https://facebook.com/yourpage"
+                  aria-label="Facebook 連結網址"
                 />
               )}
             </div>
@@ -466,6 +483,7 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                   onChange={(e) => updateSetting("instagramUrl", e.target.value)}
                   className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary"
                   placeholder="https://instagram.com/yourhandle"
+                  aria-label="Instagram 連結網址"
                 />
               )}
             </div>
@@ -491,6 +509,7 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                   onChange={(e) => updateSetting("threadsUrl", e.target.value)}
                   className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary"
                   placeholder="https://threads.net/@yourhandle"
+                  aria-label="Threads 連結網址"
                 />
               )}
             </div>
@@ -516,6 +535,7 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                   onChange={(e) => updateSetting("lineUrl", e.target.value)}
                   className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary"
                   placeholder="https://line.me/ti/p/@yourlineid"
+                  aria-label="LINE 連結網址"
                 />
               )}
             </div>
