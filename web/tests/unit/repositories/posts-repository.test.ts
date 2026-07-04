@@ -78,6 +78,21 @@ describe("postRepositoryPrisma", () => {
         })
       );
     });
+
+    it("bounds take to 100 when no take is provided", async () => {
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      await postRepositoryPrisma.listPublished({});
+      const call = (prisma.post.findMany as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+      expect(call.take).toBeLessThanOrEqual(100);
+    });
+
+    it("clamps take to 100 even when caller requests a larger value", async () => {
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      await postRepositoryPrisma.listPublished({ take: 100000 });
+      expect(prisma.post.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 100 })
+      );
+    });
   });
 
   describe("countPublished", () => {
@@ -251,6 +266,16 @@ describe("postRepositoryPrisma", () => {
           orderBy: { updatedAt: "desc" },
         })
       );
+    });
+
+    it("bounds the admin query with a defined take (admin cap, still bounded)", async () => {
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      await postRepositoryPrisma.listForAdmin();
+      const call = (prisma.post.findMany as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+      expect(call.take).toBeDefined();
+      // admin 端無分頁 UI，採較寬鬆上限避免靜默截斷，但仍為有界查詢
+      expect(call.take).toBeGreaterThan(0);
+      expect(call.take).toBeLessThanOrEqual(1000);
     });
   });
 

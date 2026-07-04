@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
+  // days 的上下界（1~90）由 analytics use case 中的 domain clampInt 統一把關（SSOT），此處無需重複做邊界檢查
   const days = parseInt(searchParams.get("days") || "7", 10);
   const data = await analyticsUseCases.getDashboardStats({ days });
   return jsonOk(data);
