@@ -92,7 +92,7 @@ docker compose exec blog node scripts/init-admin.js                             
 
 ### CI / CD
 
-- **CI**（`.github/workflows/ci.yml`）：每個對 `main` 的 PR 與 push 會在 Node 18／20 上執行 ESLint、TypeScript 型別檢查、Vitest 單元測試與 Next.js build。
+- **CI**（`.github/workflows/ci.yml`）：每個對 `main` 的 PR 與 push 會在 Node 20／22（受支援的 LTS）上執行 ESLint、TypeScript 型別檢查、Vitest 單元測試與 Next.js build。
 - **映像建置**（`.github/workflows/docker-build.yml`）：push 到 `main` 時，於 CI 通過後由 `./web` 建置並推送映像至 GHCR（`ghcr.io/<repo>`）。
 - **CD**（`.github/workflows/cd.yml`，選配）：push 到 `develop` 自動部署至 Staging，Production 透過手動觸發（workflow_dispatch）部署。
 - **Branch protection（建議）**：`main` 應啟用保護規則——要求上述 CI 通過並取得 Code Review 核准後方可合併。此為 GitHub 儲存庫設定，需由具 admin 權限者於 repo Settings → Branches 手動啟用。
