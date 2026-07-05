@@ -19,6 +19,7 @@ export default async function AdminPostsPage() {
     title: p.title,
     status: p.status,
     featured: p.featured,
+    allowRawHtml: p.allowRawHtml,
     updatedAt: p.updatedAt.toISOString(),
     publishedAt: p.publishedAt?.toISOString() ?? null,
     categories: p.categories.map((c) => ({ name: c.name })),

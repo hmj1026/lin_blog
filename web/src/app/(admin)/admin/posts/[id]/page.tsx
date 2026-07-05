@@ -36,6 +36,7 @@ export default async function AdminPostEditPage({ params }: Props) {
         coverImage: post.coverImage,
         readingTime: post.readingTime,
         featured: post.featured,
+        allowRawHtml: post.allowRawHtml,
         status: post.status,
         publishedAt: post.publishedAt ? formatLocalDateTimeInput(new Date(post.publishedAt)) : "",
         categoryIds: post.categories.map((c) => c.id),

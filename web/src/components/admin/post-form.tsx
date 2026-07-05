@@ -48,6 +48,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const [coverImage, setCoverImage] = useState(initial.coverImage ?? "");
   const [readingTime, setReadingTime] = useState(initial.readingTime ?? "");
   const [featured, setFeatured] = useState(initial.featured);
+  const [allowRawHtml, setAllowRawHtml] = useState(initial.allowRawHtml);
   const [status, setStatus] = useState<PostStatus>(initial.status);
   const [publishedAt, setPublishedAt] = useState(initial.publishedAt ?? "");
   const [categoryIds, setCategoryIds] = useState<string[]>(initial.categoryIds);
@@ -100,6 +101,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         coverImage: coverImage.trim() ? coverImage.trim() : null,
         readingTime: readingTime.trim() ? readingTime.trim() : null,
         featured,
+        allowRawHtml,
         status,
         publishedAt: publishedAt ? new Date(publishedAt).toISOString() : null,
         categoryIds,
@@ -279,9 +281,37 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         {/* 內容編輯器與分類/標籤 */}
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-primary">內容</div>
-            <TiptapEditor value={content} onChange={setContent} />
-            <p className="text-xs text-base-300">內容會以 HTML 字串儲存，儲存時 server 會做 sanitize。</p>
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-primary">內容</div>
+              <label className="flex items-center gap-2 text-sm text-primary">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={allowRawHtml}
+                  onChange={(e) => setAllowRawHtml(e.target.checked)}
+                />
+                原始 HTML 模式
+              </label>
+            </div>
+            {allowRawHtml ? (
+              <textarea
+                data-testid="raw-html-editor"
+                className="min-h-[360px] w-full rounded-2xl border border-line bg-white p-4 font-mono text-sm text-primary"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="直接輸入 HTML（可含 <style>）；儲存時仍會移除 <script>、事件屬性與危險 CSS。"
+              />
+            ) : (
+              <TiptapEditor value={content} onChange={setContent} />
+            )}
+            {allowRawHtml ? (
+              <p className="text-xs text-amber-600">
+                原始 HTML 模式：內容以純文字 HTML 儲存並保留自訂樣式，僅移除 &lt;script&gt;、事件屬性與危險 CSS；
+                前台以隔離 iframe 呈現，站台全域樣式不影響本文、本文樣式也不外洩；目錄僅支援點擊跳轉（無捲動高亮）。
+              </p>
+            ) : (
+              <p className="text-xs text-base-300">內容會以 HTML 字串儲存，儲存時 server 會做 sanitize。</p>
+            )}
           </div>
           <div className="space-y-6">
             <Picker
