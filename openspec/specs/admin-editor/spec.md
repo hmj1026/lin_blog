@@ -19,10 +19,18 @@ TBD - created by archiving change add-wysiwyg-editor. Update Purpose after archi
 - **THEN** 文章 HTML 內的 `<img src>` 以相對路徑呈現
 
 ### Requirement: Server-side HTML Sanitization
-系統 SHALL 在寫入 DB 前對 HTML 做 sanitize，以降低 XSS 風險。
+系統 SHALL 在寫入 DB 前對 HTML 做 sanitize，以降低 XSS 風險。當文章的 `allowRawHtml` 為 `true` 時，
+系統 SHALL 改用寬鬆消毒規則（允許 `class`/`style`/`<style>` 等），但仍必須移除 `<script>`、`on*` 事件
+屬性與危險 CSS 構造；當 `allowRawHtml` 為 `false`（預設）時，行為與現行嚴格消毒規則完全相同。
 
 #### Scenario: Dangerous HTML is sanitized on save
 - **GIVEN** 內容包含 `<script>` 或事件屬性
 - **WHEN** API 嘗試儲存內容
 - **THEN** 危險內容被移除/清理後才寫入 DB
+
+#### Scenario: Raw HTML mode preserves custom styling while still stripping scripts
+- **GIVEN** 一篇 `allowRawHtml = true` 的文章，內容包含 `class`、`style` 屬性、`<style>` 標籤，以及
+  `<script>` 或事件屬性
+- **WHEN** API 嘗試儲存內容
+- **THEN** `class`/`style`/`<style>` 被保留，但 `<script>` 與事件屬性仍被移除
 
