@@ -22,6 +22,7 @@ vi.mock("next/headers", () => ({
 
 vi.mock("@/lib/utils/content", () => ({
   prepareContent: (html: string) => ({ html: `Sanitized: ${html}`, tocItems: [] }),
+  prepareRawHtmlContent: (html: string) => ({ html: `Raw: ${html}`, tocItems: [] }),
   sanitizeAndPrepareHtml: (html: string) => `Sanitized: ${html}`,
 }));
 
@@ -59,6 +60,9 @@ vi.mock("@/components/newsletter-form", () => ({
 }));
 vi.mock("@/components/post-card", () => ({
   PostCard: () => <div>PostCard</div>,
+}));
+vi.mock("@/components/raw-html-post-frame", () => ({
+  RawHtmlPostFrame: ({ html }: any) => <div data-testid="raw-html-frame">{html}</div>,
 }));
 
 const mockPost = {
@@ -134,5 +138,18 @@ describe("Post Page", () => {
     expect(postsQueries.getReadablePostBySlug).toHaveBeenCalledWith(
       expect.objectContaining({ slug })
     );
+  });
+
+  it("renders raw HTML posts inside the isolated iframe frame", async () => {
+    (postsQueries.getReadablePostBySlug as any).mockResolvedValue({
+      ...mockPost,
+      allowRawHtml: true,
+      content: "<p>raw content</p>",
+    });
+    const params = Promise.resolve({ slug: "raw-post" });
+    const ui = await PostPage({ params });
+    render(ui);
+    expect(screen.getByTestId("raw-html-frame")).toBeInTheDocument();
+    expect(screen.getByText(/Raw:/)).toBeInTheDocument();
   });
 });

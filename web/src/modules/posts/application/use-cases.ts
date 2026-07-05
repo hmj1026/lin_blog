@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { sanitizePostHtml } from "@/lib/utils/sanitize";
+import { sanitizePostHtml, sanitizeRawPostHtml } from "@/lib/utils/sanitize";
 import { postSchema } from "@/lib/validations/post.schema";
 import { categorySchema } from "@/lib/validations/category.schema";
 import { tagSchema } from "@/lib/validations/tag.schema";
@@ -7,6 +7,14 @@ import { isPostStatus, isReadablePost, normalizeSlug } from "../domain";
 import type { CategoryRepository, PostRepository, PostVersionRepository, TagRepository } from "./ports";
 
 export type PostsUseCases = ReturnType<typeof createPostsUseCases>;
+
+/**
+ * 依 allowRawHtml 選擇消毒器：true → 寬鬆（保留 class/style/<style>，仍移除 script/事件屬性/危險 CSS）；
+ * false → 嚴格。切換模式時提交的 content 一律以「切換後」模式重新消毒，避免殘留與現行規格不一致的內容。
+ */
+function sanitizeContentByMode(content: string, allowRawHtml: boolean): string {
+  return allowRawHtml ? sanitizeRawPostHtml(content) : sanitizePostHtml(content);
+}
 
 /**
  * 建立文章模組的 Use Cases
@@ -28,6 +36,7 @@ export function createPostsUseCases(deps: {
       title: currentPost.title,
       excerpt: currentPost.excerpt,
       content: currentPost.content,
+      allowRawHtml: currentPost.allowRawHtml,
       editorId: params.editorId ?? null,
     });
   }
@@ -103,11 +112,13 @@ export function createPostsUseCases(deps: {
      */
     createPost: async (payload: z.infer<typeof postSchema>) => {
       const data = postSchema.parse(payload);
+      const allowRawHtml = data.allowRawHtml ?? false;
       return deps.posts.create({
         slug: normalizeSlug(data.slug),
         title: data.title,
         excerpt: data.excerpt,
-        content: sanitizePostHtml(data.content),
+        content: sanitizeContentByMode(data.content, allowRawHtml),
+        allowRawHtml,
         coverImage: data.coverImage,
         readingTime: data.readingTime,
         featured: data.featured ?? false,
@@ -126,11 +137,13 @@ export function createPostsUseCases(deps: {
      */
     updatePost: async (id: string, payload: z.infer<typeof postSchema>) => {
       const data = postSchema.parse(payload);
+      const allowRawHtml = data.allowRawHtml ?? false;
       return deps.posts.update(id, {
         slug: normalizeSlug(data.slug),
         title: data.title,
         excerpt: data.excerpt,
-        content: sanitizePostHtml(data.content),
+        content: sanitizeContentByMode(data.content, allowRawHtml),
+        allowRawHtml,
         coverImage: data.coverImage,
         readingTime: data.readingTime,
         featured: data.featured ?? false,
@@ -149,12 +162,14 @@ export function createPostsUseCases(deps: {
      */
     updatePostWithVersion: async (id: string, payload: z.infer<typeof postSchema>, editorId?: string | null) => {
       const data = postSchema.parse(payload);
+      const allowRawHtml = data.allowRawHtml ?? false;
       await saveCurrentPostVersion({ postId: id, editorId });
       return deps.posts.update(id, {
         slug: normalizeSlug(data.slug),
         title: data.title,
         excerpt: data.excerpt,
-        content: sanitizePostHtml(data.content),
+        content: sanitizeContentByMode(data.content, allowRawHtml),
+        allowRawHtml,
         coverImage: data.coverImage,
         readingTime: data.readingTime,
         featured: data.featured ?? false,
@@ -188,6 +203,7 @@ export function createPostsUseCases(deps: {
         title: post.title,
         excerpt: post.excerpt,
         content: post.content,
+        allowRawHtml: post.allowRawHtml,
         editorId: editorId ?? null,
       });
 
@@ -196,6 +212,7 @@ export function createPostsUseCases(deps: {
         title: version.title,
         excerpt: version.excerpt,
         content: version.content,
+        allowRawHtml: version.allowRawHtml,
         coverImage: post.coverImage,
         readingTime: post.readingTime,
         featured: post.featured,

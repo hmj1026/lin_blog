@@ -13,6 +13,7 @@ const mockPost: FrontendPost = {
   readingTime: "5 min",
   hero: "/images/hero.jpg",
   featured: false,
+  allowRawHtml: false,
   content: "<p>Test content.</p>",
   seo: {
     title: "Test Post Title",

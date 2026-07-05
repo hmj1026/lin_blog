@@ -4,7 +4,7 @@ vi.mock("@/env.public", () => ({
   publicEnv: { NEXT_PUBLIC_UPLOAD_BASE_URL: "https://cdn.example.com" },
 }));
 
-import { resolveUploadUrl, sanitizeAndPrepareHtml } from "@/lib/utils/content";
+import { resolveUploadUrl, sanitizeAndPrepareHtml, prepareRawHtmlContent } from "@/lib/utils/content";
 
 describe("resolveUploadUrl", () => {
   it("keeps absolute urls", () => {
@@ -45,6 +45,39 @@ describe("sanitizeAndPrepareHtml", () => {
     const out = sanitizeAndPrepareHtml(html);
     expect(out).toContain('id="custom"');
     expect(out).not.toContain('id="toc-');
+  });
+});
+
+describe("prepareRawHtmlContent", () => {
+  it("preserves <style>, class and style attributes (no stripping)", () => {
+    const { html } = prepareRawHtmlContent(
+      `<h2>Intro</h2><div class="x" style="color:red"><style>.x{color:red}</style><p>body</p></div>`
+    );
+    expect(html).toContain('class="x"');
+    expect(html).toMatch(/style="color/);
+    expect(html).toContain("<style>");
+    expect(html).not.toMatch(/<body>/i);
+  });
+
+  it("keeps a leading top-level <style> block that cheerio hoists into <head>", () => {
+    const { html } = prepareRawHtmlContent(
+      `<style>.raw-marker{color:rgb(255,0,0)}</style><p class="raw-marker">X</p><h2>A</h2><h2>B</h2>`
+    );
+    expect(html).toContain("<style>");
+    expect(html).toMatch(/\.raw-marker\s*\{/);
+    expect(html).toContain('class="raw-marker"');
+  });
+
+  it("adds heading IDs and returns tocItems", () => {
+    const { html, tocItems } = prepareRawHtmlContent(`<h2>Intro</h2>`);
+    expect(html).toContain('id="toc-0"');
+    expect(tocItems).toHaveLength(1);
+    expect(tocItems[0]?.text).toBe("Intro");
+  });
+
+  it("rewrites relative img src to the upload base URL", () => {
+    const { html } = prepareRawHtmlContent(`<p>t</p><img src="uploads/a.png" alt="a" />`);
+    expect(html).toContain(`src="https://cdn.example.com/uploads/a.png"`);
   });
 });
 

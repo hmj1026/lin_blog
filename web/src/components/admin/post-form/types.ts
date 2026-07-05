@@ -11,6 +11,7 @@ export type PostFormData = {
   coverImage: string | null;
   readingTime: string | null;
   featured: boolean;
+  allowRawHtml: boolean;
   status: PostStatus;
   publishedAt: string | null;
   categoryIds: string[];

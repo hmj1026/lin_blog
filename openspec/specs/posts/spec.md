@@ -1,7 +1,7 @@
 # posts Specification
 
 ## Purpose
-TBD - created by archiving change add-post-version-history. Update Purpose after archive.
+定義文章（posts）管理相關的核心需求，包括版本歷史儲存與還原、列表多選與批次操作、後台搜尋、排程發佈、狀態管理、匯入匯出、SEO 自訂欄位，以及列表查詢的授權範圍、資料精簡與分頁上限控制。
 ## Requirements
 ### Requirement: Post Version Storage
 The system SHALL automatically save a version when a post is updated.

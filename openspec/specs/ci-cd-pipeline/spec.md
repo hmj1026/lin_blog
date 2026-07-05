@@ -1,7 +1,7 @@
 # ci-cd-pipeline Specification
 
 ## Purpose
-TBD - created by archiving change add-cicd-pipeline. Update Purpose after archive.
+定義持續整合與持續部署流程的需求，包括 CI 品質關卡、可重現的容器映像建置、受保護分支需通過 CI 檢查方可合併，以及自動化的部署工作流程。
 ## Requirements
 ### Requirement: Continuous Integration Quality Gate
 系統 SHALL 提供一個 CI workflow，在每個 Pull Request 與對主要分支的 push 上，於 Node.js 版本矩陣（20 與 22，兩個受支援的 LTS 版本）執行完整品質檢查：ESLint、TypeScript 類型檢查、Vitest 單元測試、Next.js production build。任一步驟失敗時整個 workflow SHALL 判定為失敗。

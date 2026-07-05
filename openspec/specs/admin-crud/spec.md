@@ -1,7 +1,7 @@
 # admin-crud Specification
 
 ## Purpose
-TBD - created by archiving change expand-admin-crud. Update Purpose after archive.
+定義後台管理介面的 CRUD 功能需求，包括分類、標籤、使用者與角色的管理、封面圖片上傳，以及僅限管理員存取的變更型 API 與表單、資料表的無障礙與版面呈現規範。
 ## Requirements
 ### Requirement: Admin Can Manage Categories
 系統 SHALL 提供後台介面管理文章分類（列表、新增、編輯、刪除）並支援導覽列顯示設定與排序。
