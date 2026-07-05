@@ -71,6 +71,7 @@ model Post {
   coverImage     String?
   readingTime    String?
   featured       Boolean        @default(false)
+  allowRawHtml   Boolean        @default(false)
   status         PostStatus     @default(DRAFT)
   publishedAt    DateTime?
   // SEO 自訂欄位
@@ -100,6 +101,7 @@ model PostVersion {
   title     String
   excerpt   String
   content   String
+  allowRawHtml Boolean @default(false)
   editor    User?    @relation(fields: [editorId], references: [id])
   editorId  String?
   createdAt DateTime @default(now())

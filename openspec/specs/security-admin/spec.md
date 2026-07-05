@@ -1,7 +1,7 @@
 # security-admin Specification
 
 ## Purpose
-TBD - created by archiving change secure-storage-soft-delete-rbac. Update Purpose after archive.
+定義系統安全與後台存取控管的需求，包括角色權限控制（RBAC）、核心資源的軟刪除、上傳檔案的私有儲存、Cron 端點的預設拒絕授權機制、必要環境變數宣告、例外發生時的通用錯誤回應，以及存取控制規則所屬的領域層設計。
 ## Requirements
 ### Requirement: Role-Based Access Control
 系統 SHALL 依角色（ADMIN/EDITOR/READER）限制後台與 API 的操作權限。

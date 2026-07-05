@@ -13,6 +13,7 @@ type Post = {
   title: string;
   status: string;
   featured: boolean;
+  allowRawHtml: boolean;
   updatedAt: string;
   publishedAt: string | null;
   categories: { name: string }[];
@@ -210,7 +211,16 @@ export function PostListClient({ posts }: PostListClientProps) {
                     ★
                   </button>
                 </td>
-                <td className="px-4 py-3 font-semibold text-primary">{post.title}</td>
+                <td className="px-4 py-3 font-semibold text-primary">
+                  <span className="inline-flex items-center gap-2">
+                    {post.title}
+                    {post.allowRawHtml && (
+                      <Badge variant="default" className="text-[10px] uppercase tracking-wide">
+                        Raw HTML
+                      </Badge>
+                    )}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-base-300">
                   {post.categories.map((c) => c.name).join("、")} / {post.tags.map((t) => t.name).join("、")}
                 </td>

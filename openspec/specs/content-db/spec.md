@@ -1,7 +1,7 @@
 # content-db Specification
 
 ## Purpose
-TBD - created by archiving change connect-frontend-to-db. Update Purpose after archive.
+定義前台內容資料庫化的需求，包括將前台文章資料匯入資料庫、以字串儲存 WYSIWYG 內容、以環境變數基礎 URL 解析圖片路徑、由後台設定產生導覽連結，以及針對常見時間區間查詢建立索引。
 ## Requirements
 ### Requirement: Seed Frontend Posts Into Database
 系統 SHALL 將現有前台文章資料匯入資料庫，並以資料庫資料作為前台渲染來源。

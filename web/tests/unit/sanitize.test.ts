@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sanitizePostHtml } from "@/lib/utils/sanitize";
+import { sanitizePostHtml, sanitizeRawPostHtml, stripDangerousCss } from "@/lib/utils/sanitize";
 
 describe("sanitizePostHtml", () => {
   it("strips scripts and event handlers", () => {
@@ -17,6 +17,47 @@ describe("sanitizePostHtml", () => {
     expect(out).toContain("<strong>");
     expect(out).toContain("<img");
     expect(out).toContain('src="/uploads/a.png"');
+  });
+});
+
+describe("sanitizeRawPostHtml", () => {
+  it("preserves class, style attributes and <style> blocks", () => {
+    const html = `<div class="box" style="color: red"><style>.box{color:red}</style><p>hi</p></div>`;
+    const out = sanitizeRawPostHtml(html);
+    expect(out).toContain('class="box"');
+    expect(out).toMatch(/style="color/);
+    expect(out).toContain("<style>");
+    expect(out).toMatch(/\.box\s*\{/);
+  });
+
+  it("still strips <script> and event handlers in raw mode", () => {
+    const html = `<div onclick="alert(1)"><script>alert(1)</script><p>ok</p></div>`;
+    const out = sanitizeRawPostHtml(html);
+    expect(out).not.toMatch(/<script/i);
+    expect(out).not.toMatch(/onclick/i);
+    expect(out).toContain("<p>ok</p>");
+  });
+
+  it("strips dangerous CSS constructs from <style> blocks", () => {
+    const html = `<style>.x{background:expression(alert(1));-moz-binding:url(x);behavior:url(x.htc)} @import url("evil.css");</style>`;
+    const out = sanitizeRawPostHtml(html);
+    expect(out).not.toMatch(/expression\s*\(/i);
+    expect(out).not.toMatch(/-moz-binding/i);
+    expect(out).not.toMatch(/behavior\s*:/i);
+    expect(out).not.toMatch(/@import/i);
+  });
+
+  it("strips javascript: url() from style attributes", () => {
+    const html = `<div style="background:url(javascript:alert(1))">x</div>`;
+    const out = sanitizeRawPostHtml(html);
+    expect(out).not.toMatch(/javascript:/i);
+  });
+});
+
+describe("stripDangerousCss", () => {
+  it("removes @import and expression", () => {
+    expect(stripDangerousCss("@import url(x.css); a{color:red}")).not.toMatch(/@import/i);
+    expect(stripDangerousCss("a{width:expression(1)}")).not.toMatch(/expression\s*\(/i);
   });
 });
 

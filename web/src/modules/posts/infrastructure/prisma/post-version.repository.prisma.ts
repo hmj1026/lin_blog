@@ -25,6 +25,7 @@ export const postVersionRepositoryPrisma: PostVersionRepository = {
         title: data.title,
         excerpt: data.excerpt,
         content: data.content,
+        allowRawHtml: data.allowRawHtml ?? false,
         editorId: data.editorId ?? null,
       },
       select: { id: true },

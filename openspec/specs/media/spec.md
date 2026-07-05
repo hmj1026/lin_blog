@@ -1,7 +1,7 @@
 # media Specification
 
 ## Purpose
-TBD - created by archiving change add-media-library. Update Purpose after archive.
+定義媒體庫功能的需求，包括媒體檔案列表瀏覽、刪除，以及可設定的上傳儲存後端（storage backend）。
 ## Requirements
 ### Requirement: Media Library List
 The system SHALL provide a centralized view of all uploaded media.

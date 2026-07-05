@@ -1,7 +1,7 @@
 # post-analytics-event-browser Specification
 
 ## Purpose
-TBD - created by archiving change enhance-post-analytics-event-browser. Update Purpose after archive.
+定義文章分析事件瀏覽器功能的需求，包括逐筆瀏覽事件明細、敏感欄位依權限管控顯示，以及從聚合統計連結至個別事件詳情的導覽。
 ## Requirements
 ### Requirement: Post Analytics Event Browser
 系統 SHALL 提供「文章統計事件明細」頁面，讓具備權限的管理者可檢視單筆瀏覽事件（包含 UA / IP）並進行篩選與分頁。

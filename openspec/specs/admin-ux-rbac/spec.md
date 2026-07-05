@@ -1,7 +1,7 @@
 # admin-ux-rbac Specification
 
 ## Purpose
-TBD - created by archiving change enhance-admin-ux-and-rbac. Update Purpose after archive.
+定義後台管理體驗與角色權限控管的需求，涵蓋編輯器 HTML 原始碼模式切換、側邊欄簡化與響應式版面、可設定的角色權限、文章預覽彈窗，以及前台管理連結、帳號資訊與載入狀態呈現。
 ## Requirements
 ### Requirement: Editor Can Toggle HTML Source Mode
 後台文章編輯器 SHALL 提供按鈕切換至 HTML 原始碼模式以直接編輯內容。

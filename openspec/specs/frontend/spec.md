@@ -1,7 +1,7 @@
 # frontend Specification
 
 ## Purpose
-TBD - created by archiving change add-phase3-advanced-features. Update Purpose after archive.
+定義前台進階功能與效能優化的需求，涵蓋目錄導覽、閱讀進度、社群分享、程式碼語法高亮、深色模式、SEO metadata、文章卡片版面與截斷、頁尾社群連結、頁面增量靜態再生（ISR）、打包優化、請求去重、串流渲染與 404 頁面樣式。
 ## Requirements
 ### Requirement: Table of Contents Navigation
 The system SHALL provide a table of contents for blog posts with multiple headings.

@@ -47,6 +47,7 @@ const mockInitial = {
   content: "",
   status: "DRAFT" as const,
   featured: false,
+  allowRawHtml: false,
   categoryIds: [],
   tagIds: [],
   coverImage: null,
@@ -170,5 +171,27 @@ describe("AdminPostForm", () => {
       method: "PUT",
       body: expect.stringContaining("New Title"),
     }));
+  });
+
+  it("toggles to a raw HTML textarea and shows the risk warning", async () => {
+    render(
+      <AdminPostForm
+        mode="create"
+        initial={mockInitial}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+    // 預設為 TipTap 編輯器
+    expect(screen.getByTestId("tiptap-editor")).toBeInTheDocument();
+    expect(screen.queryByTestId("raw-html-editor")).not.toBeInTheDocument();
+
+    // 開啟原始 HTML 模式
+    await userEvent.click(screen.getByLabelText("原始 HTML 模式"));
+
+    expect(screen.getByTestId("raw-html-editor")).toBeInTheDocument();
+    expect(screen.queryByTestId("tiptap-editor")).not.toBeInTheDocument();
+    // 顯示風險提示（以隔離 iframe 相關文字判定，避免與開關標籤文字衝突）
+    expect(screen.getByText(/隔離 iframe/)).toBeInTheDocument();
   });
 });

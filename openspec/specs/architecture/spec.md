@@ -1,7 +1,7 @@
 # architecture Specification
 
 ## Purpose
-TBD - created by archiving change add-domain-layers. Update Purpose after archive.
+定義系統整體分層架構規範，包括領域層與應用層的分離、Use Case 標準化、Next.js 轉接層的輕薄化、跨層邊界的強制檢查，以及授權查詢、限流鍵值正規化與讀取查詢外觀層的一致性要求。
 ## Requirements
 ### Requirement: Layered Architecture
 The system SHALL adhere to a layered architecture for all core modules.
