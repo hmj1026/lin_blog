@@ -12,40 +12,34 @@ import { ReadingProgress } from "@/components/reading-progress";
 import { ShareButtons } from "@/components/share-buttons";
 import { prepareContent } from "@/lib/utils/content";
 import { toFrontendPost } from "@/lib/frontend/post";
-import { getSession } from "@/lib/auth";
-import { roleHasPermission } from "@/lib/rbac";
+import { draftMode } from "next/headers";
 import { PostViewTracker } from "@/components/post-view-tracker";
 import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
 import { getSiteUrl } from "@/lib/utils/url";
 
-// 強制動態渲染，避免 build 時嘗試連接資料庫
-export const dynamic = "force-dynamic";
+// ISR：60 秒重新驗證快取，草稿預覽透過 draftMode 繞過快取（見 /api/preview）
+export const revalidate = 60;
 
 type PostPageProps = {
   params: Promise<{
     slug: string;
   }>;
-  searchParams?: Promise<{ preview?: string }>;
 };
 
-export default async function PostPage({ params, searchParams }: PostPageProps) {
+export default async function PostPage({ params }: PostPageProps) {
   const { slug: rawSlug } = await params;
   // Decode URL-encoded slug (e.g., Chinese characters)
   const slug = decodeURIComponent(rawSlug);
-  const sp = await searchParams;
-  const preview = sp?.preview === "1" || sp?.preview === "true";
-  const session = await getSession();
-  const canPreviewDraft =
-    session?.user?.roleId ? await roleHasPermission(session.user.roleId, "posts:write") : false;
-  const post = await postsQueries.getReadablePostBySlug({ slug, allowDraft: canPreviewDraft });
+  const { isEnabled: allowDraft } = await draftMode();
+  const post = await postsQueries.getReadablePostBySlug({ slug, allowDraft });
   if (!post) return notFound();
 
   const relatedRaw = await postsQueries.listRelatedPublishedPosts({ post });
 
   const postView = toFrontendPost(post);
   const related = relatedRaw.map(toFrontendPost);
-  const { html: contentHtml, tocItems } = prepareContent(post.content);
-  const analyticsSource: "frontend" | "preview" = preview || post.status !== "PUBLISHED" ? "preview" : "frontend";
+  const { html: contentHtml, tocItems } = prepareContent(postView.content);
+  const analyticsSource: "frontend" | "preview" = allowDraft || post.status !== "PUBLISHED" ? "preview" : "frontend";
   const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
 
@@ -155,7 +149,8 @@ export async function generateMetadata({ params }: PostPageProps) {
   if (!post || post.status !== "PUBLISHED") {
     return { title: "文章不存在" };
   }
-  
+  const postView = toFrontendPost(post);
+
   // 取得站點名稱
   let siteName = "Lin Blog";
   try {
@@ -166,11 +161,11 @@ export async function generateMetadata({ params }: PostPageProps) {
   }
   
   const siteUrl = getSiteUrl();
-  const postUrl = `${siteUrl}/blog/${post.slug}`;
-  const title = post.seoTitle || post.title;
-  const description = post.seoDescription || post.excerpt;
-  const image = post.ogImage || post.coverImage || `${siteUrl}/og-default.jpg`;
-  
+  const postUrl = `${siteUrl}/blog/${postView.slug}`;
+  const title = postView.seo.title;
+  const description = postView.seo.description;
+  const image = postView.seo.ogImage || `${siteUrl}/og-default.jpg`;
+
   return {
     title: `${title} | ${siteName}`,
     description,

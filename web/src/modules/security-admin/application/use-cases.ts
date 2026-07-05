@@ -2,6 +2,10 @@ import bcrypt from "bcryptjs";
 import { adminUserCreateSchema, adminUserUpdateSchema } from "@/lib/validations/admin-user.schema";
 import { roleUpsertSchema } from "@/lib/validations/role.schema";
 import type { SecurityAdminRepository } from "./ports";
+import {
+  roleHasPermission as roleHasPermissionRule,
+  roleHasAnyPermission as roleHasAnyPermissionRule,
+} from "../domain/rules";
 
 export type SecurityAdminUseCases = ReturnType<typeof createSecurityAdminUseCases>;
 
@@ -16,11 +20,13 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
     /**
      * 檢查角色是否擁有特定權限
      */
-    roleHasPermission: (roleId: string, permissionKey: string) => deps.repo.hasRolePermission({ roleId, permissionKey }),
+    roleHasPermission: async (roleId: string, permissionKey: string) =>
+      roleHasPermissionRule(await deps.repo.getRoleAccessState(roleId), permissionKey),
     /**
      * 檢查角色是否擁有任一權限
      */
-    roleHasAnyPermission: (roleId: string, permissionKeys: string[]) => deps.repo.hasRoleAnyPermission({ roleId, permissionKeys }),
+    roleHasAnyPermission: async (roleId: string, permissionKeys: string[]) =>
+      roleHasAnyPermissionRule(await deps.repo.getRoleAccessState(roleId), permissionKeys),
     /** 列出角色的所有權限 key */
     listRolePermissions: (roleId: string) => deps.repo.listRolePermissionKeys(roleId),
 
@@ -80,6 +86,11 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
     softDeleteUser: (id: string) => deps.repo.softDeleteUser(id),
     /** 計算活躍使用者總數 */
     countActiveUsers: () => deps.repo.countActiveUsers(),
+
+    /** 取得全域權限版本號 */
+    getPermissionsVersion: () => deps.repo.getPermissionsVersion(),
+    /** 取得使用者當前的授權快照（角色與權限） */
+    getUserAuthSnapshot: (userId: string) => deps.repo.getUserAuthSnapshot(userId),
   };
 }
 

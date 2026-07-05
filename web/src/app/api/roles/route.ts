@@ -1,5 +1,6 @@
 import { handleApiError, jsonOk, requirePermission } from "@/lib/api-utils";
 import { securityAdminUseCases } from "@/modules/security-admin";
+import { securityAdminQueries } from "@/lib/server-queries";
 import { toPermissionDto, toRoleDto } from "@/modules/security-admin/presentation/dto";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export async function GET() {
   const authError = await requirePermission("roles:manage");
   if (authError) return authError;
 
-  const { roles, permissions } = await securityAdminUseCases.listRolesAndPermissions();
+  const { roles, permissions } = await securityAdminQueries.listRolesAndPermissions();
 
   return jsonOk({
     permissions: permissions.map(toPermissionDto),

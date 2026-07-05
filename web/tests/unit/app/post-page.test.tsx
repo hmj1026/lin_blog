@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PostPage from "@/app/(frontend)/blog/[slug]/page";
 import { postsQueries } from "@/lib/server-queries";
-import { getSession } from "@/lib/auth";
-import { roleHasPermission } from "@/lib/rbac";
+import { draftMode } from "next/headers";
 import { notFound } from "next/navigation";
 
 // Mock dependencies
@@ -17,12 +16,8 @@ vi.mock("@/lib/server-queries", () => ({
   },
 }));
 
-vi.mock("@/lib/auth", () => ({
-  getSession: vi.fn(),
-}));
-
-vi.mock("@/lib/rbac", () => ({
-  roleHasPermission: vi.fn(),
+vi.mock("next/headers", () => ({
+  draftMode: vi.fn(),
 }));
 
 vi.mock("@/lib/utils/content", () => ({
@@ -84,7 +79,7 @@ describe("Post Page", () => {
     vi.clearAllMocks();
     (postsQueries.getReadablePostBySlug as any).mockResolvedValue(mockPost);
     (postsQueries.listRelatedPublishedPosts as any).mockResolvedValue([]);
-    (getSession as any).mockResolvedValue(null);
+    (draftMode as any).mockResolvedValue({ isEnabled: false, enable: vi.fn(), disable: vi.fn() });
   });
 
   it("renders post content", async () => {
@@ -105,15 +100,12 @@ describe("Post Page", () => {
     expect(notFound).toHaveBeenCalled();
   });
 
-  it("checks permissions for draft preview", async () => {
+  it("allows draft preview when draftMode is enabled", async () => {
     const params = Promise.resolve({ slug: "draft-post" });
-    const searchParams = Promise.resolve({ preview: "true" });
-    
-    // Simulate admin login
-    (getSession as any).mockResolvedValue({ user: { roleId: "admin" } });
-    (roleHasPermission as any).mockResolvedValue(true);
 
-    await PostPage({ params, searchParams });
+    (draftMode as any).mockResolvedValue({ isEnabled: true, enable: vi.fn(), disable: vi.fn() });
+
+    await PostPage({ params });
 
     expect(postsQueries.getReadablePostBySlug).toHaveBeenCalledWith(
       expect.objectContaining({ allowDraft: true })

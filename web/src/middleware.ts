@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 import { authEnv } from "@/env.auth";
+import { normalizeRoutePattern } from "@/lib/rate-limit-key";
 
 const protectedPaths = ["/admin"];
 const apiRateLimitWindowMs = 5 * 60 * 1000;
 const apiRateLimitMax = 100;
 const cleanupIntervalMs = 60 * 1000; // 清理間隔
 
+// 注意：僅限單一實例（single-instance only）。
+// rateLimitStore 是 process 記憶體內的 Map，計數僅在單一 process 內有效；
+// 若水平擴展為多個容器/實例，各實例會各自計數而無法共享限流狀態，
+// 屆時須遷移至 Redis/Upstash 或改用 nginx `limit_req`（詳見 design.md D3）。
 const globalWithRateLimit = globalThis as {
   __rateLimitStore?: Map<string, number[]>;
   __lastCleanup?: number;
@@ -62,7 +67,7 @@ export async function middleware(req: NextRequest) {
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
       "unknown";
-    const key = `${ip}:${pathname}`;
+    const key = `${ip}:${normalizeRoutePattern(pathname)}`;
     if (!rateLimit(key)) {
       return NextResponse.json(
         { success: false, message: "Too many requests" },

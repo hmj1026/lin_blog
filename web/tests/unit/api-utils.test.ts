@@ -10,7 +10,9 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/modules/security-admin", () => ({
     securityAdminUseCases: {
         roleHasPermission: vi.fn(),
-        roleHasAnyPermission: vi.fn()
+        roleHasAnyPermission: vi.fn(),
+        getPermissionsVersion: vi.fn(),
+        getUserAuthSnapshot: vi.fn(),
     }
 }));
 
@@ -67,13 +69,25 @@ describe("api-utils", () => {
             expect(json.message).toBe("Forbidden");
         });
 
-        it("處理一般 Error", async () => {
-            const error = new Error("System Error");
+        it("一般 Error 回傳泛化訊息與 500，不外洩原始訊息", async () => {
+            const error = new Error("System Error: sensitive db detail");
             const response = handleApiError(error);
             const json = await response.json();
 
-            expect(response.status).toBe(400); // Default for standard Error
-            expect(json.message).toBe("System Error");
+            expect(response.status).toBe(500);
+            expect(json.message).toBe("系統發生錯誤，請稍後再試");
+            expect(json.message).not.toContain("sensitive db detail");
+        });
+
+        it("ZodError 回傳欄位層級訊息與 400", async () => {
+            const { z } = await import("zod");
+            const schema = z.object({ title: z.string().min(1, "標題必填") });
+            const parsed = schema.safeParse({ title: "" });
+            expect(parsed.success).toBe(false);
+            const response = handleApiError((parsed as any).error);
+            const json = await response.json();
+            expect(response.status).toBe(400);
+            expect(json.message).toContain("標題必填");
         });
 
         it("處理未知錯誤", async () => {
@@ -81,7 +95,7 @@ describe("api-utils", () => {
             const json = await response.json();
 
             expect(response.status).toBe(500);
-            expect(json.message).toBe("未知錯誤");
+            expect(json.message).toBe("系統發生錯誤，請稍後再試");
         });
     });
 
@@ -104,14 +118,13 @@ describe("api-utils", () => {
              expect(result?.status).toBe(401);
         });
 
-        it("requirePermission returns null if authorized", async () => {
-            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1" } });
-            (securityAdminUseCases.roleHasPermission as any).mockResolvedValue(true);
-            
+        it("requirePermission returns null if authorized, without querying DB", async () => {
+            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["posts:write"] } });
+
             const result = await requirePermission("posts:write");
-            
+
             expect(result).toBeNull();
-            expect(securityAdminUseCases.roleHasPermission).toHaveBeenCalledWith("r1", "posts:write");
+            expect(securityAdminUseCases.roleHasPermission).not.toHaveBeenCalled();
         });
 
         it("requirePermission returns 401 if not logged in", async () => {
@@ -126,23 +139,20 @@ describe("api-utils", () => {
             expect(result?.status).toBe(403);
         });
 
-        it("requirePermission returns 403 if permission denied", async () => {
-            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1" } });
-            (securityAdminUseCases.roleHasPermission as any).mockResolvedValue(false);
+        it("requirePermission returns 403 if permission missing", async () => {
+            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["other:perm"] } });
             const result = await requirePermission("perm");
             expect(result?.status).toBe(403);
         });
 
         it("requireAnyPermission returns null if authorized", async () => {
-            (getSession as any).mockResolvedValue({ user: { roleId: "r1" } });
-            (securityAdminUseCases.roleHasAnyPermission as any).mockResolvedValue(true);
-            const result = await requireAnyPermission(["p1", "p2"]);
+            (getSession as any).mockResolvedValue({ user: { roleId: "r1", permissions: ["b"] } });
+            const result = await requireAnyPermission(["a", "b"]);
             expect(result).toBeNull();
         });
 
         it("requireAnyPermission returns 403 if denied", async () => {
-            (getSession as any).mockResolvedValue({ user: { roleId: "r1" } });
-            (securityAdminUseCases.roleHasAnyPermission as any).mockResolvedValue(false);
+            (getSession as any).mockResolvedValue({ user: { roleId: "r1", permissions: [] } });
             const result = await requireAnyPermission(["p1"]);
             expect(result?.status).toBe(403);
         });

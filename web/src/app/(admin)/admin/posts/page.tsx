@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { roleHasPermission } from "@/lib/rbac";
+import { sessionHasPermission } from "@/lib/rbac";
 import { postsQueries } from "@/lib/server-queries";
 import { PostListClient } from "@/components/admin/post-list-client";
 
@@ -8,7 +8,7 @@ export default async function AdminPostsPage() {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
   if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "posts:write"))) redirect("/admin");
+  if (!sessionHasPermission(session, "posts:write")) redirect("/admin");
 
   const posts = await postsQueries.listAdminPosts();
 

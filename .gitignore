@@ -1,13 +1,16 @@
 # 開發工具與 AI 助手設定
 .claude
 .agent
+.worktrees
 .codex
 prompt.md
 features
+.shared
 
 # 開發規格文件
-openspec
-openspec/specs/*/*.md
+# 僅追蹤 openspec/specs/（SSOT capability 規格）；changes/ 與 archive/ 維持本機
+openspec/*
+!openspec/specs/
 
 # IDE 設定
 .vscode
@@ -15,6 +18,13 @@ openspec/specs/*/*.md
 *.swp
 *.swo
 *~
+
+# 作業系統
+.DS_Store
+Thumbs.db
+
+# 相依套件
+node_modules/
 
 # 環境變數 (敏感資料)
 .env
@@ -32,3 +42,4 @@ blog_storage/
 
 # 部署相關 (實際部署的設定檔存在伺服器上)
 # 專案內保留模板檔案，Git 只需追蹤範例
+docs/private/

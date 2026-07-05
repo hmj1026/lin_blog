@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   blog:
-    image: ghcr.io/hmj1026/lin_blog:latest
+    image: ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG:-latest}
+    build:
+      context: ./web
     container_name: blog_app
     restart: unless-stopped
     ports:
@@ -36,7 +38,6 @@ services:
       - postgres
     networks:
       - blog_network
-      - srl_shared_network
 
   postgres:
     image: postgres:16-alpine
@@ -49,7 +50,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # 僅綁定 loopback：資料庫不對外曝露（Docker 會繞過 UFW，故必須在此明確綁 127.0.0.1）
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
       - blog_network
 
@@ -60,5 +62,3 @@ volumes:
 networks:
   blog_network:
     driver: bridge
-  srl_shared_network:
-    external: true

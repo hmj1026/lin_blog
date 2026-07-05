@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET as getVersions } from "@/app/api/posts/[id]/versions/route";
 import { GET as getRoles, POST as createRole } from "@/app/api/roles/route";
 import { requirePermission, jsonOk, jsonError, handleApiError } from "@/lib/api-utils";
-import { postsQueries } from "@/lib/server-queries";
+import { postsQueries, securityAdminQueries } from "@/lib/server-queries";
 import { securityAdminUseCases } from "@/modules/security-admin";
 import { toPermissionDto, toRoleDto } from "@/modules/security-admin/presentation/dto";
 
@@ -16,6 +16,9 @@ vi.mock("@/lib/api-utils", () => ({
 vi.mock("@/lib/server-queries", () => ({
   postsQueries: {
     listPostVersions: vi.fn(),
+  },
+  securityAdminQueries: {
+    listRolesAndPermissions: vi.fn(),
   },
 }));
 
@@ -121,7 +124,7 @@ describe("Roles API", () => {
 
     it("should return roles and permissions", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (securityAdminUseCases.listRolesAndPermissions as any).mockResolvedValue({
+      (securityAdminQueries.listRolesAndPermissions as any).mockResolvedValue({
         roles: [{ id: "1", name: "admin" }],
         permissions: [{ id: "1", name: "posts:write" }],
       });

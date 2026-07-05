@@ -4,8 +4,8 @@ import { PostCard } from "@/components/post-card";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { postsQueries } from "@/lib/server-queries";
 
-// 強制動態渲染，避免 build 時嘗試連接資料庫
-export const dynamic = "force-dynamic";
+// ISR：60 秒重新驗證快取
+export const revalidate = 60;
 
 type TagPageProps = {
   params: Promise<{ tag: string }>;

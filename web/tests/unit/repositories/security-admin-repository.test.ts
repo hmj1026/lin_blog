@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 
 // Mock Prisma
-vi.mock("@/lib/db", () => ({
-  prisma: {
+vi.mock("@/lib/db", () => {
+  const mockPrisma: any = {
     role: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -21,12 +21,19 @@ vi.mock("@/lib/db", () => ({
     },
     user: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
     },
-  },
-}));
+    permissionVersion: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
+  };
+  mockPrisma.$transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(mockPrisma));
+  return { prisma: mockPrisma };
+});
 
 // Import after mock
 import { securityAdminRepositoryPrisma } from "@/modules/security-admin/infrastructure/prisma/security-admin.repository.prisma";
@@ -55,30 +62,29 @@ describe("securityAdminRepositoryPrisma", () => {
     updatedAt: new Date(),
   };
 
-  describe("hasRolePermission", () => {
-    it("returns true if role has permission", async () => {
-      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(mockRole);
-
-      const result = await securityAdminRepositoryPrisma.hasRolePermission({
-        roleId: "role-1",
-        permissionKey: "MANAGE_POSTS",
+  describe("getRoleAccessState", () => {
+    it("returns raw deletedAt and permissionKeys without validity judgment", async () => {
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        deletedAt: null,
+        perms: [{ permissionKey: "MANAGE_POSTS" }],
       });
-
-      expect(result).toBe(true);
-      expect(prisma.role.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: "role-1" },
-        })
-      );
+      const result = await securityAdminRepositoryPrisma.getRoleAccessState("role-1");
+      expect(result).toEqual({ deletedAt: null, permissionKeys: ["MANAGE_POSTS"] });
     });
 
-    it("returns false if role not found", async () => {
-      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-      const result = await securityAdminRepositoryPrisma.hasRolePermission({
-        roleId: "role-1",
-        permissionKey: "MANAGE_POSTS",
+    it("returns raw state even for a soft-deleted role (no judgment in repo)", async () => {
+      const when = new Date();
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        deletedAt: when,
+        perms: [{ permissionKey: "MANAGE_POSTS" }],
       });
-      expect(result).toBe(false);
+      const result = await securityAdminRepositoryPrisma.getRoleAccessState("role-1");
+      expect(result).toEqual({ deletedAt: when, permissionKeys: ["MANAGE_POSTS"] });
+    });
+
+    it("returns null if role not found", async () => {
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      expect(await securityAdminRepositoryPrisma.getRoleAccessState("role-1")).toBeNull();
     });
   });
 
@@ -135,6 +141,9 @@ describe("securityAdminRepositoryPrisma", () => {
           data: [{ roleId: "role-1", permissionKey: "NEW_PERM" }],
         })
       );
+      expect(prisma.permissionVersion.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { value: { increment: 1 } } })
+      );
     });
   });
 
@@ -183,6 +192,9 @@ describe("securityAdminRepositoryPrisma", () => {
           data: expect.objectContaining({ email: "new@example.com", roleId: "role-2" }),
         })
       );
+      expect(prisma.permissionVersion.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { value: { increment: 1 } } })
+      );
     });
   });
 
@@ -195,6 +207,9 @@ describe("securityAdminRepositoryPrisma", () => {
           where: { id: "user-1" },
           data: expect.objectContaining({ deletedAt: expect.any(Date) }),
         })
+      );
+      expect(prisma.permissionVersion.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { value: { increment: 1 } } })
       );
     });
   });
@@ -209,6 +224,43 @@ describe("securityAdminRepositoryPrisma", () => {
           data: expect.objectContaining({ deletedAt: expect.any(Date) }),
         })
       );
+      expect(prisma.permissionVersion.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ update: { value: { increment: 1 } } })
+      );
+    });
+  });
+
+  describe("getPermissionsVersion", () => {
+    it("returns stored version value", async () => {
+      (prisma.permissionVersion.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ value: 3 });
+      expect(await securityAdminRepositoryPrisma.getPermissionsVersion()).toBe(3);
+    });
+
+    it("returns 0 when row not found", async () => {
+      (prisma.permissionVersion.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      expect(await securityAdminRepositoryPrisma.getPermissionsVersion()).toBe(0);
+    });
+  });
+
+  describe("getUserAuthSnapshot", () => {
+    it("returns null when user/role deleted or missing", async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      expect(await securityAdminRepositoryPrisma.getUserAuthSnapshot("user-1")).toBeNull();
+    });
+
+    it("returns snapshot when user and role active", async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        deletedAt: null,
+        roleId: "role-1",
+        role: { key: "admin", name: "Admin", deletedAt: null, perms: [{ permissionKey: "MANAGE_POSTS" }] },
+      });
+      const result = await securityAdminRepositoryPrisma.getUserAuthSnapshot("user-1");
+      expect(result).toEqual({
+        roleId: "role-1",
+        roleKey: "admin",
+        roleName: "Admin",
+        permissionKeys: ["MANAGE_POSTS"],
+      });
     });
   });
 

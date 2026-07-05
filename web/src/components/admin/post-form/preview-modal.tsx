@@ -6,7 +6,7 @@ type PreviewModalProps = {
 };
 
 export function PreviewModal({ slug, onClose }: PreviewModalProps) {
-  const previewUrl = `/blog/${encodeURIComponent(slug.trim())}?preview=1`;
+  const previewUrl = `/api/preview?slug=${encodeURIComponent(slug.trim())}`;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 p-4" onClick={onClose}>

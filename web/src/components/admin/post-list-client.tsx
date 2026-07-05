@@ -230,7 +230,7 @@ export function PostListClient({ posts }: PostListClientProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(`/blog/${post.slug}?preview=1`, "_blank", "noopener,noreferrer")}
+                      onClick={() => window.open(`/api/preview?slug=${encodeURIComponent(post.slug)}`, "_blank", "noopener,noreferrer")}
                     >
                       預覽
                     </Button>

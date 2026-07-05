@@ -33,7 +33,10 @@ test.describe("文章詳細頁", () => {
   test("文章詳細頁有正確的 SEO meta tags", async ({ page }) => {
     await page.goto("/blog");
     const firstArticleLink = page.locator("a[href^='/blog/']").first();
-    await firstArticleLink.click();
+    const href = await firstArticleLink.getAttribute("href");
+    // 直接導覽到文章頁以取得伺服器渲染的 <head>；client-side soft navigation 在
+    // dev 模式下可能暫時殘留前一頁的 meta 標籤（非產品缺陷，伺服器 HTML 僅一個 description）。
+    await page.goto(href ?? "/blog");
     await page.waitForURL("**/blog/**");
 
     // 驗證 title

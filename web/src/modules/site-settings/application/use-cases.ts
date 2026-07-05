@@ -3,6 +3,21 @@ import { siteSettingSchema } from "@/lib/validations/site-setting.schema";
 import { DEFAULT_SITE_SETTING_KEY } from "../domain";
 import type { SiteSettingRecord, SiteSettingsRepository } from "./ports";
 
+// 安全的 cache 包裝，當 React.cache 不可用時（如測試環境）提供 fallback
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const safeCache = <T extends (...args: any[]) => any>(fn: T): T => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { cache } = require("react");
+    if (typeof cache === "function") {
+      return cache(fn);
+    }
+  } catch {
+    // React.cache 不可用，返回原函數
+  }
+  return fn;
+};
+
 export type SiteSettingsUseCases = ReturnType<typeof createSiteSettingsUseCases>;
 
 /**
@@ -48,15 +63,18 @@ const defaultRecord: SiteSettingRecord = {
 };
 
 export function createSiteSettingsUseCases(deps: { repo: SiteSettingsRepository }) {
+  /**
+   * 取得預設站點設定（使用 React.cache 實現請求級去重）
+   * 同一請求中多次調用只會執行一次實際查詢
+   */
+  const getDefault = safeCache(async (): Promise<SiteSettingRecord | null> => {
+    const setting = await deps.repo.getByKey(DEFAULT_SITE_SETTING_KEY);
+    if (!setting) return null;
+    return setting;
+  });
+
   return {
-    /**
-     * 取得預設站點設定
-     */
-    async getDefault(): Promise<SiteSettingRecord | null> {
-      const setting = await deps.repo.getByKey(DEFAULT_SITE_SETTING_KEY);
-      if (!setting) return null;
-      return setting;
-    },
+    getDefault,
 
     /**
      * 取得預設站點設定，若不存在則建立

@@ -1,8 +1,14 @@
+import type { PostRecord } from "@/modules/posts/application/ports";
+
 export type PostWithRelations = {
   slug: string;
   title: string;
   excerpt: string;
   coverImage: string | null;
+  content?: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  ogImage: string | null;
   readingTime: string | null;
   featured: boolean;
   publishedAt: Date | null;
@@ -23,6 +29,12 @@ export type FrontendPost = {
   author: { name: string; title?: string | null; initials?: string | null; tone?: "amber" | "teal" | "blue" | "rose" | null };
   hero: string;
   featured?: boolean;
+  content: string;
+  seo: {
+    title: string;
+    description: string;
+    ogImage: string | null;
+  };
 };
 
 function formatDate(value: Date | null | undefined) {
@@ -47,5 +59,55 @@ export function toFrontendPost(post: PostWithRelations): FrontendPost {
     author: { name: post.author?.name ?? "Lin Blog" },
     hero,
     featured: post.featured,
+    content: post.content ?? "",
+    seo: {
+      title: post.seoTitle || post.title,
+      description: post.seoDescription || post.excerpt,
+      ogImage: post.ogImage || post.coverImage || null,
+    },
+  };
+}
+
+export type PostByIdResponse = {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  coverImage: string | null;
+  readingTime: string | null;
+  featured: boolean;
+  status: PostRecord["status"];
+  publishedAt: Date | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  ogImage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  author: { id: string; name: string | null } | null; // NO email, NO password
+  categories: Array<{ id: string; slug: string; name: string }>;
+  tags: Array<{ id: string; slug: string; name: string }>;
+};
+
+export function toPostByIdResponse(post: PostRecord): PostByIdResponse {
+  return {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt,
+    content: post.content,
+    coverImage: post.coverImage,
+    readingTime: post.readingTime,
+    featured: post.featured,
+    status: post.status,
+    publishedAt: post.publishedAt,
+    seoTitle: post.seoTitle,
+    seoDescription: post.seoDescription,
+    ogImage: post.ogImage,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    author: post.author ? { id: post.author.id, name: post.author.name } : null,
+    categories: post.categories.map((c) => ({ id: c.id, slug: c.slug, name: c.name })),
+    tags: post.tags.map((t) => ({ id: t.id, slug: t.slug, name: t.name })),
   };
 }

@@ -3,6 +3,17 @@ import type { PostRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
 import { mapPostStatusFromPrisma, mapPostStatusToPrisma } from "./mappers";
 
+/**
+ * 公開文章列表查詢的最大筆數上限，避免呼叫端未指定或誤傳過大 take 造成無界查詢。
+ */
+const MAX_LIST_TAKE = 100;
+
+/**
+ * admin 文章列表上限。admin 端目前尚無分頁 UI（一次載入全部文章），
+ * 故採較寬鬆的上限以避免靜默截斷；若未來文章量接近此值，應改為分頁查詢。
+ */
+const MAX_ADMIN_LIST_TAKE = 1000;
+
 const postListItemSelect = {
   id: true,
   slug: true,
@@ -66,7 +77,7 @@ export const postRepositoryPrisma: PostRepository = {
       },
       select: postListItemSelect,
       orderBy: { publishedAt: "desc" },
-      take: params?.take ?? undefined,
+      take: Math.max(1, Math.min(params?.take ?? MAX_LIST_TAKE, MAX_LIST_TAKE)),
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },
@@ -135,6 +146,7 @@ export const postRepositoryPrisma: PostRepository = {
       where: { deletedAt: null },
       orderBy: { updatedAt: "desc" },
       select: postListItemSelect,
+      take: MAX_ADMIN_LIST_TAKE,
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },

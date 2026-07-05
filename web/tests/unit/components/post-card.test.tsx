@@ -13,6 +13,12 @@ const mockPost: FrontendPost = {
   readingTime: "5 min",
   hero: "/images/hero.jpg",
   featured: false,
+  content: "<p>Test content.</p>",
+  seo: {
+    title: "Test Post Title",
+    description: "This is a test excerpt.",
+    ogImage: null,
+  },
   author: {
     name: "Test Author",
     title: "Tester",

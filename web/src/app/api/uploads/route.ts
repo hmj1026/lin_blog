@@ -1,11 +1,8 @@
 import { jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
-import { randomUUID } from "crypto";
-import path from "path";
 import { NextRequest } from "next/server";
 import { mediaUseCases } from "@/modules/media";
+import { mediaQueries } from "@/lib/server-queries";
 import { toUploadListItemDto } from "@/modules/media/presentation/dto";
-import { getStorageAdapter, StorageError } from "@/modules/media/infrastructure/storage";
-import { processImage } from "@/modules/media/infrastructure/image-processor";
 import { env } from "@/env";
 
 export const runtime = "nodejs";
@@ -25,7 +22,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search") || "";
   const type = searchParams.get("type") || "";
 
-  const uploads = await mediaUseCases.listUploads({ search, type, take: 100 });
+  const uploads = await mediaQueries.listUploads({ search, type, take: 100 });
 
   return jsonOk(uploads.map(toUploadListItemDto));
 }
@@ -43,63 +40,20 @@ export async function POST(request: Request) {
     return jsonError("缺少檔案", 400);
   }
 
-  // 檔案大小驗證
+  // 檔案大小驗證（必須在讀取 arrayBuffer 前，避免將過大檔案讀入記憶體）
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return jsonError(
-      `檔案過大，上限為 ${env.UPLOAD_MAX_FILE_SIZE_MB}MB`,
-      413
-    );
+    return jsonError(`檔案過大，上限為 ${env.UPLOAD_MAX_FILE_SIZE_MB}MB`, 413);
   }
 
   const arrayBuffer = await file.arrayBuffer();
-  let buffer = Buffer.from(arrayBuffer);
-  let mimeType = file.type || "application/octet-stream";
+  const buffer = Buffer.from(arrayBuffer);
+  const mimeType = file.type || "application/octet-stream";
 
-  // 圖片壓縮處理
-  const processed = await processImage(buffer, mimeType, {
-    enabled: env.UPLOAD_IMAGE_COMPRESSION,
-    maxWidth: env.UPLOAD_IMAGE_MAX_WIDTH,
-    quality: env.UPLOAD_IMAGE_QUALITY,
-  });
-  buffer = Buffer.from(processed.buffer);
-  mimeType = processed.mimeType;
-
-  // 根據處理後的 mimeType 決定副檔名
-  const extMap: Record<string, string> = {
-    "image/webp": ".webp",
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/avif": ".avif",
-  };
-  const ext = extMap[mimeType] || path.extname(file.name || "").toLowerCase() || ".bin";
-  const safeExt = ext.length <= 10 ? ext : ".bin";
-  const fileName = `${randomUUID()}${safeExt}`;
-  const storageKey = `uploads/${fileName}`;
-
-  // 使用 storage adapter 寫入
-  const storage = getStorageAdapter();
-  try {
-    await storage.putObject({
-      key: storageKey,
-      contentType: mimeType,
-      body: buffer,
-    });
-  } catch (error) {
-    if (error instanceof StorageError) {
-      const status = error.isRetryable ? 503 : 500;
-      return jsonError(`儲存失敗：${error.message}`, status);
-    }
-    throw error;
+  const result = await mediaUseCases.uploadFile({ buffer, mimeType, originalName: file.name });
+  if (!result.ok) {
+    const status = result.retryable ? 503 : 500;
+    return jsonError(`儲存失敗：${result.message}`, status);
   }
 
-  const created = await mediaUseCases.createUpload({
-    originalName: file.name || fileName,
-    storageKey,
-    mimeType,
-    size: buffer.length,
-    visibility: "PUBLIC",
-  });
-
-  return jsonOk({ id: created.id, src: `/api/files/${created.id}` });
+  return jsonOk({ id: result.id, src: result.src });
 }
-

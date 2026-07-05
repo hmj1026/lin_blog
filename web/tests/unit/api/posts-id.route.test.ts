@@ -40,13 +40,68 @@ describe("API: /api/posts/[id]", () => {
   });
 
   describe("GET", () => {
-    it("returns post if found", async () => {
-      (postsQueries.getPostById as any).mockResolvedValue({ id: "post-1", title: "Test" });
+    const draft = {
+      id: "post-1", slug: "s", title: "T", excerpt: "e", content: "c", coverImage: null,
+      readingTime: null, featured: false, status: "DRAFT", publishedAt: null, seoTitle: null,
+      seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(),
+      author: { id: "u1", name: "A", email: "a@x.com", password: "$2b$hash", deletedAt: null },
+      categories: [], tags: [],
+    };
+    const scheduled = { ...draft, status: "SCHEDULED" };
+    const published = { ...draft, status: "PUBLISHED" };
+
+    it("anon reads DRAFT -> 404", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(draft);
+      (requirePermission as any).mockResolvedValue(new Response(null, { status: 403 }));
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      expect(res.status).toBe(404);
+    });
+
+    it("anon reads SCHEDULED -> 404", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(scheduled);
+      (requirePermission as any).mockResolvedValue(new Response(null, { status: 403 }));
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      expect(res.status).toBe(404);
+    });
+
+    it("authed without permission reads DRAFT -> 404", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(draft);
+      (requirePermission as any).mockResolvedValue(new Response(null, { status: 403 }));
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      expect(res.status).toBe(404);
+    });
+
+    it("authed with permission reads DRAFT -> 200", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(draft);
+      (requirePermission as any).mockResolvedValue(null);
       const req = new NextRequest("http://localhost/api/posts/post-1");
       const res = await GET(req, context);
       const json = await res.json();
       expect(res.status).toBe(200);
-      expect(json.data.title).toBe("Test");
+      expect(json.data.title).toBe("T");
+    });
+
+    it("anyone reads PUBLISHED -> 200 without checking permission", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(published);
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      const json = await res.json();
+      expect(res.status).toBe(200);
+      expect(requirePermission).not.toHaveBeenCalled();
+      expect(json.data.title).toBe("T");
+    });
+
+    it("PUBLISHED response omits author credentials", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(published);
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      const json = await res.json();
+      expect(json.data.author).toEqual({ id: "u1", name: "A" });
+      expect(json.data.author.password).toBeUndefined();
+      expect(json.data.author.email).toBeUndefined();
     });
 
     it("returns 404 if not found", async () => {

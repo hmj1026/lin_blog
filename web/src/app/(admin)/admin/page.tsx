@@ -1,16 +1,14 @@
 import { StatsCard } from "@/components/admin/stats-card";
-import { postsQueries } from "@/lib/server-queries";
+import { postsQueries, securityAdminQueries, analyticsQueries } from "@/lib/server-queries";
 import { DashboardCharts } from "@/components/admin/dashboard-charts";
-import { securityAdminUseCases } from "@/modules/security-admin";
-import { analyticsUseCases } from "@/modules/analytics";
 
 export default async function AdminDashboardPage() {
   const [postCount, categoryCount, tagCount, userCount, viewCount7d] = await Promise.all([
     postsQueries.countActivePosts(),
     postsQueries.countActiveCategories(),
     postsQueries.countActiveTags(),
-    securityAdminUseCases.countActiveUsers(),
-    analyticsUseCases.countViews({ days: 7 }),
+    securityAdminQueries.countActiveUsers(),
+    analyticsQueries.countViews({ days: 7 }),
   ]);
 
   return (

@@ -1,0 +1,95 @@
+name: CD
+
+# ⚠️ 已停用（2026-07-05）：
+#   Staging 主機尚未建置（無任何主機/目錄），且 GitHub Environments 未設定必要 secrets
+#   （DEPLOY_HOST / DEPLOY_USER / DEPLOY_SSH_KEY / DEPLOY_PATH）。首次自動觸發
+#   （push to develop, run 28722905740）已因 "missing server host" 失敗。
+#   正式環境部署方式維持人工執行 /root/deploy.sh（見 docs/deployment.md）。
+#   因此移除 push 自動觸發，並將下方兩個部署 job 以 if: false 擋下，避免每次
+#   push develop 都留下失敗紀錄；另已在 GitHub 執行 `gh workflow disable cd.yml`
+#   （狀態 disabled_manually），故 workflow_dispatch 目前也無法觸發。程式碼保留
+#   供未來重新啟用，重新啟用時需連 `gh workflow enable cd.yml` 一併復原，步驟見
+#   docs/private/staging-deploy-guide.md（本機限定，未納入版控）。
+#
+# 持續部署（選配）：
+#   - push 到 develop  → 自動部署至 Staging
+#   - 手動觸發          → 部署至 Production（可指定版本）
+#
+# 部署方式沿用專案的 Docker / ghcr 影像 + docker-compose（見 docker-compose.yml）。
+# 需在 GitHub 的 Environments（staging / production）設定下列 secrets：
+#   DEPLOY_HOST      部署主機位址
+#   DEPLOY_USER      SSH 使用者
+#   DEPLOY_SSH_KEY   SSH 私鑰
+#   DEPLOY_PATH      主機上放置 docker-compose.yml 的目錄
+# 若改採平台原生部署（如 Vercel），可停用此 workflow。
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "要部署至 Production 的影像 tag（預設 latest）— 目前停用中，見上方說明"
+        type: string
+        required: false
+        default: latest
+
+concurrency:
+  group: cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # 部署前先跑完整 CI 品質閘門
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [ci]
+    if: false  # 已停用：staging 主機與 secrets 尚未建置，見檔案頂部說明
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            docker compose pull blog
+            docker compose up -d --remove-orphans
+            docker compose exec -T blog node node_modules/prisma/build/index.js migrate deploy
+
+  deploy-production:
+    name: Deploy to Production
+    if: false  # 已停用：production environment 尚未建立、secrets 尚未設定，見檔案頂部說明
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to production host
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            export BLOG_IMAGE_TAG="${IMAGE_TAG:-latest}"
+            docker compose pull blog
+            docker compose up -d --remove-orphans
+            docker compose exec -T blog node node_modules/prisma/build/index.js migrate deploy

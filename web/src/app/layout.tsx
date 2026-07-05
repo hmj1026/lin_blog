@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Sen } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AnalyticsProvider } from "@/components/analytics-provider";
+import { AnalyticsLoader } from "@/components/analytics-loader";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -59,7 +59,7 @@ export default function RootLayout({
       <body className={`${sans.variable} ${display.variable} bg-base-50 antialiased`}>
         <ThemeProvider defaultTheme="system" storageKey="lin-blog-theme">
           {children}
-          <AnalyticsProvider />
+          <AnalyticsLoader />
         </ThemeProvider>
       </body>
     </html>

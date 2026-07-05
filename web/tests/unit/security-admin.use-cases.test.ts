@@ -3,8 +3,7 @@ import { createSecurityAdminUseCases } from "@/modules/security-admin/applicatio
 
 describe("security-admin use cases", () => {
   const repo = {
-    hasRolePermission: vi.fn(),
-    hasRoleAnyPermission: vi.fn(),
+    getRoleAccessState: vi.fn(),
     listRolePermissionKeys: vi.fn(),
     listRolesWithPermissions: vi.fn(),
     listPermissions: vi.fn(),
@@ -17,6 +16,8 @@ describe("security-admin use cases", () => {
     updateUser: vi.fn(),
     softDeleteUser: vi.fn(),
     countActiveUsers: vi.fn(),
+    getPermissionsVersion: vi.fn(),
+    getUserAuthSnapshot: vi.fn(),
   };
 
   const useCases = createSecurityAdminUseCases({ repo });
@@ -26,23 +27,23 @@ describe("security-admin use cases", () => {
   });
 
   describe("role permission checks", () => {
-    it("roleHasPermission() delegates to repo", async () => {
-      repo.hasRolePermission.mockResolvedValue(true);
+    it("roleHasPermission() applies the domain rule over repo raw data", async () => {
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: null, permissionKeys: ["posts:write"] });
       const result = await useCases.roleHasPermission("role-1", "posts:write");
-      expect(repo.hasRolePermission).toHaveBeenCalledWith({
-        roleId: "role-1",
-        permissionKey: "posts:write",
-      });
+      expect(repo.getRoleAccessState).toHaveBeenCalledWith("role-1");
       expect(result).toBe(true);
     });
 
-    it("roleHasAnyPermission() delegates to repo", async () => {
-      repo.hasRoleAnyPermission.mockResolvedValue(true);
+    it("roleHasPermission() returns false for a soft-deleted role", async () => {
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: new Date(), permissionKeys: ["posts:write"] });
+      const result = await useCases.roleHasPermission("role-1", "posts:write");
+      expect(result).toBe(false);
+    });
+
+    it("roleHasAnyPermission() applies the domain rule over repo raw data", async () => {
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: null, permissionKeys: ["posts:write"] });
       const result = await useCases.roleHasAnyPermission("role-1", ["posts:read", "posts:write"]);
-      expect(repo.hasRoleAnyPermission).toHaveBeenCalledWith({
-        roleId: "role-1",
-        permissionKeys: ["posts:read", "posts:write"],
-      });
+      expect(repo.getRoleAccessState).toHaveBeenCalledWith("role-1");
       expect(result).toBe(true);
     });
 

@@ -219,6 +219,24 @@ async function main() {
       });
     })
   );
+
+  // E2E 草稿預覽 fixture：固定 slug 的草稿文章，供 tests/e2e/isr-draft-preview.spec.ts
+  // 驗證 draftMode 授權閘門（草稿僅具 posts:write 權限的編輯者可透過 /api/preview 預覽，
+  // 匿名訪客直接請求應回傳 404）。狀態為 DRAFT，不會出現在公開列表。
+  await prisma.post.upsert({
+    where: { slug: "e2e-draft-fixture" },
+    update: { title: "E2E 草稿預覽 Fixture", status: PostStatus.DRAFT, publishedAt: null, deletedAt: null, authorId: admin.id },
+    create: {
+      slug: "e2e-draft-fixture",
+      title: "E2E 草稿預覽 Fixture",
+      excerpt: "供 E2E 草稿預覽測試使用的草稿文章。",
+      content: "<p>這是一篇草稿，僅具 posts:write 權限的編輯者可預覽。</p>",
+      status: PostStatus.DRAFT,
+      publishedAt: null,
+      deletedAt: null,
+      authorId: admin.id,
+    },
+  });
 }
 
 main()
