@@ -4,7 +4,7 @@ name: CD
 #   Staging 主機尚未建置（無任何主機/目錄），且 GitHub Environments 未設定必要 secrets
 #   （DEPLOY_HOST / DEPLOY_USER / DEPLOY_SSH_KEY / DEPLOY_PATH）。首次自動觸發
 #   （push to develop, run 28722905740）已因 "missing server host" 失敗。
-#   正式環境部署方式維持人工執行 /root/deploy.sh（見 docs/deployment.md）。
+#   正式環境部署方式維持人工執行 /var/www/products/deploy.sh（見 docs/deployment.md）。
 #   因此移除 push 自動觸發，並將下方兩個部署 job 以 if: false 擋下，避免每次
 #   push develop 都留下失敗紀錄；另已在 GitHub 執行 `gh workflow disable cd.yml`
 #   （狀態 disabled_manually），故 workflow_dispatch 目前也無法觸發。程式碼保留

@@ -45,8 +45,9 @@ sudo crontab -e
 ## 資料庫還原
 
 ```bash
+# 角色/DB 名以容器內環境為準（此部署為 develop / lin_blog）
 gunzip -c /var/backups/lin_blog/lin_blog_YYYYMMDD_HHMMSS.sql.gz \
-  | docker exec -i blog_db psql -U blog_user -d lin_blog
+  | docker exec -i blog_db sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
 > 相關文件：[部署指南](../docs/deployment.md)、搬遷手冊 `docs/private/migration-runbook.md`（本機限定）。
