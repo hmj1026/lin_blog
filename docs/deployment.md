@@ -273,14 +273,14 @@ docker exec -it blog_app sh
 ### 資料庫操作
 
 ```bash
-# 連接資料庫
-docker exec -it blog_db psql -U blog_user -d lin_blog
+# 連接資料庫（角色/DB 名以容器內環境為準，此部署為 develop / lin_blog）
+docker exec -it blog_db sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 
 # 備份資料庫（一次性；每日自動備份請用 scripts/backup-db.sh + cron）
-docker exec blog_db pg_dump -U blog_user lin_blog > backup_$(date +%Y%m%d).sql
+docker exec blog_db sh -c 'exec pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup_$(date +%Y%m%d).sql
 
 # 還原資料庫（由備份檔還原到空庫）
-cat backup_YYYYMMDD.sql | docker exec -i blog_db psql -U blog_user -d lin_blog
+cat backup_YYYYMMDD.sql | docker exec -i blog_db sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
 ### 容器狀態

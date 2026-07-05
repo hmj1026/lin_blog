@@ -14,15 +14,13 @@
 #   0 3 * * * /var/www/products/backup-db.sh >> /var/log/lin_blog-backup.log 2>&1
 #
 # 還原（restore）：
-#   # 解壓後灌回（會覆蓋現有資料，請先確認）
+#   # 解壓後灌回（會覆蓋現有資料，請先確認）；角色/DB 以容器內環境為準
 #   gunzip -c /var/backups/lin_blog/lin_blog_YYYYMMDD_HHMMSS.sql.gz \
-#     | docker exec -i blog_db psql -U blog_user -d lin_blog
+#     | docker exec -i blog_db sh -c 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 # ===================================================
 set -euo pipefail
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/lin_blog}"
-DB_USER="${POSTGRES_USER:-blog_user}"
-DB_NAME="${POSTGRES_DB:-lin_blog}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"   # 保留天數
 
 # 自動偵測 DB 容器名（正式主機上的容器曾被改名為 <hash>_blog_db）
@@ -32,12 +30,16 @@ if [[ -z "$DB_CONTAINER" ]]; then
     exit 1
 fi
 
+# 直接取用容器內的 POSTGRES_DB 作檔名（角色/DB 名以既有 volume 為準，勿硬填）
+DB_NAME="$(docker exec "$DB_CONTAINER" printenv POSTGRES_DB 2>/dev/null || echo lin_blog)"
+
 mkdir -p "$BACKUP_DIR"
 STAMP="$(date '+%Y%m%d_%H%M%S')"
 OUT="${BACKUP_DIR}/${DB_NAME}_${STAMP}.sql.gz"
 
 echo "🗄️  備份 ${DB_NAME}（容器 ${DB_CONTAINER}）→ ${OUT}"
-docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$OUT"
+# 於容器內展開 POSTGRES_USER / POSTGRES_DB，確保用對角色（此部署為 develop，非 blog_user）
+docker exec "$DB_CONTAINER" sh -c 'exec pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' | gzip > "$OUT"
 
 # 驗證備份非空
 if [[ ! -s "$OUT" ]]; then
