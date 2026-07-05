@@ -41,6 +41,13 @@ TBD - created by archiving change add-cicd-pipeline. Update Purpose after archiv
 ### Requirement: Continuous Deployment Workflow
 若專案選擇啟用自動化部署（本能力對應 tasks §4，屬選配範疇），系統 SHALL 提供一個 CD workflow，於 push 到 `develop` 時自動部署至 Staging，並提供手動觸發的 Production 部署；若專案改採平台原生部署（如 Vercel），則可於實作階段決議不啟用此 workflow。
 
+> 註（2026-07-05）：`cd.yml` 已實作但決議暫緩啟用 — 實際登入正式機確認 Staging 主機
+> 未建置、GitHub Environments 未設定必要 secrets，首次自動觸發已因缺少
+> `DEPLOY_HOST` 失敗（`gh run 28722905740`）。已移除自動觸發、以 `if: false` 擋下
+> 兩個部署 job，並執行 `gh workflow disable cd.yml`，正式環境持續採用人工執行
+> `/root/deploy.sh`。細節見 `docs/private/staging-deploy-guide.md`（本機限定，
+> 已列入 `.gitignore`，未納入版控）。
+
 #### Scenario: Push to develop deploys to staging
 - **GIVEN** 一個成功通過 CI 的 commit 被 push 到 `develop`
 - **WHEN** CD workflow 被觸發
