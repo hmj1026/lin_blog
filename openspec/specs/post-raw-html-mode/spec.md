@@ -1,7 +1,7 @@
 # post-raw-html-mode Specification
 
 ## Purpose
-TBD - created by archiving change post-raw-html-mode. Update Purpose after archive.
+定義文章原始 HTML 模式的需求，包括每篇文章的 allowRawHtml 旗標、開啟後放寬的內容消毒規則、後台撰寫時的模式切換，以及前台以隔離 iframe 渲染原始 HTML 文章的安全機制。
 ## Requirements
 ### Requirement: Per-Post Raw HTML Mode Flag
 系統 SHALL 在 `Post`（與 `PostVersion`）新增 `allowRawHtml` 布林欄位，預設為 `false`，決定該文章

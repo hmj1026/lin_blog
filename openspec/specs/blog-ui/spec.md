@@ -1,7 +1,7 @@
 # blog-ui Specification
 
 ## Purpose
-TBD - created by archiving change add-blog-nextjs-site. Update Purpose after archive.
+定義部落格前台網站以 Next.js 建置的基礎需求，包括頁面骨架與設計還原度、導覽與頁首、首頁內容、文章列表與詳情頁體驗，以及表單互動、響應式與無障礙支援。
 ## Requirements
 ### Requirement: Next.js App Scaffold
 The blog frontend SHALL use the latest LTS version of Next.js with the App Router and TypeScript, include a shared layout, and configure global styles and fonts that match the Figma design tokens.

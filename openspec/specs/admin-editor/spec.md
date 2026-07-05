@@ -1,7 +1,7 @@
 # admin-editor Specification
 
 ## Purpose
-TBD - created by archiving change add-wysiwyg-editor. Update Purpose after archive.
+定義後台文章 WYSIWYG 編輯器的需求，包括輸出 HTML 內容、以相對路徑插入圖片，以及伺服器端對編輯內容進行 HTML 消毒的安全機制。
 ## Requirements
 ### Requirement: Admin WYSIWYG Editor Outputs HTML
 系統 SHALL 在後台提供 WYSIWYG 編輯器，並以 HTML 字串輸出存入 `Post.content`。

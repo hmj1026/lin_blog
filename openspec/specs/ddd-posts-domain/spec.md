@@ -1,7 +1,7 @@
 # ddd-posts-domain Specification
 
 ## Purpose
-TBD - created by archiving change refactor-ddd-posts-domain. Update Purpose after archive.
+定義文章（posts）領域依循 DDD 分層架構重構的需求，包括以 Repository 集中管理 Prisma 查詢、Use Case 的單元測試覆蓋，以及前台資料映射器（mapper）的完整性。
 ## Requirements
 ### Requirement: DDD Layering For Posts Domain
 系統 SHALL 將 Posts 領域導入 DDD 分層（Domain / Application / Infrastructure / Presentation），並維持依賴方向一致。
