@@ -10,7 +10,8 @@ import { Toc } from "@/components/toc";
 import { InlineToc } from "@/components/inline-toc";
 import { ReadingProgress } from "@/components/reading-progress";
 import { ShareButtons } from "@/components/share-buttons";
-import { prepareContent } from "@/lib/utils/content";
+import { prepareContent, prepareRawHtmlContent } from "@/lib/utils/content";
+import { RawHtmlPostFrame } from "@/components/raw-html-post-frame";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { draftMode } from "next/headers";
 import { PostViewTracker } from "@/components/post-view-tracker";
@@ -38,7 +39,10 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const postView = toFrontendPost(post);
   const related = relatedRaw.map(toFrontendPost);
-  const { html: contentHtml, tocItems } = prepareContent(postView.content);
+  const isRawHtmlPost = postView.allowRawHtml;
+  const { html: contentHtml, tocItems } = isRawHtmlPost
+    ? prepareRawHtmlContent(postView.content)
+    : prepareContent(postView.content);
   const analyticsSource: "frontend" | "preview" = allowDraft || post.status !== "PUBLISHED" ? "preview" : "frontend";
   const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;
@@ -76,17 +80,23 @@ export default async function PostPage({ params }: PostPageProps) {
         </header>
 
         <section className="section-shell grid gap-12 lg:grid-cols-[1fr_280px]">
-          <div className="wysiwyg rounded-3xl border border-line bg-white p-8 shadow-card dark:bg-base-100">
-            {/* 內嵌目錄索引區塊 */}
-            <InlineToc items={tocItems} />
-            {/* 文章內容 */}
-            <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
-          </div>
-          <aside className="space-y-6">
-            {/* TOC 目錄導航 */}
-            <div className="hidden lg:block">
-              <Toc contentSelector=".wysiwyg" />
+          {isRawHtmlPost ? (
+            <RawHtmlPostFrame html={contentHtml} tocItems={tocItems} />
+          ) : (
+            <div className="wysiwyg rounded-3xl border border-line bg-white p-8 shadow-card dark:bg-base-100">
+              {/* 內嵌目錄索引區塊 */}
+              <InlineToc items={tocItems} />
+              {/* 文章內容 */}
+              <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
             </div>
+          )}
+          <aside className="space-y-6">
+            {/* TOC 目錄導航（原始 HTML 模式改由 iframe 內建 ToC 以 postMessage 處理） */}
+            {!isRawHtmlPost && (
+              <div className="hidden lg:block">
+                <Toc contentSelector=".wysiwyg" />
+              </div>
+            )}
             
             {/* 分享按鈕 */}
             <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">

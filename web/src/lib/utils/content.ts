@@ -56,6 +56,37 @@ export function prepareContent(html: string): {
 }
 
 /**
+ * 原始 HTML 模式的內容處理：內容已於儲存時由 sanitizeRawPostHtml 消毒，
+ * 此處「不」再呼叫 stripDangerousAttributes（保留 class/style/<style>），
+ * 僅補標題 ID（供 ToC 錨點）與重寫圖片路徑。回傳的 html 為 iframe body 可直接使用的片段。
+ *
+ * @param html - 已消毒的原始 HTML 內容
+ * @returns { html: 處理後的 HTML 片段, tocItems: 目錄項目清單 }
+ */
+export function prepareRawHtmlContent(html: string): {
+  html: string;
+  tocItems: TocItem[];
+} {
+  if (!html) return { html: "", tocItems: [] };
+
+  // 1. 補標題 ID（processHeadings 透過 cheerio 會包上 <html><head></head><body>…）
+  const { html: withIds, items } = processHeadings(html);
+
+  // 2. 重寫圖片路徑
+  const rewritten = rewriteImgSrc(withIds);
+
+  // 3. 取出 body 內容；cheerio（parse5 文件模式）可能把頂層 <style> 提升到 <head>，
+  //    因此需一併取回 head 內的 <style> 並前置到內容前，避免自訂樣式在僅取 body 時遺失。
+  const headMatch = rewritten.match(/<head>([\s\S]*?)<\/head>/i);
+  const headStyles = headMatch ? (headMatch[1].match(/<style[\s\S]*?<\/style>/gi) || []).join("") : "";
+  const bodyMatch = rewritten.match(/<body>([\s\S]*)<\/body>/i);
+  const bodyHtml = bodyMatch ? bodyMatch[1] : rewritten;
+  const finalHtml = headStyles + bodyHtml;
+
+  return { html: finalHtml, tocItems: items };
+}
+
+/**
  * @deprecated 建議使用 prepareContent() 以獲得 tocItems 避免重複解析
  */
 export function sanitizeAndPrepareHtml(html: string): string {
