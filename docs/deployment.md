@@ -242,21 +242,42 @@ sudo chmod +x /var/www/products/{deploy,backup-db,start-all-services,check-servi
 |-----|------|---------|
 | `latest` | main 分支最新版本 | 日常部署 |
 | `main` | main 分支別名 | 同上 |
-| `sha-xxxxxx` | 特定 commit 版本 | 回滾使用 |
+| `vX.Y.Z` / `X.Y.Z` / `X.Y` | 版本 tag 建置（push `v*.*.*` tag 時由 CI 產生的 semver 標籤，如 `v1.2.0`/`1.2.0`/`1.2`） | 版本釋出、指定版本部署 / 回滾 |
+| `<短 sha>` | 特定 commit（裸短 sha，如 `f08e7b7`；metadata `type=sha,prefix=` 無前綴） | 精準回滾 |
 
 ---
+
+## 🚀 發布版本（Release）與版本化 image
+
+版本 tag 會由 `docker-build.yml` 自動建出對應版本的 image，供指定版本部署 / 回滾。
+
+```bash
+# 1. 確保 main 已含要發布的內容（走 PR develop→main）
+git checkout main && git pull origin main
+
+# 2. 打標註型 semver tag（v 前綴）並推送
+git tag -a vX.Y.Z -m "vX.Y.Z — <說明>"
+git push origin vX.Y.Z
+
+# 3. 建 GitHub Release（自動產生變更 notes）
+gh release create vX.Y.Z --generate-notes --notes-start-tag <上一版>
+```
+
+push `v*.*.*` tag → 觸發建置 → 產生 `ghcr.io/hmj1026/lin_blog:vX.Y.Z`（另含 `X.Y.Z`、`X.Y`）。
+
+> ⚠️ tag 觸發使用的是「**tag 指向的 commit** 上的 workflow 檔」。若該 commit 的 `docker-build.yml`
+> 尚無 tag 觸發（例如剛加入 tag 觸發那次），tag 需指向已含觸發器的 commit 才會建置
+> （2026-07-05 導入 tag 觸發時即因此把 `v1.2.0` 移到含觸發器的 commit 重建）。
 
 ## 🔄 回滾操作
 
 ```bash
-# 查看可用版本
+# 查看本機已有的 image 版本
 docker images ghcr.io/hmj1026/lin_blog
 
-# 使用特定版本回滾
-docker pull ghcr.io/hmj1026/lin_blog:sha-abc1234
-cd /var/www/products/lin_blog
-BLOG_IMAGE_TAG=sha-abc1234 docker-compose down
-BLOG_IMAGE_TAG=sha-abc1234 docker-compose up -d
+# 回滾 / 部署到指定版本（版本 tag 或裸短 sha）——deploy.sh 會 pull + down/up + migrate + 健檢
+BLOG_IMAGE_TAG=v1.2.0 /var/www/products/deploy.sh
+# 或指定 commit：BLOG_IMAGE_TAG=f08e7b7 /var/www/products/deploy.sh
 ```
 
 ---
