@@ -212,6 +212,42 @@ describe("posts use cases", () => {
     expect(call?.[1]?.content).not.toContain("<script");
     expect(call?.[1]?.featured).toBe(true);
   });
+
+  it("createPost() uses relaxed sanitizer and passes allowRawHtml=true", async () => {
+    posts.create.mockResolvedValue({ id: "1" });
+    await useCases.createPost({
+      slug: "raw", title: "T", excerpt: "E",
+      content: `<div class="box" style="color:red"><style>.box{color:red}</style>hi</div>`,
+      allowRawHtml: true, status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.create.mock.calls[0]?.[0];
+    expect(call?.allowRawHtml).toBe(true);
+    expect(call?.content).toContain('class="box"');
+    expect(call?.content).toContain("<style>");
+  });
+
+  it("updatePost() re-sanitizes strictly when allowRawHtml=false (toggle off strips class/style)", async () => {
+    posts.update.mockResolvedValue({ id: "1" });
+    await useCases.updatePost("1", {
+      slug: "s", title: "T", excerpt: "E",
+      content: `<div class="box" style="color:red"><style>.box{}</style><p>hi</p></div>`,
+      allowRawHtml: false, status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.update.mock.calls[0];
+    expect(call?.[1]?.allowRawHtml).toBe(false);
+    expect(call?.[1]?.content).not.toContain('class="box"');
+    expect(call?.[1]?.content).not.toContain("<style>");
+    expect(call?.[1]?.content).toContain("hi");
+  });
+
+  it("restorePostVersion() writes the version's allowRawHtml back to the post", async () => {
+    versions.getById.mockResolvedValue({ id: "v1", postId: "p1", title: "t", content: "c", excerpt: "e", allowRawHtml: true, createdAt: new Date() });
+    posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: false, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
+    posts.update.mockResolvedValue({ id: "p1" });
+    await useCases.restorePostVersion("p1", "v1", "editor-1");
+    expect(posts.update).toHaveBeenCalledWith("p1", expect.objectContaining({ allowRawHtml: true }));
+  });
+
   it("publishScheduledPosts() calls repo with date", async () => {
     posts.publishDueScheduled.mockResolvedValue({ count: 5 });
     const now = new Date();

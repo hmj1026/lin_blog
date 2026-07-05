@@ -201,6 +201,7 @@ describe("postRepositoryPrisma", () => {
         excerpt: "e",
         categoryIds: ["c1"],
         tagIds: ["t1"],
+        allowRawHtml: true,
       });
       expect(prisma.post.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -208,6 +209,7 @@ describe("postRepositoryPrisma", () => {
             slug: "s",
             categories: { connect: [{ id: "c1" }] },
             tags: { connect: [{ id: "t1" }] },
+            allowRawHtml: true,
           }),
         })
       );
@@ -225,6 +227,7 @@ describe("postRepositoryPrisma", () => {
         status: "DRAFT",
         categoryIds: ["c2"],
         tagIds: [],
+        allowRawHtml: false,
       });
       expect(prisma.post.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -233,6 +236,7 @@ describe("postRepositoryPrisma", () => {
             title: "new",
             categories: { set: [{ id: "c2" }] },
             tags: { set: [] },
+            allowRawHtml: false,
           }),
         })
       );

@@ -38,6 +38,7 @@ export type PostRecord = {
   coverImage: string | null;
   readingTime: string | null;
   featured: boolean;
+  allowRawHtml: boolean;
   status: PostStatus;
   publishedAt: Date | null;
   // SEO 欄位
@@ -60,6 +61,7 @@ export type PostVersionRecord = {
   title: string;
   excerpt: string;
   content: string;
+  allowRawHtml: boolean;
   editor: PostVersionEditorRecord | null;
   createdAt: Date;
 };
@@ -103,6 +105,7 @@ export interface PostRepository {
     coverImage?: string | null;
     readingTime?: string | null;
     featured?: boolean;
+    allowRawHtml?: boolean;
     status: PostStatus;
     publishedAt?: Date | null;
     seoTitle?: string | null;
@@ -122,6 +125,7 @@ export interface PostRepository {
       coverImage?: string | null;
       readingTime?: string | null;
       featured?: boolean;
+      allowRawHtml?: boolean;
       status: PostStatus;
       publishedAt?: Date | null;
       seoTitle?: string | null;
@@ -166,6 +170,7 @@ export interface PostVersionRepository {
     title: string;
     excerpt: string;
     content: string;
+    allowRawHtml?: boolean;
     editorId?: string | null;
   }): Promise<{ id: string }>;
 }
