@@ -59,12 +59,30 @@ ${html}
     }
   });
   // sandbox（無 allow-top-navigation）會擋掉 iframe 內連結導覽，故攔截連結點擊，
-  // 交由父頁面導覽；同頁錨點（# 開頭）維持預設行為。
+  // 交由父頁面導覽。同頁錨點（# 開頭）也必須攔截：srcdoc 的 base URL 繼承外層頁面，
+  // # 連結會被判定為跨文件導覽而讓 iframe 自我重載（遞迴內嵌整頁），不可放行預設；
+  // 找得到目標才經既有 SCROLL_RESULT_MESSAGE 通道請父頁面捲動（與側邊欄目錄一致），
+  // 空 hash / 找不到目標則攔截後靜默不動作。
   document.addEventListener("click", function (ev) {
     var a = ev.target && ev.target.closest ? ev.target.closest("a[href]") : null;
     if (!a) return;
     var rawHref = a.getAttribute("href");
-    if (!rawHref || rawHref.charAt(0) === "#") return;
+    if (!rawHref) return;
+    if (rawHref.charAt(0) === "#") {
+      ev.preventDefault();
+      var id;
+      try {
+        id = decodeURIComponent(rawHref.slice(1));
+      } catch (_e) {
+        // 畸形 %-編碼（如 "#%"）：退回原字串查找，不拋錯
+        id = rawHref.slice(1);
+      }
+      var anchorTarget = id ? document.getElementById(id) : null;
+      if (!anchorTarget) return;
+      var anchorOffset = anchorTarget.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0);
+      parent.postMessage({ type: SCROLL_RESULT_MESSAGE, offset: anchorOffset }, "*");
+      return;
+    }
     ev.preventDefault();
     parent.postMessage({ type: NAVIGATE_MESSAGE, href: a.href }, "*");
   });
