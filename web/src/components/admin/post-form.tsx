@@ -18,6 +18,7 @@ import { Field } from "./post-form/field";
 import { Picker } from "./post-form/picker";
 import { PreviewModal } from "./post-form/preview-modal";
 import { CoverUploader } from "./post-form/cover-uploader";
+import { detectStrippedRichHtml } from "@/lib/utils/detect-rich-html";
 
 const TiptapEditor = dynamic(
   () => import("@/components/admin/tiptap-editor").then((m) => m.TiptapEditor),
@@ -68,6 +69,11 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     return slug.trim() && title.trim() && excerpt.trim() && content.trim();
   }, [slug, title, excerpt, content]);
 
+  const showRichHtmlWarning = useMemo(
+    () => !allowRawHtml && detectStrippedRichHtml(content),
+    [allowRawHtml, content]
+  );
+
   function validateBeforeSubmit() {
     if (!slug.trim()) return "請輸入 slug";
     if (!title.trim()) return "請輸入標題";
@@ -92,6 +98,16 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     try {
       const error = validateBeforeSubmit();
       if (error) throw new Error(error);
+
+      if (!allowRawHtml && detectStrippedRichHtml(content)) {
+        const confirmed = window.confirm(
+          "一般模式將不可逆地剝除區塊結構與 inline 樣式（<div>/style=/<style>）。確定要以一般模式儲存嗎？改用「原始 HTML 模式」可保留樣式。"
+        );
+        if (!confirmed) {
+          setSaving(false);
+          return;
+        }
+      }
 
       const payload = {
         slug: slug.trim(),
@@ -311,6 +327,24 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
               </p>
             ) : (
               <p className="text-xs text-base-300">內容會以 HTML 字串儲存，儲存時 server 會做 sanitize。</p>
+            )}
+            {!allowRawHtml && showRichHtmlWarning && (
+              <div
+                data-testid="rich-html-warning"
+                className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700"
+              >
+                <p>
+                  偵測到內容含有區塊結構或自訂樣式（例如 &lt;div&gt;、style=、&lt;style&gt;）；
+                  一般模式會不可逆地剝除區塊結構與 inline 樣式。
+                </p>
+                <button
+                  type="button"
+                  className="mt-1 font-semibold underline"
+                  onClick={() => setAllowRawHtml(true)}
+                >
+                  切換為原始 HTML 模式
+                </button>
+              </div>
             )}
           </div>
           <div className="space-y-6">

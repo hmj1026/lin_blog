@@ -48,8 +48,8 @@ export function stripDangerousCss(cssText: string): string {
     .replace(/expression\s*\(/gi, "/*blocked*/(")
     // 移除 -moz-binding（XBL 綁定可執行腳本）
     .replace(/-moz-binding\s*:[^;}]*/gi, "")
-    // 移除 behavior:（含 -ms- 前綴；IE htc 行為）
-    .replace(/(?:-\w+-)?behavior\s*:[^;}]*/gi, "")
+    // 移除 behavior:（含 -ms- 前綴；IE htc 行為）；以屬性名邊界錨定（含 } 收尾），避免誤刪 scroll-behavior
+    .replace(/(^|[;{}\s])((?:-\w+-)?behavior)\s*:[^;}]*/gi, "$1")
     // 移除 url() 內的 javascript:/vbscript:
     .replace(/url\(\s*(['"]?)\s*(?:javascript|vbscript):[^)]*\1\s*\)/gi, "url()")
     // 移除 @import（封鎖本地與遠端匯入）

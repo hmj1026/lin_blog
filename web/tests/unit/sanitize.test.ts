@@ -52,12 +52,36 @@ describe("sanitizeRawPostHtml", () => {
     const out = sanitizeRawPostHtml(html);
     expect(out).not.toMatch(/javascript:/i);
   });
+
+  it("preserves scroll-behavior while stripping standalone behavior/-ms-behavior", () => {
+    const html = `<div style="scroll-behavior:smooth; behavior:url(x.htc); -ms-behavior:url(y.htc)">x</div>`;
+    const out = sanitizeRawPostHtml(html);
+    expect(out).toMatch(/scroll-behavior\s*:\s*smooth/);
+    expect(out).not.toMatch(/scroll-(?![a-z])/i);
+    expect(out).not.toMatch(/[;{\s^]behavior\s*:/i);
+    expect(out).not.toMatch(/-ms-behavior/i);
+  });
 });
 
 describe("stripDangerousCss", () => {
   it("removes @import and expression", () => {
     expect(stripDangerousCss("@import url(x.css); a{color:red}")).not.toMatch(/@import/i);
     expect(stripDangerousCss("a{width:expression(1)}")).not.toMatch(/expression\s*\(/i);
+  });
+
+  it("preserves scroll-behavior while removing standalone behavior/-ms-behavior", () => {
+    const out = stripDangerousCss("scroll-behavior:smooth;behavior:url(x.htc);-ms-behavior:url(y)");
+    expect(out).toContain("scroll-behavior:smooth");
+    expect(out).not.toMatch(/[;{\s^]behavior\s*:\s*url\(x\.htc\)/i);
+    expect(out).not.toMatch(/-ms-behavior/i);
+  });
+
+  it("strips behavior immediately after a rule-closing brace", () => {
+    // `}` must count as a property-name boundary, else a dangling
+    // `behavior:` after a closed rule slips through (codex review).
+    const out = stripDangerousCss("a{color:red}behavior:url(x.htc)");
+    expect(out).toContain("a{color:red}");
+    expect(out).not.toMatch(/behavior\s*:\s*url/i);
   });
 });
 
