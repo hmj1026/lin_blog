@@ -323,11 +323,57 @@ describe("posts use cases", () => {
 
     it("handles errors gracefully", async () => {
         // Missing required field
-        const invalidData = [{ slug: "s3" }]; 
+        const invalidData = [{ slug: "s3" }];
         // @ts-ignore
         const result = await useCases.importPosts({ posts: invalidData });
-        
+
         expect(result.errors.length).toBe(1);
+    });
+
+    it("preserves raw HTML mode on import", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        // @ts-ignore
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "raw1",
+              title: "t",
+              excerpt: "e",
+              content: '<div style="color:red">hi</div>',
+              allowRawHtml: true,
+            },
+          ],
+        });
+
+        expect(posts.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            allowRawHtml: true,
+            content: expect.stringContaining('style="color:red"'),
+          })
+        );
+    });
+
+    it("strict sanitize without flag", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "plain1",
+              title: "t",
+              excerpt: "e",
+              content: '<div style="color:red">hi</div>',
+            },
+          ],
+        });
+
+        expect(posts.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            allowRawHtml: false,
+          })
+        );
+        const callArg = posts.create.mock.calls[0][0];
+        expect(callArg.content).not.toContain("style=");
+        expect(callArg.content).not.toContain("<div");
     });
   });
 

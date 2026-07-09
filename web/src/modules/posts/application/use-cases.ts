@@ -248,6 +248,7 @@ export function createPostsUseCases(deps: {
         seoTitle?: string | null;
         seoDescription?: string | null;
         ogImage?: string | null;
+        allowRawHtml?: boolean;
       }>;
       mode?: "skip" | "overwrite";
     }) => {
@@ -276,7 +277,8 @@ export function createPostsUseCases(deps: {
               slug,
               title: p.title,
               excerpt: p.excerpt,
-              content: sanitizePostHtml(p.content),
+              content: sanitizeContentByMode(p.content, p.allowRawHtml ?? false),
+              allowRawHtml: p.allowRawHtml ?? false,
               coverImage: p.coverImage ?? null,
               readingTime: p.readingTime ?? null,
               featured: p.featured ?? false,
@@ -296,7 +298,8 @@ export function createPostsUseCases(deps: {
             slug,
             title: p.title,
             excerpt: p.excerpt,
-            content: sanitizePostHtml(p.content),
+            content: sanitizeContentByMode(p.content, p.allowRawHtml ?? false),
+            allowRawHtml: p.allowRawHtml ?? false,
             coverImage: p.coverImage ?? null,
             readingTime: p.readingTime ?? null,
             featured: p.featured ?? false,
