@@ -194,4 +194,95 @@ describe("AdminPostForm", () => {
     // 顯示風險提示（以隔離 iframe 相關文字判定，避免與開關標籤文字衝突）
     expect(screen.getByText(/隔離 iframe/)).toBeInTheDocument();
   });
+
+  it("shows amber warning banner + switch button when normal mode content has rich HTML", async () => {
+    render(
+      <AdminPostForm
+        mode="create"
+        initial={mockInitial}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+
+    await userEvent.type(
+      screen.getByTestId("tiptap-editor"),
+      '<div style="color:red">x</div>'
+    );
+
+    expect(screen.getByTestId("rich-html-warning")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "切換為原始 HTML 模式" })
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the banner for pure WYSIWYG content", async () => {
+    render(
+      <AdminPostForm
+        mode="create"
+        initial={mockInitial}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+
+    await userEvent.type(screen.getByTestId("tiptap-editor"), "<p>hello</p>");
+
+    expect(screen.queryByTestId("rich-html-warning")).not.toBeInTheDocument();
+  });
+
+  it("clicking the switch button turns on raw HTML mode", async () => {
+    render(
+      <AdminPostForm
+        mode="create"
+        initial={mockInitial}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+
+    await userEvent.type(
+      screen.getByTestId("tiptap-editor"),
+      '<div style="color:red">x</div>'
+    );
+
+    expect(screen.getByTestId("rich-html-warning")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "切換為原始 HTML 模式" })
+    );
+
+    expect(screen.getByTestId("raw-html-editor")).toBeInTheDocument();
+  });
+
+  it("submitting rich HTML in normal mode prompts confirm and cancel aborts save", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(
+      <AdminPostForm
+        mode="create"
+        initial={mockInitial}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+
+    await userEvent.type(screen.getByLabelText("標題"), "My Title");
+    await userEvent.type(screen.getByLabelText("摘要"), "My Excerpt");
+    await userEvent.type(
+      screen.getByTestId("tiptap-editor"),
+      '<div style="color:red">x</div>'
+    );
+
+    const saveButton = screen.getByRole("button", { name: "儲存" });
+    await waitFor(() => {
+      expect(saveButton).toBeEnabled();
+    });
+    await userEvent.click(saveButton);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
+  });
 });
