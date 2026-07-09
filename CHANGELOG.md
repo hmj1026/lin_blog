@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 0.2.0 — 2026-07-09 — 強化 Rich HTML 偵測與 Sanitizer 修正
+## 1.3.2 — 2026-07-09 — 強化 Rich HTML 偵測與 Sanitizer 修正
 
 本版本主要強化後台 WYSIWYG 編輯器在一般模式下被剝除自訂樣式時的風險警示，並修正 CSS `behavior:` 消毒時誤判 `scroll-behavior` 的問題。
 
