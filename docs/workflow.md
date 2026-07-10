@@ -42,6 +42,7 @@ graph LR
 | `main` | 正式版本，僅透過 PR 合併 | ✅ 需通過 CI 測試 |
 | `develop` | 開發分支，日常開發使用 | ❌ 無保護 |
 | `feature/*` | 功能分支（可選） | ❌ 無保護 |
+| `release/vX.Y.Z` | 版本發布用（版號 + CHANGELOG），直接從 `main` 切出、PR 回 `main` | ❌ 無保護（合併目標 `main` 有保護），完整流程見 [部署指南 §發布版本](deployment.md#-發布版本release與版本化-image) |
 
 ---
 
