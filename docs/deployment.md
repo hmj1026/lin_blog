@@ -249,25 +249,101 @@ sudo chmod +x /var/www/products/{deploy,backup-db,start-all-services,check-servi
 
 ## 🚀 發布版本（Release）與版本化 image
 
-版本 tag 會由 `docker-build.yml` 自動建出對應版本的 image，供指定版本部署 / 回滾。
+版本 tag 會由 `docker-build.yml` 自動建出對應版本的 image，供指定版本部署 / 回滾。完整流程分
+兩段：**先把版號改好、走 PR 進 main**，**再打 tag、建 Release**。以下步驟以 v1.3.3 實際跑過的
+流程為準。
+
+### 1. 切 release 分支，改版號 + CHANGELOG
 
 ```bash
-# 1. 確保 main 已含要發布的內容（走 PR develop→main）
 git checkout main && git pull origin main
 
-# 2. 打標註型 semver tag（v 前綴）並推送
-git tag -a vX.Y.Z -m "vX.Y.Z — <說明>"
-git push origin vX.Y.Z
-
-# 3. 建 GitHub Release（自動產生變更 notes）
-gh release create vX.Y.Z --generate-notes --notes-start-tag <上一版>
+NEW_VERSION=X.Y.Z   # 換成目標版號
+git checkout -b release/v$NEW_VERSION main
 ```
 
-push `v*.*.*` tag → 觸發建置 → 產生 `ghcr.io/hmj1026/lin_blog:vX.Y.Z`（另含 `X.Y.Z`、`X.Y`）。
+- 編輯 `web/package.json` 的 `"version"` 為 `$NEW_VERSION`。
+- 在根目錄 `CHANGELOG.md` 最上方新增一段 `## $NEW_VERSION — YYYY-MM-DD — <說明>`（無自動產生腳本，手動維護）。
+
+```bash
+git add web/package.json CHANGELOG.md
+git commit -m "chore(release): bump version to $NEW_VERSION and update changelog"
+git push -u origin release/v$NEW_VERSION
+```
+
+### 2. 開 PR 到 main，等 CI 綠燈後合併
+
+```bash
+gh pr create --base main --head release/v$NEW_VERSION \
+  --title "chore(release): v$NEW_VERSION — <說明>"
+gh pr checks <PR> --watch          # 等 8 個矩陣 check 全綠
+gh pr merge <PR> --merge --delete-branch   # 個人 repo 無人 approve 時：--admin --merge --delete-branch
+```
+
+`--delete-branch` 會在合併後順手刪除遠端的 `release/vX.Y.Z` 分支，不用再手動清。
+
+> 💡 合併到 main 後，`docker-build.yml` 會自動建置並推送 `ghcr.io/hmj1026/lin_blog:latest` /
+> `:main`（此時**尚未**產生 semver 標籤，那要等第 3 步打 tag）。
+> `gh run list --workflow=docker-build.yml -L 3` 確認這次 push 建置成功。
+
+### 3. 打 tag，觸發版本化 image 建置
+
+```bash
+git checkout main && git pull origin main
+
+git tag -a v$NEW_VERSION -m "v$NEW_VERSION — <說明>"
+git push origin v$NEW_VERSION
+
+gh run list --workflow=docker-build.yml -L 3   # 確認 branch=v$NEW_VERSION 的 push 事件成功
+```
+
+push `v*.*.*` tag → 觸發建置 → 產生 `ghcr.io/hmj1026/lin_blog:v$NEW_VERSION`（另含 `X.Y.Z`、`X.Y`）。
 
 > ⚠️ tag 觸發使用的是「**tag 指向的 commit** 上的 workflow 檔」。若該 commit 的 `docker-build.yml`
 > 尚無 tag 觸發（例如剛加入 tag 觸發那次），tag 需指向已含觸發器的 commit 才會建置
 > （2026-07-05 導入 tag 觸發時即因此把 `v1.2.0` 移到含觸發器的 commit 重建）。
+
+### 4. 建 GitHub Release
+
+CHANGELOG.md 每版都已手動寫好結構化的變更說明，直接擷取對應段落當作 Release notes（v1.3.3
+採用的方式），比 `--generate-notes` 的自動 commit 列表更可讀：
+
+```bash
+NOTES=$(sed -n "/## $NEW_VERSION /,/## [0-9]/p" CHANGELOG.md | sed '$d')
+[ -z "$NOTES" ] && { echo "找不到 $NEW_VERSION 的 CHANGELOG 段落，檢查標題格式"; exit 1; }
+gh release create v$NEW_VERSION --title "v$NEW_VERSION" --notes "$NOTES"
+```
+
+> ⚠️ 這段 `sed` 依賴 CHANGELOG 標題固定是 `## <數字開頭>` 格式；抓不到內容時會靜默產生空字串，
+> 務必先檢查 `$NOTES` 非空再送出，別漏看。
+
+若該版沒有寫 CHANGELOG 段落，退回自動產生：
+
+```bash
+gh release create v$NEW_VERSION --generate-notes --notes-start-tag <上一版>
+```
+
+### 5. 驗證 image 標籤都產出了
+
+```bash
+gh api repos/hmj1026/lin_blog/packages/container/lin_blog/versions \
+  --jq '.[0].metadata.container.tags'
+# 應看到 v$NEW_VERSION / $NEW_VERSION / <major.minor> 這組 semver 標籤
+```
+
+### 6. 同步 develop（釋出後別讓它落後太多）
+
+`release/vX.Y.Z` 是直接從 `main` 切出、merge 回 `main`，`develop` 不會自動拿到這些變更。
+若 `develop` 目前落後 `main`（且是可快轉的情況），同步一下：
+
+```bash
+git checkout develop && git pull origin develop
+git merge --ff-only main    # 若無法快轉，改用 git merge main 並處理衝突
+git push origin develop
+```
+
+> ℹ️ 本專案目前沒有自動化的「release → develop」回併機制，`release/*` PR 和一般
+> `feat/* → develop → main` 的功能開發是兩條獨立路徑，需要時手動同步。
 
 ## 🔄 回滾操作
 
@@ -418,3 +494,4 @@ gunzip -c backup.sql.gz | docker exec -i blog_db sh -c 'exec psql -U "$POSTGRES_
 - [CDN 與 Storage 架構指南](cdn-storage.md) - 流量成本優化與 CDN 設定
 - [資料庫設定指南](database.md) - PostgreSQL 設定與維護
 - [本地開發環境](development.md) - 開發環境設定
+- [CHANGELOG.md](../CHANGELOG.md) - 版本變更紀錄，發布時需手動更新，也是 Release notes 的來源
