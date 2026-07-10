@@ -3,7 +3,7 @@
 # ===================================================
 # 使用 Debian-based 映像以確保 Prisma OpenSSL 相容性
 
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------
