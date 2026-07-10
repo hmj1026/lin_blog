@@ -1,26 +1,93 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main, develop]  # 對 main 或 develop 的 PR 皆觸發品質閘門
-  workflow_call:  # 允許其他 workflow 調用（如 cd.yml 於 push develop 時）
+  workflow_call:  # 允許其他 workflow 調用（如 docker-build.yml 於 push main / tag 時）
+  # 註：已移除 ci.yml 自身的 push:[main] 觸發（決策 C）。合併後對 main 的驗證改由
+  # docker-build.yml 的 push:[main] → workflow_call 呼叫本 workflow 提供，避免同一次
+  # 合併重複跑兩次完整矩陣。develop 目前無 post-merge 檢查為已知、已接受的落差。
+
+concurrency:
+  # 納入 github.workflow：以 workflow_call 被呼叫時，github.workflow 會解析為「呼叫端」
+  # 的名稱，因此 reusable 呼叫與 ci.yml 自身觸發會落在不同群組、彼此不互相取消。
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
+  detect:
+    name: Detect Node matrix
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.set-matrix.outputs.versions }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Determine Node version matrix
+        id: set-matrix
+        # PR → develop（無 branch protection）縮減為單一版本（22，對齊 production 基準）；
+        # PR → main / push / workflow_call 維持雙版本 [20, 22]，以產生 branch protection
+        # 綁定的 Build (Node 20) / Build (Node 22) 兩個必要 context。
+        # 以 env 傳入並加引號，避免 context 值被直接內插進 shell（injection 防護）。
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$BASE_REF" = "develop" ]; then
+            echo 'versions=["22"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'versions=["20","22"]' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assert runtime baseline consistency
+        # runtime 基準契約（task 7.5）：Node 主版本在 web/.nvmrc、web/Dockerfile、
+        # web/package.json 的 engines.node 三處必須一致；Postgres 主版本在 e2e.yml 與
+        # docker-compose.yml 之間必須一致。這些宣告無自動 enforce，故用本 step 防止各自硬編漂移。
+        run: |
+          # GitHub Actions 預設 shell 為 `bash -eo pipefail`；grep 無匹配會回傳非零並提前中止
+          # 整個 step、跳過下方的錯誤彙整。故每個擷取都以 `|| true` 收斂為空字串，交由 -z 檢查處理。
+          fail=0
+          # 各擷取皆錨定行首並只取主版本，避免註解/嵌入文字誤匹配；.nvmrc 容許 v 前綴與 semver（v22 / 22.11.0 → 22）。
+          nvmrc="$(grep -oP '^\s*v?\K[0-9]+' web/.nvmrc | head -1 || true)"
+          docker_node="$(grep -oP '^\s*FROM\s+(--\S+\s+)*node:\K[0-9]+' web/Dockerfile | head -1 || true)"
+          # engines.node 下界主版本：要求值以 >= 開頭（避免複合 range 誤取錯誤邊界），例如 ">=22 <25" → 22
+          engines_node="$(grep -oP '"node"\s*:\s*"\s*>=\s*\K[0-9]+' web/package.json | head -1 || true)"
+          echo "Node major → .nvmrc=${nvmrc:-<none>}  Dockerfile=${docker_node:-<none>}  engines.node(lower)=${engines_node:-<none>}"
+          for pair in "web/.nvmrc:${nvmrc}" "web/Dockerfile:${docker_node}" "engines.node:${engines_node}"; do
+            if [ -z "${pair#*:}" ]; then echo "::error::無法擷取 ${pair%%:*} 的 Node 主版本"; fail=1; fi
+          done
+          if [ -n "${nvmrc}" ] && { [ "${nvmrc}" != "${docker_node}" ] || [ "${nvmrc}" != "${engines_node}" ]; }; then
+            echo "::error::Node 基準不一致：.nvmrc=${nvmrc} / Dockerfile=node:${docker_node}-slim / engines.node 下界=${engines_node}"
+            fail=1
+          fi
+          e2e_pg="$(grep -oP '^\s*image:\s*postgres:\K[0-9]+' .github/workflows/e2e.yml | head -1 || true)"
+          compose_pg="$(grep -oP '^\s*image:\s*postgres:\K[0-9]+' docker-compose.yml | head -1 || true)"
+          echo "Postgres major → e2e.yml=${e2e_pg:-<none>}  docker-compose.yml=${compose_pg:-<none>}"
+          if [ -z "${e2e_pg}" ] || [ -z "${compose_pg}" ]; then
+            echo "::error::無法擷取 Postgres 主版本（e2e.yml=${e2e_pg:-<none>} / docker-compose.yml=${compose_pg:-<none>}）"; fail=1
+          elif [ "${e2e_pg}" != "${compose_pg}" ]; then
+            echo "::error::Postgres 版本不一致：e2e.yml=postgres:${e2e_pg} 但 docker-compose.yml=postgres:${compose_pg}"; fail=1
+          fi
+          [ "$fail" = 0 ] || exit 1
+
   lint:
     name: Lint (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    needs: [detect]
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        node-version: ${{ fromJSON(needs.detect.outputs.versions) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
@@ -37,16 +104,17 @@ jobs:
   type-check:
     name: Type Check (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    needs: [detect]
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        node-version: ${{ fromJSON(needs.detect.outputs.versions) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
@@ -67,16 +135,17 @@ jobs:
   test:
     name: Unit Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    needs: [detect]
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        node-version: ${{ fromJSON(needs.detect.outputs.versions) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
@@ -95,7 +164,7 @@ jobs:
         working-directory: ./web
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report-node${{ matrix.node-version }}
@@ -105,17 +174,17 @@ jobs:
   build:
     name: Build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
-    needs: [lint, type-check, test]
+    needs: [detect, lint, type-check, test]
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20, 22]
+        node-version: ${{ fromJSON(needs.detect.outputs.versions) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
