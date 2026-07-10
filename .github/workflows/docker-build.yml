@@ -4,7 +4,20 @@ on:
   push:
     branches: [main]
     tags: ['v*.*.*']   # 版本 tag（如 v1.2.0）→ 產生對應版本的 image
+    paths:
+      # 僅在 web/ 或相關 workflow 變更時才於 main push 建置；tag push 不受 paths 影響
+      # （GitHub 明文：Path filters are not evaluated for pushes of tags），release 一定會建置。
+      - "web/**"
+      - ".github/workflows/docker-build.yml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 env:
   REGISTRY: ghcr.io
@@ -27,7 +40,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

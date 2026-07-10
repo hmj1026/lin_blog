@@ -10,9 +10,17 @@ on:
   #   branches: [main]
   workflow_dispatch:  # 僅允許手動觸發
 
+concurrency:
+  # e2e 無真正共享的外部資源（Postgres 為每次 run 全新隔離的 service 容器），
+  # 群組僅影響同一 ref 的重複手動觸發。cancel-in-progress: false = 不砍進行中的手動 run。
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
 
 jobs:
   e2e:
@@ -22,7 +30,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16   # 對齊 docker-compose.yml 的 postgres:16-alpine（生產版本）
         env:
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_password
@@ -45,10 +53,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -89,7 +97,7 @@ jobs:
           CI: true
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -97,7 +105,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-results
