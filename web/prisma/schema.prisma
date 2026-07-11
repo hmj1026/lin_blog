@@ -72,6 +72,7 @@ model Post {
   readingTime    String?
   featured       Boolean        @default(false)
   allowRawHtml   Boolean        @default(false)
+  showRawHtmlToc Boolean        @default(false)
   status         PostStatus     @default(DRAFT)
   publishedAt    DateTime?
   // SEO 自訂欄位
@@ -102,6 +103,7 @@ model PostVersion {
   excerpt   String
   content   String
   allowRawHtml Boolean @default(false)
+  showRawHtmlToc Boolean @default(false)
   editor    User?    @relation(fields: [editorId], references: [id])
   editorId  String?
   createdAt DateTime @default(now())
@@ -219,6 +221,18 @@ model PostViewEvent {
   @@index([postId, fingerprint, viewedAt])
   @@index([deletedAt, viewedAt])
   @@index([deletedAt])
+}
+
+// Newsletter 訂閱者。姓名/Email 為必要最小欄位（見 design.md D3 資料最小化）；
+// Email 唯一約束同時作為併發安全邊界。
+model Subscriber {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 enum PostStatus {

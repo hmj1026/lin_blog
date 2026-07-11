@@ -16,6 +16,7 @@ async function main() {
   console.log("🚀 初始化資料庫...");
 
   // 建立權限
+  // 此清單須與 web/prisma/permission-catalog.ts 保持同步（SSOT 為 permission-catalog.ts；本檔為 production container 內的 plain-JS 版本）
   const permissions = [
     { key: "admin:access", name: "後台存取" },
     { key: "posts:write", name: "文章管理" },
@@ -27,6 +28,7 @@ async function main() {
     { key: "users:manage", name: "使用者管理" },
     { key: "roles:manage", name: "角色權限管理" },
     { key: "settings:manage", name: "站點設定" },
+    { key: "subscribers:view", name: "訂閱者名單" },
   ];
 
   for (const p of permissions) {
@@ -131,6 +133,14 @@ async function main() {
     });
   }
   console.log("✅ 預設分類已建立");
+
+  // 全域權限版本遞增，使既有 JWT 權限快取失效
+  // 重跑本腳本後，已登入的管理者 session 會依版本號自動重新載入權限
+  await prisma.permissionVersion.upsert({
+    where: { id: "global" },
+    create: { id: "global", value: 1 },
+    update: { value: { increment: 1 } },
+  });
 
   console.log("\n🎉 初始化完成！");
   console.log("\n📌 下一步：建立管理員帳號");

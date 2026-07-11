@@ -8,6 +8,7 @@ const links = [
   { href: "/admin", label: "儀表板" },
   { href: "/admin/posts", label: "文章列表" },
   { href: "/admin/analytics/posts", label: "文章統計" },
+  { href: "/admin/subscribers", label: "訂閱者名單" },
   { href: "/admin/categories", label: "分類管理" },
   { href: "/admin/tags", label: "標籤管理" },
   { href: "/admin/users", label: "使用者管理" },

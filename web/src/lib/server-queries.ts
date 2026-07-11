@@ -7,6 +7,10 @@ import { isReadablePost } from "@/modules/posts/domain";
 import { analyticsUseCases } from "@/modules/analytics";
 import { mediaUseCases } from "@/modules/media";
 import { securityAdminUseCases } from "@/modules/security-admin";
+import { discoveryUseCases } from "@/modules/discovery";
+import type { PublicPostSummary } from "@/modules/discovery";
+import { newsletterUseCases } from "@/modules/newsletter";
+import { throwIfDiscoveryFaultInjected } from "@/lib/server/discovery-fault-injection";
 
 const NO_PARAMS_KEY = "__no-params__";
 
@@ -90,7 +94,7 @@ const getReadablePostBySlug = cacheFn(async (key: string) => {
 
   const post = await getPostBySlug(input.slug);
   if (!post) return null;
-  if (!isReadablePost({ status: post.status, deletedAt: post.deletedAt }, { allowDraft: input.allowDraft })) return null;
+  if (!isReadablePost({ status: post.status, deletedAt: post.deletedAt, publishedAt: post.publishedAt }, { allowDraft: input.allowDraft })) return null;
   return post;
 });
 
@@ -229,4 +233,84 @@ export const securityAdminQueries = {
   listUsers,
   listActiveRoles,
   listRolesAndPermissions,
+};
+
+// --- Discovery read queries (per-request dedupe, error-isolated) ---
+
+/**
+ * 公開搜尋結果；`kind: "error"` 是探索專用的泛化錯誤狀態（design.md D5：
+ * 探索查詢失敗不得讓文章頁失敗），不攜帶內部錯誤細節。
+ */
+export type DiscoverySearchResult =
+  | { kind: "empty-query"; query: string }
+  | { kind: "results"; query: string; page: number; pageSize: number; total: number; items: readonly PublicPostSummary[] }
+  | { kind: "error"; query: string };
+
+/**
+ * 熱門／最新文章列表的泛化結果；`ok: false` 時 `items` 一律為空陣列，
+ * 呼叫端只需依 `ok` 決定要顯示清單還是泛化錯誤狀態，不需解讀底層錯誤。
+ */
+export type DiscoveryListResult = { ok: true; items: readonly PublicPostSummary[] } | { ok: false; items: readonly [] };
+
+/**
+ * 公開站內搜尋（error-isolated）。use case 拋出例外時回傳 `kind: "error"`，
+ * 不重新拋出，避免探索模組的暫時性錯誤讓文章詳情頁整體失敗。
+ */
+const searchPublicPosts = cacheByObject(
+  async (params: { query: string; page?: number; pageSize?: number }): Promise<DiscoverySearchResult> => {
+    try {
+      return await discoveryUseCases.searchPublicPosts(params);
+    } catch {
+      return { kind: "error", query: params.query };
+    }
+  }
+);
+
+/**
+ * 公開熱門文章排行（error-isolated）。失敗時回傳 `{ ok: false, items: [] }`。
+ */
+const listPopularPosts = cacheFn(async (): Promise<DiscoveryListResult> => {
+  try {
+    await throwIfDiscoveryFaultInjected();
+    const items = await discoveryUseCases.listPopularPosts();
+    return { ok: true, items };
+  } catch {
+    return { ok: false, items: [] };
+  }
+});
+
+/**
+ * 公開最新文章列表（error-isolated）。失敗時回傳 `{ ok: false, items: [] }`。
+ */
+const listLatestPosts = cacheFn(async (): Promise<DiscoveryListResult> => {
+  try {
+    await throwIfDiscoveryFaultInjected();
+    const items = await discoveryUseCases.listLatestPosts();
+    return { ok: true, items };
+  } catch {
+    return { ok: false, items: [] };
+  }
+});
+
+/**
+ * Discovery 公開讀取查詢（per-request dedupe）。每個查詢皆與 use case 的
+ * 例外隔離，探索資料暫時不可用時只影響對應模組，文章主內容不受影響。
+ */
+export const discoveryQueries = {
+  searchPublicPosts,
+  listPopularPosts,
+  listLatestPosts,
+};
+
+// --- Newsletter read queries (per-request dedupe) ---
+const listSubscribers = cacheByObject(
+  (params: { search?: string; page?: number; pageSize?: number }) => newsletterUseCases.listSubscribers(params)
+);
+
+/**
+ * Newsletter read queries (per-request dedupe)。後台唯讀訂閱者名單，
+ * 只回傳安全 DTO（id/name/email/createdAt），受 `subscribers:view` 權限保護。
+ */
+export const newsletterQueries = {
+  listSubscribers,
 };
