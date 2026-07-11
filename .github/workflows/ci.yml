@@ -65,12 +65,13 @@ jobs:
             fail=1
           fi
           e2e_pg="$(grep -oP '^\s*image:\s*postgres:\K[0-9]+' .github/workflows/e2e.yml | head -1 || true)"
+          ci_pg="$(grep -oP '^\s*image:\s*postgres:\K[0-9]+' .github/workflows/ci.yml | head -1 || true)"
           compose_pg="$(grep -oP '^\s*image:\s*postgres:\K[0-9]+' docker-compose.yml | head -1 || true)"
-          echo "Postgres major → e2e.yml=${e2e_pg:-<none>}  docker-compose.yml=${compose_pg:-<none>}"
-          if [ -z "${e2e_pg}" ] || [ -z "${compose_pg}" ]; then
-            echo "::error::無法擷取 Postgres 主版本（e2e.yml=${e2e_pg:-<none>} / docker-compose.yml=${compose_pg:-<none>}）"; fail=1
-          elif [ "${e2e_pg}" != "${compose_pg}" ]; then
-            echo "::error::Postgres 版本不一致：e2e.yml=postgres:${e2e_pg} 但 docker-compose.yml=postgres:${compose_pg}"; fail=1
+          echo "Postgres major → e2e.yml=${e2e_pg:-<none>}  ci.yml=${ci_pg:-<none>}  docker-compose.yml=${compose_pg:-<none>}"
+          if [ -z "${e2e_pg}" ] || [ -z "${ci_pg}" ] || [ -z "${compose_pg}" ]; then
+            echo "::error::無法擷取 Postgres 主版本（e2e.yml=${e2e_pg:-<none>} / ci.yml=${ci_pg:-<none>} / docker-compose.yml=${compose_pg:-<none>}）"; fail=1
+          elif [ "${e2e_pg}" != "${compose_pg}" ] || [ "${ci_pg}" != "${compose_pg}" ]; then
+            echo "::error::Postgres 版本不一致：e2e.yml=postgres:${e2e_pg} / ci.yml(integration-test)=postgres:${ci_pg} / docker-compose.yml=postgres:${compose_pg}"; fail=1
           fi
           [ "$fail" = 0 ] || exit 1
 
@@ -171,10 +172,58 @@ jobs:
           path: web/coverage/
           retention-days: 7
 
+  integration-test:
+    name: Integration Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    needs: [detect]
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16   # 對齊 docker-compose.yml 的 postgres:16-alpine（生產版本）
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # global-setup 會以此為基底建立 lin_blog_test 資料庫並套用 prisma migrate deploy
+      DATABASE_URL: postgresql://test_user:test_password@localhost:5432/postgres
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./web
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: ./web
+
+      - name: Run integration tests (real PostgreSQL)
+        run: npm run test:integration
+        working-directory: ./web
+
   build:
     name: Build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
-    needs: [detect, lint, type-check, test]
+    needs: [detect, lint, type-check, test, integration-test]
     strategy:
       fail-fast: false
       matrix:

@@ -4,20 +4,18 @@
 定義文章（posts）管理相關的核心需求，包括版本歷史儲存與還原、列表多選與批次操作、後台搜尋、排程發佈、狀態管理、匯入匯出、SEO 自訂欄位，以及列表查詢的授權範圍、資料精簡與分頁上限控制。
 ## Requirements
 ### Requirement: Post Version Storage
-The system SHALL automatically save a version when a post is updated.
+The system SHALL automatically save a version when a post is updated. Each version SHALL preserve the content and the raw HTML presentation settings that determine how that content is edited and rendered.
 
 #### Scenario: Auto-save version on update
-- **WHEN** a post content or title is updated
-- **THEN** the previous version SHALL be saved to PostVersion table
+- **WHEN** a post content, title, `allowRawHtml`, or `showRawHtmlToc` value is updated
+- **THEN** the previous version SHALL be saved to the PostVersion table before the update
 
 #### Scenario: Version metadata
 - **WHEN** a version is saved
-- **THEN** it SHALL include title, content, excerpt, createdAt, and editor info
-
----
+- **THEN** it SHALL include title, content, excerpt, `allowRawHtml`, `showRawHtmlToc`, createdAt, and editor info
 
 ### Requirement: Version History List
-The system SHALL display a list of versions for each post.
+The system SHALL display a list of versions for each post and SHALL provide enough version data to preview the content with the authoring and presentation settings active at that version.
 
 #### Scenario: View version history
 - **WHEN** an admin views a post's version history
@@ -26,19 +24,18 @@ The system SHALL display a list of versions for each post.
 #### Scenario: Version preview
 - **WHEN** an admin clicks on a version
 - **THEN** the system SHALL display the version content
-
----
+- **AND** the preview SHALL use that version's `allowRawHtml` and `showRawHtmlToc` values
 
 ### Requirement: Version Restore
-The system SHALL allow restoring a post to a previous version.
+The system SHALL allow restoring a post to a previous version, including the raw HTML authoring mode and system TOC preference stored with that version.
 
 #### Scenario: Restore to version
 - **WHEN** an admin selects restore on a version
-- **THEN** the post content SHALL be replaced with the version content
+- **THEN** the post title, excerpt, content, `allowRawHtml`, and `showRawHtmlToc` SHALL be replaced with the version values
 
 #### Scenario: Restore creates new version
 - **WHEN** a post is restored
-- **THEN** the current content SHALL be saved as a new version before restore
+- **THEN** the current title, excerpt, content, `allowRawHtml`, and `showRawHtmlToc` SHALL be saved as a new version before restore
 
 ### Requirement: Post List Multi-select
 The system SHALL support selecting multiple posts in the admin post list.
@@ -115,40 +112,61 @@ The PostStatus enum SHALL include the following values:
 - **THEN** the post SHALL no longer be auto-published
 
 ### Requirement: Export Posts
-The system SHALL allow exporting posts to portable formats.
+The system SHALL allow exporting posts to portable formats. JSON fields and Markdown frontmatter SHALL include `allowRawHtml` and `showRawHtmlToc` so exported raw HTML articles retain their authoring and presentation behavior when imported again.
 
 #### Scenario: Export to JSON
 - **WHEN** an admin selects export to JSON
 - **THEN** selected posts SHALL be downloaded as a JSON file
+- **AND** every exported post SHALL include boolean `allowRawHtml` and `showRawHtmlToc` fields
 
 #### Scenario: Export to Markdown
 - **WHEN** an admin selects export to Markdown
 - **THEN** selected posts SHALL be downloaded as a ZIP of Markdown files
+- **AND** every Markdown frontmatter block SHALL include `allowRawHtml` and `showRawHtmlToc`
 
 #### Scenario: Export all
 - **WHEN** an admin selects export all
 - **THEN** all posts SHALL be included in the export
+- **AND** the two raw HTML presentation flags SHALL be included for every post
 
----
+#### Scenario: Exported raw settings round-trip
+- **GIVEN** an exported post has `allowRawHtml = true` and an explicit `showRawHtmlToc` value
+- **WHEN** the exported data is imported into the system
+- **THEN** both values SHALL remain unchanged
 
 ### Requirement: Import Posts
-The system SHALL allow importing posts from files.
+The system SHALL allow importing posts from files and SHALL parse `allowRawHtml` and `showRawHtmlToc` from JSON fields or Markdown frontmatter. Missing presentation flags in legacy files SHALL default to `false`; invalid non-boolean values SHALL produce a validation error rather than enabling raw behavior through coercion.
 
 #### Scenario: Import from JSON
 - **WHEN** an admin uploads a JSON file
 - **THEN** posts SHALL be created from the file content
+- **AND** valid boolean `allowRawHtml` and `showRawHtmlToc` values SHALL be preserved
 
 #### Scenario: Import from Markdown
 - **WHEN** an admin uploads Markdown files
 - **THEN** posts SHALL be created with title from frontmatter
+- **AND** valid raw HTML presentation flags from frontmatter SHALL be preserved
 
 #### Scenario: Import preview
 - **WHEN** an admin uploads a file
 - **THEN** a preview of posts to be imported SHALL be shown
+- **AND** the preview SHALL identify the selected authoring mode and system TOC state
 
 #### Scenario: Duplicate handling
 - **WHEN** a post with the same slug exists
 - **THEN** the system SHALL offer skip/overwrite options
+- **AND** overwrite SHALL apply the imported `allowRawHtml` and `showRawHtmlToc` values
+
+#### Scenario: Legacy import uses safe defaults
+- **GIVEN** an import file does not contain `allowRawHtml` or `showRawHtmlToc`
+- **WHEN** the file is validated and imported
+- **THEN** both values SHALL default to `false`
+
+#### Scenario: Invalid raw flags are rejected
+- **GIVEN** an import file contains a non-boolean raw HTML presentation flag
+- **WHEN** the file is validated
+- **THEN** the system SHALL report a validation error for that post
+- **AND** SHALL NOT coerce the invalid value into an enabled raw mode
 
 ### Requirement: SEO Custom Fields
 The system SHALL allow customizing SEO metadata for each post.

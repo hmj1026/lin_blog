@@ -19,6 +19,7 @@
     "db:seed": "ts-node -P tsconfig.seed.json prisma/seed.ts",
     "test": "vitest run",
     "test:ui": "vitest",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "key:generate": "node scripts/generate-secret.js"
   },
@@ -38,6 +39,7 @@
     "@types/sharp": "^0.31.1",
     "cheerio": "^1.1.2",
     "class-variance-authority": "^0.7.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "next": "^15.5.9",
     "next-auth": "^4.24.8",
@@ -77,5 +79,13 @@
   },
   "overrides": {
     "esbuild": "0.24.2"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "esbuild@0.24.2": true,
+    "prisma@5.22.0": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.11.1": true
   }
 }

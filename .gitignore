@@ -44,3 +44,4 @@ blog_storage/
 # 專案內保留模板檔案，Git 只需追蹤範例
 docs/private/
 .hyperweave/
+.playwright-cli/

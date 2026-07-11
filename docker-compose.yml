@@ -5,10 +5,16 @@ services:
     image: ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG:-latest}
     build:
       context: ./web
+      args:
+        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
     container_name: blog_app
     restart: unless-stopped
     ports:
-      - "${BLOG_PORT:-3100}:3000"
+      # 僅綁定 loopback：應用只透過主機 nginx 反向代理對外（nginx 代理至
+      # 127.0.0.1:3100 並設定可信的 X-Real-IP）。Docker 會繞過 UFW，若綁到
+      # 所有介面，攻擊者可直連 3100 自行偽造 X-Real-IP 繞過訂閱限流，故必須
+      # 明確綁 127.0.0.1。
+      - "127.0.0.1:${BLOG_PORT:-3100}:3000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
@@ -32,6 +38,14 @@ services:
       - NEXT_PUBLIC_GA_ID=${NEXT_PUBLIC_GA_ID:-}
       - NEXT_PUBLIC_GTM_ID=${NEXT_PUBLIC_GTM_ID:-}
       - NEXT_PUBLIC_FB_PIXEL_ID=${NEXT_PUBLIC_FB_PIXEL_ID:-}
+      # Newsletter / reCAPTCHA v2
+      - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
+      - RECAPTCHA_SECRET_KEY=${RECAPTCHA_SECRET_KEY:-}
+      - RECAPTCHA_ALLOWED_HOSTNAMES=${RECAPTCHA_ALLOWED_HOSTNAMES:-}
+      - NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS=${NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS:-600}
+      - NEWSLETTER_RATE_LIMIT_MAX=${NEWSLETTER_RATE_LIMIT_MAX:-5}
+      - NEWSLETTER_SOURCE_HASH_SECRET=${NEWSLETTER_SOURCE_HASH_SECRET:-}
+      - APP_REPLICA_COUNT=${APP_REPLICA_COUNT:-1}
     volumes:
       - blog_storage:/app/storage
     depends_on:

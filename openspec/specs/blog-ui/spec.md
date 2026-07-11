@@ -59,28 +59,40 @@ The blog listing SHALL display posts in the card/list style from Figma, includin
 - **THEN** navigation (pagination or load more) follows the Figma style and allows moving between sets.
 
 ### Requirement: Post Detail Experience
-The blog detail page SHALL render the hero/media, title, author/date metadata, rich content body,
-inline media, and related/next-read sections consistent with Figma. When the post has
-`allowRawHtml = true`, the content body SHALL instead render inside an isolated `<iframe
-sandbox="allow-scripts" srcDoc>` that preserves the post's own embedded CSS, unaffected by and not
-leaking into the site's global styles; all other page sections (hero, metadata, related posts)
-render unchanged.
+The blog detail page SHALL render the hero/media, title, author/date metadata, rich content body, inline media, and related/next-read sections consistent with the site design. When the post has `allowRawHtml = true`, the content body SHALL instead render inside an isolated `<iframe sandbox="allow-scripts" srcDoc>` that preserves the post's own embedded CSS, unaffected by and not leaking into the site's global styles. The raw HTML content stage SHALL use a near-viewport-width layout with a 16px maximum gutter on each side and no fixed 280px article sidebar; hero, metadata, sharing, tags, and related content SHALL retain the standard `section-shell` layout before or after the raw content.
 
 #### Scenario: Post body displays rich content
-- **WHEN** opening a post detail,
-- **THEN** the hero/media, metadata, headings, paragraphs, lists, quotes, images, and CTA/sidebar
-  elements render per the Figma layout.
+- **WHEN** opening a normal post detail
+- **THEN** the hero/media, metadata, headings, paragraphs, lists, quotes, images, and CTA/sidebar elements render per the existing site layout
 
 #### Scenario: Related content surfaces
-- **WHEN** reaching the end of a post,
-- **THEN** related or recommended posts appear as designed in the Figma detail page.
+- **WHEN** reaching the end of a post
+- **THEN** related or recommended posts appear as designed
 
 #### Scenario: Raw HTML post renders in an isolated iframe
 - **GIVEN** a post with `allowRawHtml = true` containing custom `<style>` rules
 - **WHEN** opening that post's detail page
-- **THEN** the content body renders inside an isolated iframe showing the post's own styling,
-  unaffected by the site's global `.wysiwyg` styles, while hero/metadata/related sections render
-  as normal
+- **THEN** the content body renders inside an isolated iframe showing the post's own styling
+- **AND** it is unaffected by the site's global `.wysiwyg` styles
+- **AND** hero, metadata, sharing, tags, and related sections render outside the iframe
+
+#### Scenario: Raw HTML desktop content uses near-viewport width
+- **GIVEN** the layout viewport is 1903px wide and the post has `allowRawHtml = true`
+- **WHEN** the raw content stage is rendered
+- **THEN** its parent content frame SHALL have a computed width of at least 1871px
+- **AND** each outer gutter SHALL be no greater than 16px
+- **AND** no fixed article sidebar SHALL reduce the iframe width
+
+#### Scenario: Author HTML controls the inner canvas
+- **GIVEN** a raw post contains responsive `auto-fit/minmax()` grids and its own inline spacing
+- **WHEN** the iframe srcdoc renders
+- **THEN** the system SHALL NOT add an inner content max-width or horizontal body padding
+- **AND** the author grid SHALL calculate against the iframe's full available width
+
+#### Scenario: Site utilities follow wide raw content
+- **GIVEN** a raw HTML post also has sharing controls, tags, or follow-up discovery modules
+- **WHEN** the post detail is rendered
+- **THEN** those modules SHALL appear after the wide iframe content rather than reserving a fixed column beside it
 
 ### Requirement: Forms and Engagement
 The site SHALL include newsletter subscription and contact/community forms as shown in Figma with validation states and confirmation UI.
@@ -94,13 +106,19 @@ The site SHALL include newsletter subscription and contact/community forms as sh
 - **THEN** fields, validation, and feedback follow the Figma interaction patterns.
 
 ### Requirement: Responsiveness and Accessibility
-The UI SHALL be responsive across common breakpoints and include accessible semantics, focus states, and keyboard navigation aligned with the Figma states.
+The UI SHALL be responsive across common breakpoints and include accessible semantics, focus states, and keyboard navigation aligned with the design. Raw HTML content SHALL keep its outer iframe within the layout viewport at tablet and mobile widths even when author HTML has intrinsic fixed-width content.
 
 #### Scenario: Responsive breakpoints hold fidelity
-- **WHEN** resizing between desktop, tablet, and mobile widths,
-- **THEN** content reflows without overlap and matches the Figma layouts for each breakpoint.
+- **WHEN** resizing between desktop, tablet, and mobile widths
+- **THEN** content reflows without overlap and matches the intended layout for each breakpoint
+
+#### Scenario: Raw HTML frame does not overflow the outer page on mobile
+- **GIVEN** a raw HTML article contains a wide image, grid, or fixed-width element
+- **WHEN** viewing the article at mobile width
+- **THEN** the iframe outer frame SHALL remain within the layout viewport
+- **AND** the outer page SHALL NOT gain a horizontal scrollbar
 
 #### Scenario: Interactive elements are accessible
-- **WHEN** using keyboard navigation or screen readers,
-- **THEN** interactive elements (links, buttons, form controls) expose accessible labels and focus outlines consistent with design.
+- **WHEN** using keyboard navigation or screen readers
+- **THEN** interactive elements including links, buttons, form controls, mode selectors, media controls, and optional TOC controls SHALL expose accessible labels and focus outlines consistent with the design
 

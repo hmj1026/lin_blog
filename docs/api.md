@@ -126,6 +126,22 @@
 
 ---
 
+## Newsletter 訂閱
+
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| POST | `/api/newsletter/subscribe` | 公開訂閱端點；request body `{name, email, captchaToken}`；回應 200 成功（首次與重複訂閱回應相同，不揭露 Email 是否已訂閱）、400 欄位或 CAPTCHA 驗證失敗（泛化訊息）、429 過於頻繁（含 `Retry-After` header）、500 伺服器錯誤 | Public（限流） |
+
+---
+
+## 訂閱者 Subscribers（後台）
+
+| 方法 | 端點 | 說明 | 權限 |
+|------|------|------|------|
+| GET | `/api/admin/subscribers` | 取得訂閱者名單（分頁 + 姓名/Email 搜尋）；query 參數 `q`（同時比對姓名與 Email，不分大小寫）、`page`（預設 1）、`pageSize`（預設 20，上限 50）；回傳 `{items:[{id,name,email,createdAt}], total, page, pageSize}`；未授權時不回傳任何訂閱者資料 | `subscribers:view`（預設僅 ADMIN） |
+
+---
+
 ## 其他
 
 | 方法 | 端點 | 說明 | 權限 |

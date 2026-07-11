@@ -414,8 +414,151 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 | `NEXT_PUBLIC_SITE_URL` | 前端網站 URL | ✅ |
 | `BLOG_PORT` | 對外 Port（預設 3100） | ❌ |
 | `NEXT_PUBLIC_GA_ID` | Google Analytics ID | ❌ |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | Newsletter 訂閱表單 reCAPTCHA v2 site key | ❌ |
+| `RECAPTCHA_SECRET_KEY` | reCAPTCHA v2 secret key（server-only，缺少時訂閱驗證 fail closed） | ❌ |
+| `RECAPTCHA_ALLOWED_HOSTNAMES` | reCAPTCHA 允許的 hostname 清單，逗號分隔 | ❌ |
+| `NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS` | Newsletter 訂閱限流視窗（秒，預設 600） | ❌ |
+| `NEWSLETTER_RATE_LIMIT_MAX` | Newsletter 訂閱限流視窗內最大請求數（預設 5） | ❌ |
+| `APP_REPLICA_COUNT` | 目前部署 replica 數（預設 1）；大於 1 時 newsletter 限流器建構會失敗，需先改用共享 store | ❌ |
+| `NEWSLETTER_SOURCE_HASH_SECRET` | Newsletter 限流器來源雜湊用的 HMAC 密鑰（未設定時自動產生 per-process 隨機密鑰） | ❌ |
 
 完整範例見：[.env.example](../.env.example)
+
+> [!WARNING]
+> `NEWSLETTER_CAPTCHA_TEST_DOUBLE` 與 `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=e2e-test` 僅供 Playwright E2E（`playwright.config.ts` `webServer.env`）使用，絕對不可設定於任何部署環境（staging 亦然）；NODE_ENV=production 執行時會強制忽略此旗標。
+
+---
+
+## 📮 Newsletter 訂閱與 reCAPTCHA v2 部署
+
+本節說明如何啟用公開 Newsletter 訂閱功能，包括 Google reCAPTCHA v2 驗證與訂閱專用限流設定。
+
+### 1. 申請 Google reCAPTCHA v2 金鑰
+
+1. 前往 [Google reCAPTCHA Admin Console](https://www.google.com/recaptcha/admin)
+2. 使用 Google 帳號登入，點擊「建立」或「新增網站」
+3. 填入設定：
+   - **標籤**：例如 `linstar.win Newsletter`
+   - **reCAPTCHA 版本**：選擇「reCAPTCHA v2」
+   - **reCAPTCHA v2 類型**：選擇「『我不是機器人』核取方塊（I'm not a robot Checkbox）」
+   - **網域**：填入所有正式網域（本站為 `linstar.win`、`www.linstar.win`、`nx.linstar.win`）與 staging 網域；若需支援本機開發，同時新增 `localhost` 與 `127.0.0.1`
+4. 點擊「提交」
+5. 取得兩組金鑰：
+   - **Site Key（公開）**：用於瀏覽器端訂閱表單，儲存於 `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`
+   - **Secret Key（機密）**：用於伺服器驗證，**絕不可外流**，僅儲存於 `RECAPTCHA_SECRET_KEY`（server-only env）
+
+### 2. 環境變數設定
+
+複製環境變數至根目錄 `.env` 並重建/重啟容器：
+
+```bash
+# reCAPTCHA v2 必要設定（含下方 hostname 清單共三個變數，缺一不可，否則驗證 fail closed）
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY="your-recaptcha-v2-site-key"
+RECAPTCHA_SECRET_KEY="your-recaptcha-v2-secret-key"
+
+# 允許的 hostname 清單（逗號分隔；必須與 Google Admin Console 設定的網域相符，
+# 且必須涵蓋所有實際對外服務的網域——本站含 nx.linstar.win，缺漏會導致該網域訂閱 fail closed）
+RECAPTCHA_ALLOWED_HOSTNAMES="linstar.win,www.linstar.win,nx.linstar.win"
+
+# Newsletter 訂閱限流設定（可選，皆有預設值）
+NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS=600
+NEWSLETTER_RATE_LIMIT_MAX=5
+NEWSLETTER_SOURCE_HASH_SECRET="a-long-random-secret-string"  # 未設定時自動產生 per-process 隨機密鑰
+
+# 部署 replica 數（預設 1；大於 1 時必須改用共享 store，應用啟動會 fail fast）
+APP_REPLICA_COUNT=1
+```
+
+> [!NOTE]
+> 完整環境變數範例與詳細說明見 [.env.example](../.env.example) 的「Newsletter / reCAPTCHA v2」區塊。
+
+### 3. Fail-Closed 行為
+
+系統設計遵循「fail-closed」原則，保護讀者隱私並防止濫用：
+
+- **三個 reCAPTCHA 環境變數缺一不可**：若 `RECAPTCHA_SECRET_KEY`、`NEXT_PUBLIC_RECAPTCHA_SITE_KEY` 或 `RECAPTCHA_ALLOWED_HOSTNAMES` 任一缺少，伺服器驗證一律不寫入資料庫、回傳泛化錯誤「系統發生錯誤，請稍後再試」。
+- **CAPTCHA token 缺少/無效/過期**：一律視作驗證失敗，回傳 400 + 泛化訊息，不揭露具體失敗原因。
+- **Google reCAPTCHA provider 逾時或 5xx 錯誤**：Google 驗證服務耗時超過 5 秒或回傳 5xx 時，伺服器不寫入資料庫、回傳 500 泛化錯誤。系統不會以「跳過驗證」作為降級策略，全部拒絕。
+- **Hostname 不符 Google 後台設定**：即使 token 有效，若其 hostname 與 `RECAPTCHA_ALLOWED_HOSTNAMES` 不符，伺服器拒絕寫入、回傳泛化錯誤。
+- **首次與重複訂閱回應相同**：無論 Email 是否已存在，伺服器均回傳相同成功訊息，防止 Email 列舉攻擊。
+
+### 4. 訂閱專用限流
+
+為防止濫用公開訂閱端點，系統實作 process-local 限流：
+
+- **限流粒度**：依來源識別（HMAC-SHA256 雜湊，基於請求 IP 等訊息），每個時間視窗內允許最多 N 次訂閱請求。
+- **預設設定**：視窗 600 秒、每視窗 5 次；可由 `NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS` 與 `NEWSLETTER_RATE_LIMIT_MAX` 調整。
+- **限流回應**：超過限制回傳 429 Too Many Requests + `Retry-After` header，且在呼叫 Google 與資料庫之前即短路（無網路成本）。
+- **限流位置**：Process-local 實作，僅適用單一 replica；`APP_REPLICA_COUNT > 1` 時應用啟動會直接 fail fast 拒絕啟動，水平擴展前必須先改用共享 store（例如 Redis）。
+- **來源雜湊金鑰**：`NEWSLETTER_SOURCE_HASH_SECRET` 用於避免低熵輸入（如 IPv4）被預先計算雜湊反查；未設定時會自動產生 per-process 隨機密鑰。
+
+> [!IMPORTANT]
+> 系統**不記錄原始 IP**，限流邏輯內部使用雜湊後的來源識別；日誌中僅出現遮罩後的 Email 識別碼和請求結果，不洩露個人資訊。
+
+### 5. 上線檢查清單（本版本所有變更）
+
+本版本包含兩大功能群，上線需求不同：
+
+- **讀者探索模組**（文章頁站內搜尋、近 30 日熱門文章、最新文章側欄與 raw 寬版文末卡片區）：**零設定**，部署新版程式即生效。熱門排行依既有 `PostViewEvent` 瀏覽事件計算，資料不足時自動以最新文章補位，無需任何環境變數或申請。
+- **Newsletter 訂閱**（前台表單 + reCAPTCHA v2 + 後台名單）：需完成以下 **全部** 步驟才能正常運作，缺一即 fail closed（表單顯示不可用或送出失敗，但不影響其他功能）。
+
+依序執行：
+
+- [ ] **步驟 1 — 申請 reCAPTCHA v2 金鑰**：依[第 1 節](#1-申請-google-recaptcha-v2-金鑰)於 Google reCAPTCHA Admin Console 建立站點，取得 Site Key 與 Secret Key。這是唯一需要對外申請的項目。
+
+- [ ] **步驟 2 — 設定伺服器 `.env`**：依[第 2 節](#2-環境變數設定)將三個必要變數（`NEXT_PUBLIC_RECAPTCHA_SITE_KEY`、`RECAPTCHA_SECRET_KEY`、`RECAPTCHA_ALLOWED_HOSTNAMES`）寫入部署主機根目錄 `.env`；可選限流變數不設定則用預設值（600 秒 / 5 次）。
+
+- [ ] **步驟 3 — 設定 GitHub Actions Secret（使用 CI 建置 image 時必要）**：`NEXT_PUBLIC_*` 是 **build-time** 變數，會在 `next build` 時內嵌進前端 bundle。若正式環境使用 GHCR 上由 CI（`docker-build.yml`）建置的 image，必須在 GitHub repo 的 **Settings → Secrets and variables → Actions** 新增 secret `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`（值為步驟 1 的 Site Key），CI 已將其帶入 build-args。**未設定此 secret 的舊 image，前台訂閱表單將永遠顯示不可用狀態，即使容器執行期環境變數正確。**
+
+- [ ] **步驟 4 — 資料庫遷移**（additive，與舊版程式相容、可先行）：
+   ```bash
+   docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
+   ```
+   建立 `Subscriber` table 與 email 唯一索引，不修改既有資料。
+
+- [ ] **步驟 5 — RBAC 權限 `subscribers:view`**（後台訂閱者名單的存取權限，預設僅 ADMIN）：
+   - **全新安裝**：首次啟動流程執行 `docker exec blog_app node scripts/init-admin.js` 即包含此權限，無需額外動作。
+   - **既有環境升級（建議路徑，保留後台自訂的角色權限）**：直接對資料庫執行以下 SQL：
+     ```bash
+     docker exec -i blog_db psql -U <POSTGRES_USER> -d <POSTGRES_DB> <<'SQL'
+     INSERT INTO "Permission" ("key", "name") VALUES ('subscribers:view', '訂閱者名單')
+     ON CONFLICT ("key") DO NOTHING;
+     INSERT INTO "RolePermission" ("id", "roleId", "permissionKey")
+     SELECT gen_random_uuid()::text, r."id", 'subscribers:view'
+     FROM "Role" r WHERE r."key" = 'ADMIN'
+     ON CONFLICT ("roleId", "permissionKey") DO NOTHING;
+     INSERT INTO "PermissionVersion" ("id", "value", "updatedAt") VALUES ('global', 1, now())
+     ON CONFLICT ("id") DO UPDATE SET "value" = "PermissionVersion"."value" + 1, "updatedAt" = now();
+     SQL
+     ```
+     最後一段會遞增全域權限版本號，使已登入管理者的 JWT 權限快取自動失效並重新載入；若未執行，管理者需登出後重新登入才能看到新選單。
+   - **替代路徑**：重新執行 `docker exec blog_app node scripts/init-admin.js`（新版已含此權限與版本號遞增）。**注意**：此腳本會將 ADMIN / EDITOR 的權限矩陣重設為預設值——若曾在後台「角色權限管理」自訂過角色設定，請改用上面的 SQL。
+
+- [ ] **步驟 6 — 重建並部署新版應用**：
+   ```bash
+   docker-compose up -d --build   # 或 pull CI 建好的新版 image 後 docker-compose up -d
+   ```
+   > [!IMPORTANT]
+   > 本機建置時必須用 `--build` 重新建置 image（site key 是 build-time 內嵌），只 `restart` 容器不會讓前端拿到新的 Site Key。
+
+- [ ] **步驟 7 — 於 Staging 驗證 fail-closed 行為**（建議在正式上線前）：
+   - 測試完整訂閱流程（成功、token 過期、缺設定等各個 fail-closed 路徑）
+   - 確認應用日誌只記錄遮罩資訊，不洩露 token 或原始 IP
+
+- [ ] **步驟 8 — 部署後驗證**：
+   - 開啟任一篇文章頁：桌面版右側欄應依序出現「站內搜尋 → 訂閱 → 熱門文章 → 最新文章」；raw 寬版文章的探索卡片區位於內容之後
+   - 實際完成一筆訂閱（勾選 reCAPTCHA），確認顯示泛化成功訊息且 Email 寫入資料庫
+   - 檢查應用 log：`newsletter.subscribe.result` 事件應包含 requestId / emailHash 遮罩 / result，**無 token、無完整 Email、無原始 IP**
+   - 以 ADMIN 登入後台 `/admin/subscribers`，確認能看見訂閱者名單、姓名/Email 搜尋與分頁正常
+   - 以 EDITOR 或未登入身份確認無法存取 `/admin/subscribers` 與其 API
+
+### 6. 回滾
+
+若需要回滾或禁用訂閱功能，詳細步驟與注意事項見 [`runbooks/subscriber-rollback.md`](runbooks/subscriber-rollback.md)。概述如下：
+
+- **階段 1（預設）**：停用前台訂閱表單與 `/api/newsletter/subscribe` 端點，回退應用版本。資料庫 `Subscriber` table 保留，舊版應用程式不查詢該表、不受影響。
+- **階段 2（預設）**：保留 additive `Subscriber` table，不影響已回退的舊版程式，供日後重新上線使用。
+- **階段 3（僅限已核准）**：完成備份與個資交接後，執行 drop-table 與 migration 歷史清理。
 
 ---
 

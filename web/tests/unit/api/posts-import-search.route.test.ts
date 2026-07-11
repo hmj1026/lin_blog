@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "@/app/api/posts/import/route";
 import { GET } from "@/app/api/search/route";
 import { requirePermission, jsonOk, jsonError } from "@/lib/api-utils";
-import { postsQueries } from "@/lib/server-queries";
+import { postsQueries, discoveryQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { NextRequest } from "next/server";
 
@@ -15,6 +15,9 @@ vi.mock("@/lib/api-utils", () => ({
 vi.mock("@/lib/server-queries", () => ({
   postsQueries: {
     searchPosts: vi.fn(),
+  },
+  discoveryQueries: {
+    searchPublicPosts: vi.fn(),
   },
 }));
 
@@ -123,55 +126,90 @@ describe("Search API", () => {
   });
 
   describe("GET /api/search", () => {
-    it("should return empty array for empty query", async () => {
+    it("returns an empty bounded result for an empty query without querying", async () => {
+      (discoveryQueries.searchPublicPosts as any).mockResolvedValue({ kind: "empty-query", query: "" });
       const req = new NextRequest("http://localhost/api/search?q=");
       await GET(req);
 
-      expect(jsonOk).toHaveBeenCalledWith([]);
+      expect(jsonOk).toHaveBeenCalledWith({ items: [], total: 0, page: 1, pageSize: 10 });
     });
 
-    it("should return empty array for whitespace query", async () => {
+    it("returns an empty bounded result for a whitespace query", async () => {
+      (discoveryQueries.searchPublicPosts as any).mockResolvedValue({ kind: "empty-query", query: "" });
       const req = new NextRequest("http://localhost/api/search?q=   ");
       await GET(req);
 
-      expect(jsonOk).toHaveBeenCalledWith([]);
+      expect(jsonOk).toHaveBeenCalledWith({ items: [], total: 0, page: 1, pageSize: 10 });
     });
 
-    it("should search posts with query", async () => {
-      (postsQueries.searchPosts as any).mockResolvedValue([
-        {
-          slug: "test",
-          title: "Test Post",
-          excerpt: "Excerpt",
-          coverImage: null,
-          publishedAt: new Date("2024-01-01"),
-          categories: [{ name: "Tech" }],
-        },
-      ]);
+    it("wires the search to discoveryQueries.searchPublicPosts, passing the page, and returns the bounded envelope", async () => {
+      (discoveryQueries.searchPublicPosts as any).mockResolvedValue({
+        kind: "results",
+        query: "test",
+        page: 2,
+        pageSize: 10,
+        total: 21,
+        items: [{ slug: "test", title: "Test Post", excerpt: "Excerpt", coverImage: null, publishedAt: null, category: "Tech" }],
+      });
+
+      const req = new NextRequest("http://localhost/api/search?q=test&page=2");
+      await GET(req);
+
+      // The bug this regresses: the route must consume the bounded-pagination use case, not the old fixed take:20 query.
+      expect(discoveryQueries.searchPublicPosts).toHaveBeenCalledWith({ query: "test", page: 2 });
+      expect(postsQueries.searchPosts).not.toHaveBeenCalled();
+      expect(jsonOk).toHaveBeenCalledWith({
+        items: [{ slug: "test", title: "Test Post", excerpt: "Excerpt", coverImage: null, publishedAt: null, category: "Tech" }],
+        total: 21,
+        page: 2,
+        pageSize: 10,
+      });
+    });
+
+    it("defaults to page 1 when no page param is provided", async () => {
+      (discoveryQueries.searchPublicPosts as any).mockResolvedValue({
+        kind: "results",
+        query: "test",
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        items: [],
+      });
 
       const req = new NextRequest("http://localhost/api/search?q=test");
       await GET(req);
 
-      expect(postsQueries.searchPosts).toHaveBeenCalledWith({ query: "test", take: 20 });
-      expect(jsonOk).toHaveBeenCalled();
+      expect(discoveryQueries.searchPublicPosts).toHaveBeenCalledWith({ query: "test", page: 1 });
     });
 
-    it("should handle posts without categories", async () => {
-      (postsQueries.searchPosts as any).mockResolvedValue([
-        {
-          slug: "test",
-          title: "Test",
-          excerpt: "Excerpt",
-          coverImage: null,
-          publishedAt: null,
-          categories: [],
-        },
-      ]);
+    it.each(["2junk", "2.9", "1e2"])(
+      "defaults malformed page %s to page 1",
+      async (page) => {
+        (discoveryQueries.searchPublicPosts as any).mockResolvedValue({
+          kind: "results",
+          query: "test",
+          page: 1,
+          pageSize: 10,
+          total: 0,
+          items: [],
+        });
 
+        const req = new NextRequest(`http://localhost/api/search?q=test&page=${page}`);
+        await GET(req);
+
+        expect(discoveryQueries.searchPublicPosts).toHaveBeenCalledWith({ query: "test", page: 1 });
+      }
+    );
+
+    it("returns a generic 503 error (not a fake empty result) when the discovery query is temporarily unavailable", async () => {
+      // 呼叫端必須能區分「沒有結果」與「服務故障」；錯誤不得偽裝成 200 空結果
+      (discoveryQueries.searchPublicPosts as any).mockResolvedValue({ kind: "error", query: "test" });
       const req = new NextRequest("http://localhost/api/search?q=test");
-      await GET(req);
+      const res = await GET(req);
 
-      expect(jsonOk).toHaveBeenCalled();
+      expect(jsonOk).not.toHaveBeenCalled();
+      expect(jsonError).toHaveBeenCalledWith("搜尋服務暫時無法使用，請稍後再試", 503);
+      expect(res.status).toBe(503);
     });
   });
 });

@@ -87,6 +87,7 @@ npm run dev
 | `npm run build` | 建置正式版本 |
 | `npm run lint` | 執行 ESLint 檢查 |
 | `npm run test` | 執行單元測試 |
+| `npm run test:integration` | 執行整合測試（真實 PostgreSQL，需本機 docker postgres；自動建立 `lin_blog_test` 資料庫） |
 | `npm run test:e2e` | 執行 E2E 測試 |
 | `npm run db:push` | 同步 Schema 到資料庫 |
 | `npm run db:migrate:dev` | 建立 Migration |
