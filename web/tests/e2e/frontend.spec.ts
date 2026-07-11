@@ -111,18 +111,12 @@ test.describe("登出流程", () => {
     await page.waitForURL("**/admin**", { timeout: 10000 });
     
     // sidebar 載入後尋找登出連結（/logout?callbackUrl=/login）
-    await page.waitForTimeout(1000);
     const logoutLink = page.locator("aside a[href*='logout']").first();
-    
-    if (await logoutLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await logoutLink.click();
-      
-      // 等待重導向到登入頁
-      await page.waitForURL("**/login**", { timeout: 15000 });
-      expect(page.url()).toContain("/login");
-    } else {
-      // sidebar 可能沒有載入，跳過
-      test.skip();
-    }
+    await expect(logoutLink).toBeVisible();
+    await logoutLink.click();
+
+    // 等待重導向到登入頁
+    await page.waitForURL("**/login**", { timeout: 15000 });
+    expect(page.url()).toContain("/login");
   });
 });

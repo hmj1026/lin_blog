@@ -14,6 +14,7 @@ type Post = {
   status: string;
   featured: boolean;
   allowRawHtml: boolean;
+  showRawHtmlToc: boolean;
   updatedAt: string;
   publishedAt: string | null;
   categories: { name: string }[];

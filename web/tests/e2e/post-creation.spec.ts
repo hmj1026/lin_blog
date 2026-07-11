@@ -28,10 +28,10 @@ test.describe("Blog Frontend", () => {
     const searchInput = page.locator("input[name='q']");
     await expect(searchInput).toBeVisible();
     await searchInput.fill("測試文章");
-    // 等待輸入值穩定
-    await page.waitForTimeout(500);
-    const value = await searchInput.inputValue();
-    expect(value).toContain("測試");
+    // 用條件式等待（auto-retry）取代固定 waitForTimeout：在並行執行、
+    // dev server 負載較高時，固定時間的等待可能在值尚未穩定前就讀取，
+    // 造成間歇性失敗。
+    await expect(searchInput).toHaveValue(/測試/);
   });
 });
 

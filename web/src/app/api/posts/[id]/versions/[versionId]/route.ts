@@ -24,6 +24,8 @@ export async function GET(request: Request, context: RouteContext) {
     title: version.title,
     excerpt: version.excerpt,
     content: version.content,
+    allowRawHtml: version.allowRawHtml,
+    showRawHtmlToc: version.showRawHtmlToc,
     editorName: version.editor?.name || version.editor?.email || "Unknown",
     createdAt: version.createdAt.toISOString(),
   });
@@ -41,6 +43,9 @@ export async function POST(request: Request, context: RouteContext) {
 
   const restored = await postsUseCases.restorePostVersion(id, versionId, session?.user?.id ?? null);
   if (!restored.ok) {
+    if (restored.error === "conflict") {
+      return jsonError("文章已被其他人更新，請重新整理後再試", 409);
+    }
     return jsonError(restored.error === "post-not-found" ? "文章不存在" : "版本不存在", 404);
   }
 

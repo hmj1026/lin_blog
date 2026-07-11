@@ -15,6 +15,7 @@ describe("posts use cases", () => {
     listRelated: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    updateWithVersion: vi.fn(),
     softDelete: vi.fn(),
     batchAction: vi.fn(),
     publishDueScheduled: vi.fn(),
@@ -135,8 +136,7 @@ describe("posts use cases", () => {
       categories: [],
       tags: [],
     });
-    versions.create.mockResolvedValue({ id: "v1" });
-    posts.update.mockResolvedValue({ id: "1" });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "1", updatedAt: new Date() });
 
     await useCases.updatePostWithVersion(
       "1",
@@ -152,14 +152,68 @@ describe("posts use cases", () => {
       "editor-1"
     );
 
-    expect(versions.create).toHaveBeenCalledWith(
+    // 快照當前版本 + 更新文章現在是單一原子操作 updateWithVersion。
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
       expect.objectContaining({
-        postId: "1",
-        title: "old",
-        editorId: "editor-1",
+        id: "1",
+        version: expect.objectContaining({ title: "old", editorId: "editor-1" }),
+        update: expect.objectContaining({ title: "new" }),
       })
     );
-    expect(posts.update).toHaveBeenCalledWith("1", expect.objectContaining({ title: "new" }));
+    // 版本快照與更新在同一 transaction 內，use-case 不再各自呼叫 versions.create / posts.update。
+    expect(versions.create).not.toHaveBeenCalled();
+    expect(posts.update).not.toHaveBeenCalled();
+  });
+
+  it("updatePostWithVersion() passes the loaded expectedUpdatedAt as the optimistic-lock token", async () => {
+    const loadedAt = new Date("2026-01-01T00:00:00.000Z");
+    posts.getById.mockResolvedValue({
+      id: "1", slug: "s", title: "old", excerpt: "e", content: "<p>old</p>",
+      coverImage: null, readingTime: null, featured: false, allowRawHtml: false, showRawHtmlToc: false,
+      status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null,
+      createdAt: new Date(), updatedAt: loadedAt, deletedAt: null, author: null, categories: [], tags: [],
+    });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "1", updatedAt: new Date() });
+
+    const clientToken = new Date("2025-12-31T00:00:00.000Z");
+    await useCases.updatePostWithVersion(
+      "1",
+      { slug: "s", title: "new", excerpt: "e2", content: "<p>new</p>", status: "DRAFT", categoryIds: [], tagIds: [], expectedUpdatedAt: clientToken },
+      "editor-1"
+    );
+
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedUpdatedAt: clientToken })
+    );
+  });
+
+  it("updatePostWithVersion() surfaces a conflict result from the repository", async () => {
+    posts.getById.mockResolvedValue({
+      id: "1", slug: "s", title: "old", excerpt: "e", content: "<p>old</p>",
+      coverImage: null, readingTime: null, featured: false, allowRawHtml: false, showRawHtmlToc: false,
+      status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null,
+      createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [],
+    });
+    posts.updateWithVersion.mockResolvedValue({ ok: false, reason: "conflict" });
+
+    const result = await useCases.updatePostWithVersion(
+      "1",
+      { slug: "s", title: "new", excerpt: "e", content: "<p>new</p>", status: "DRAFT", categoryIds: [], tagIds: [] },
+      "editor-1"
+    );
+
+    expect(result).toEqual({ ok: false, reason: "conflict" });
+  });
+
+  it("updatePostWithVersion() returns not-found when the post is missing", async () => {
+    posts.getById.mockResolvedValue(null);
+    const result = await useCases.updatePostWithVersion(
+      "missing",
+      { slug: "s", title: "new", excerpt: "e", content: "<p>new</p>", status: "DRAFT", categoryIds: [], tagIds: [] },
+      "editor-1"
+    );
+    expect(result).toEqual({ ok: false, reason: "not-found" });
+    expect(posts.updateWithVersion).not.toHaveBeenCalled();
   });
 
   it("removePost() calls softDelete", async () => {
@@ -240,12 +294,169 @@ describe("posts use cases", () => {
     expect(call?.[1]?.content).toContain("hi");
   });
 
+  it("createPost() passes showRawHtmlToc through to the repository", async () => {
+    posts.create.mockResolvedValue({ id: "1" });
+    await useCases.createPost({
+      slug: "toc-1", title: "T", excerpt: "E",
+      content: `<p>hi</p>`,
+      allowRawHtml: true,
+      showRawHtmlToc: true, status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.create.mock.calls[0]?.[0];
+    expect(call?.showRawHtmlToc).toBe(true);
+  });
+
+  it("createPost() normalizes showRawHtmlToc to false when allowRawHtml is false", async () => {
+    posts.create.mockResolvedValue({ id: "1" });
+    await useCases.createPost({
+      slug: "toc-norm-1", title: "T", excerpt: "E",
+      content: `<p>hi</p>`,
+      allowRawHtml: false,
+      showRawHtmlToc: true, status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.create.mock.calls[0]?.[0];
+    expect(call?.showRawHtmlToc).toBe(false);
+  });
+
+  it("createPost() keeps showRawHtmlToc true when allowRawHtml is true", async () => {
+    posts.create.mockResolvedValue({ id: "1" });
+    await useCases.createPost({
+      slug: "toc-norm-2", title: "T", excerpt: "E",
+      content: `<p>hi</p>`,
+      allowRawHtml: true,
+      showRawHtmlToc: true, status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.create.mock.calls[0]?.[0];
+    expect(call?.showRawHtmlToc).toBe(true);
+  });
+
+  it("createPost() defaults showRawHtmlToc to false when omitted", async () => {
+    posts.create.mockResolvedValue({ id: "1" });
+    await useCases.createPost({
+      slug: "toc-2", title: "T", excerpt: "E",
+      content: `<p>hi</p>`,
+      status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.create.mock.calls[0]?.[0];
+    expect(call?.showRawHtmlToc).toBe(false);
+  });
+
+  it("updatePost() passes showRawHtmlToc through to the repository", async () => {
+    posts.update.mockResolvedValue({ id: "1" });
+    await useCases.updatePost("1", {
+      slug: "s", title: "T", excerpt: "E",
+      content: `<p>hi</p>`,
+      allowRawHtml: true,
+      showRawHtmlToc: true, status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.update.mock.calls[0];
+    expect(call?.[1]?.showRawHtmlToc).toBe(true);
+  });
+
+  it("updatePost() defaults showRawHtmlToc to false when omitted", async () => {
+    posts.update.mockResolvedValue({ id: "1" });
+    await useCases.updatePost("1", {
+      slug: "s", title: "T", excerpt: "E",
+      content: `<p>hi</p>`,
+      status: "DRAFT", categoryIds: [], tagIds: [],
+    });
+    const call = posts.update.mock.calls[0];
+    expect(call?.[1]?.showRawHtmlToc).toBe(false);
+  });
+
   it("restorePostVersion() writes the version's allowRawHtml back to the post", async () => {
     versions.getById.mockResolvedValue({ id: "v1", postId: "p1", title: "t", content: "c", excerpt: "e", allowRawHtml: true, createdAt: new Date() });
     posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: false, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
-    posts.update.mockResolvedValue({ id: "p1" });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "p1", updatedAt: new Date() });
     await useCases.restorePostVersion("p1", "v1", "editor-1");
-    expect(posts.update).toHaveBeenCalledWith("p1", expect.objectContaining({ allowRawHtml: true }));
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ allowRawHtml: true }) })
+    );
+  });
+
+  it("restorePostVersion() writes the version's showRawHtmlToc back to the post", async () => {
+    versions.getById.mockResolvedValue({ id: "v1", postId: "p1", title: "t", content: "c", excerpt: "e", allowRawHtml: true, showRawHtmlToc: true, createdAt: new Date() });
+    posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: false, showRawHtmlToc: false, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "p1", updatedAt: new Date() });
+    await useCases.restorePostVersion("p1", "v1", "editor-1");
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ showRawHtmlToc: true }) })
+    );
+  });
+
+  it("restorePostVersion() backs up the CURRENT post's showRawHtmlToc before restoring", async () => {
+    versions.getById.mockResolvedValue({ id: "v1", postId: "p1", title: "t", content: "c", excerpt: "e", allowRawHtml: false, showRawHtmlToc: false, createdAt: new Date() });
+    posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: true, showRawHtmlToc: true, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "p1", updatedAt: new Date() });
+    await useCases.restorePostVersion("p1", "v1", "editor-1");
+    // 當前文章（含 showRawHtmlToc: true）在同一 transaction 內被快照為 version。
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ version: expect.objectContaining({ showRawHtmlToc: true }) })
+    );
+  });
+
+  it("restorePostVersion() normalizes showRawHtmlToc to false when the restored version's allowRawHtml is false", async () => {
+    versions.getById.mockResolvedValue({ id: "v1", postId: "p1", title: "t", content: "c", excerpt: "e", allowRawHtml: false, showRawHtmlToc: true, createdAt: new Date() });
+    posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: true, showRawHtmlToc: true, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "p1", updatedAt: new Date() });
+    await useCases.restorePostVersion("p1", "v1", "editor-1");
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ allowRawHtml: false, showRawHtmlToc: false }) })
+    );
+  });
+
+  it("restorePostVersion() surfaces a conflict result from the repository", async () => {
+    versions.getById.mockResolvedValue({ id: "v1", postId: "p1", title: "t", content: "c", excerpt: "e", allowRawHtml: false, showRawHtmlToc: false, createdAt: new Date() });
+    posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: false, showRawHtmlToc: false, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
+    posts.updateWithVersion.mockResolvedValue({ ok: false, reason: "conflict" });
+    const result = await useCases.restorePostVersion("p1", "v1", "editor-1");
+    expect(result).toEqual({ ok: false, error: "conflict" });
+  });
+
+  it("updatePostWithVersion() captures the current post's showRawHtmlToc in the pre-update version snapshot", async () => {
+    posts.getById.mockResolvedValue({
+      id: "1",
+      slug: "s",
+      title: "old",
+      excerpt: "e",
+      content: "<p>old</p>",
+      coverImage: null,
+      readingTime: null,
+      featured: false,
+      allowRawHtml: false,
+      showRawHtmlToc: true,
+      status: "DRAFT",
+      publishedAt: null,
+      seoTitle: null,
+      seoDescription: null,
+      ogImage: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+      author: null,
+      categories: [],
+      tags: [],
+    });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "1", updatedAt: new Date() });
+
+    await useCases.updatePostWithVersion(
+      "1",
+      {
+        slug: "s",
+        title: "new",
+        excerpt: "e2",
+        content: `<p>new</p>`,
+        status: "DRAFT",
+        categoryIds: [],
+        tagIds: [],
+      },
+      "editor-1"
+    );
+
+    // 當前文章的 showRawHtmlToc: true 進入同一 transaction 的 version 快照。
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ version: expect.objectContaining({ showRawHtmlToc: true }) })
+    );
   });
 
   it("publishScheduledPosts() calls repo with date", async () => {
@@ -264,17 +475,19 @@ describe("posts use cases", () => {
       excerpt: "old excerpt",
       createdAt: new Date(),
     });
-    posts.update.mockResolvedValue({ id: "p1" });
-    
+    posts.getById.mockResolvedValue({ id: "p1", slug: "s", title: "cur", excerpt: "e", content: "cur", coverImage: null, readingTime: null, featured: false, allowRawHtml: false, showRawHtmlToc: false, status: "DRAFT", publishedAt: null, seoTitle: null, seoDescription: null, ogImage: null, createdAt: new Date(), updatedAt: new Date(), deletedAt: null, author: null, categories: [], tags: [] });
+    posts.updateWithVersion.mockResolvedValue({ ok: true, id: "p1", updatedAt: new Date() });
+
     await useCases.restorePostVersion("p1", "v1", "editor-1");
-    
+
     expect(versions.getById).toHaveBeenCalledWith({ postId: "p1", versionId: "v1" });
-    expect(versions.create).toHaveBeenCalledWith(expect.objectContaining({ editorId: "editor-1" }));
-    expect(posts.update).toHaveBeenCalledWith("p1", expect.objectContaining({
-      title: "old title",
-      content: "old content",
-      excerpt: "old excerpt",
-    }));
+    // 快照當前文章 + 還原到版本內容，於單一原子操作內完成（editorId 帶入 version 快照）。
+    expect(posts.updateWithVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: expect.objectContaining({ editorId: "editor-1" }),
+        update: expect.objectContaining({ title: "old title", content: "old content", excerpt: "old excerpt" }),
+      })
+    );
   });
 
   it("count methods delegate to repo", async () => {
@@ -330,6 +543,19 @@ describe("posts use cases", () => {
         expect(result.errors.length).toBe(1);
     });
 
+    it("rejects a non-boolean allowRawHtml with a validation error instead of coercing", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        const result = await useCases.importPosts({
+          // @ts-expect-error - deliberately invalid non-boolean flag
+          posts: [{ slug: "bad", title: "t", excerpt: "e", content: "c", allowRawHtml: "yes" }],
+        });
+
+        expect(result.errors.length).toBe(1);
+        expect(result.created).toBe(0);
+        expect(posts.create).not.toHaveBeenCalled();
+        expect(posts.update).not.toHaveBeenCalled();
+    });
+
     it("preserves raw HTML mode on import", async () => {
         posts.getBySlug.mockResolvedValue(null);
         // @ts-ignore
@@ -375,6 +601,151 @@ describe("posts use cases", () => {
         expect(callArg.content).not.toContain("style=");
         expect(callArg.content).not.toContain("<div");
     });
+
+    it("preserves showRawHtmlToc on import (create path)", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        // @ts-ignore - showRawHtmlToc not yet declared on ImportPost input type
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-create",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+              allowRawHtml: true,
+              showRawHtmlToc: true,
+            },
+          ],
+        });
+
+        expect(posts.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            allowRawHtml: true,
+            showRawHtmlToc: true,
+          })
+        );
+    });
+
+    it("preserves showRawHtmlToc on import (overwrite path)", async () => {
+        posts.getBySlug.mockResolvedValue({ id: "existing", deletedAt: null });
+        // @ts-ignore - showRawHtmlToc not yet declared on ImportPost input type
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-overwrite",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+              allowRawHtml: true,
+              showRawHtmlToc: true,
+            },
+          ],
+          mode: "overwrite",
+        });
+
+        expect(posts.update).toHaveBeenCalledWith(
+          "existing",
+          expect.objectContaining({
+            allowRawHtml: true,
+            showRawHtmlToc: true,
+          })
+        );
+    });
+
+    it("defaults missing showRawHtmlToc to false on import (create path)", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-default-create",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+            },
+          ],
+        });
+
+        const callArg = posts.create.mock.calls[0][0];
+        expect(callArg.showRawHtmlToc).toBe(false);
+    });
+
+    it("defaults missing showRawHtmlToc to false on import (overwrite path)", async () => {
+        posts.getBySlug.mockResolvedValue({ id: "existing", deletedAt: null });
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-default-overwrite",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+            },
+          ],
+          mode: "overwrite",
+        });
+
+        const callArg = posts.update.mock.calls[0][1];
+        expect(callArg.showRawHtmlToc).toBe(false);
+    });
+
+    it("normalizes showRawHtmlToc to false on import when allowRawHtml is false (create path)", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-norm-create",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+              allowRawHtml: false,
+              showRawHtmlToc: true,
+            },
+          ],
+        });
+
+        const callArg = posts.create.mock.calls[0][0];
+        expect(callArg.showRawHtmlToc).toBe(false);
+    });
+
+    it("normalizes showRawHtmlToc to false on import when allowRawHtml is false (overwrite path)", async () => {
+        posts.getBySlug.mockResolvedValue({ id: "existing", deletedAt: null });
+        await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-norm-overwrite",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+              allowRawHtml: false,
+              showRawHtmlToc: true,
+            },
+          ],
+          mode: "overwrite",
+        });
+
+        const callArg = posts.update.mock.calls[0][1];
+        expect(callArg.showRawHtmlToc).toBe(false);
+    });
+
+    it("does not truthy-coerce a non-boolean showRawHtmlToc on import", async () => {
+        posts.getBySlug.mockResolvedValue(null);
+        const result = await useCases.importPosts({
+          posts: [
+            {
+              slug: "toc-nonbool",
+              title: "t",
+              excerpt: "e",
+              content: "<p>hi</p>",
+              // @ts-ignore - intentionally non-boolean to assert it is rejected, not truthy-coerced
+              showRawHtmlToc: "yes",
+            },
+          ],
+        });
+
+        // Spec: a non-boolean raw flag SHALL produce a validation error, not be coerced then written.
+        expect(result.errors.length).toBe(1);
+        expect(result.created).toBe(0);
+        expect(posts.create).not.toHaveBeenCalled();
+    });
   });
 
   describe("exportPosts", () => {
@@ -394,9 +765,9 @@ describe("posts use cases", () => {
       posts.listForExport.mockResolvedValue([
         { slug: "p1", title: "Post 1", content: "content1" },
       ]);
-      
+
       const result = await useCases.exportPosts({ ids: ["id1"] });
-      
+
       expect(posts.listForExport).toHaveBeenCalledWith(expect.objectContaining({ ids: ["id1"] }));
       expect(result).toHaveLength(1);
     });

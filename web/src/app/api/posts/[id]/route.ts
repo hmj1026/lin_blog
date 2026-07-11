@@ -37,8 +37,14 @@ export async function PUT(request: Request, context: Context) {
       return jsonError(parsed.error.errors[0]?.message ?? "輸入驗證失敗");
     }
 
-    const updated = await postsUseCases.updatePostWithVersion(id, parsePostApiInput(parsed.data), session?.user?.id ?? null);
-    return jsonOk(updated);
+    const result = await postsUseCases.updatePostWithVersion(id, parsePostApiInput(parsed.data), session?.user?.id ?? null);
+    if (!result.ok) {
+      if (result.reason === "conflict") {
+        return jsonError("文章已被其他人更新，請重新整理後再試", 409);
+      }
+      return jsonError("文章不存在", 404);
+    }
+    return jsonOk({ id: result.id, updatedAt: result.updatedAt.toISOString() });
   } catch (error: unknown) {
     return handleApiError(error);
   }

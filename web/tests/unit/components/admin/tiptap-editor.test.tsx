@@ -81,7 +81,7 @@ describe("TiptapEditor", () => {
     expect(screen.getByTestId("editor-content")).toBeInTheDocument();
     // 圖示按鈕應使用 aria-label
     expect(screen.getByRole("button", { name: "粗體" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "HTML" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "視覺內容原始碼" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "斜體" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "底線" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刪除線" })).toBeInTheDocument();
@@ -98,21 +98,21 @@ describe("TiptapEditor", () => {
     expect(mockChain.toggleHeading).toHaveBeenCalledWith({ level: 2 });
   });
 
-  it("toggles HTML mode", async () => {
+  it("toggles the internal 視覺內容原始碼 source view", async () => {
     render(<TiptapEditor value="<p>Initial Content</p>" onChange={onChange} />);
 
-    // Switch to HTML mode
-    await userEvent.click(screen.getByRole("button", { name: "HTML" }));
+    // Switch to source-view mode
+    await userEvent.click(screen.getByRole("button", { name: "視覺內容原始碼" }));
     expect(screen.getByRole("textbox")).toHaveValue("<p>Initial Content</p>");
     expect(screen.queryByTestId("editor-content")).not.toBeInTheDocument();
 
-    // Edit HTML
+    // Edit source
     await userEvent.clear(screen.getByRole("textbox"));
     await userEvent.type(screen.getByRole("textbox"), "<p>New Content</p>");
 
     // Switch back to Visual mode
-    await userEvent.click(screen.getByRole("button", { name: "HTML" }));
-    
+    await userEvent.click(screen.getByRole("button", { name: "視覺內容原始碼" }));
+
     // Should update editor content
     expect(mockCommands.setContent).toHaveBeenCalledWith("<p>New Content</p>", expect.anything());
     // Should call onChange with new content (simulated)
@@ -121,6 +121,13 @@ describe("TiptapEditor", () => {
     // The component depends on `onUpdate` from Tiptap to call `onChange`.
     // Since we mocked useEditor, `onUpdate` won't be called automatically by setContent unless we simulate it or check setContent args.
     // The test verifies `setContent` is called, which is correct for the component logic.
+  });
+
+  it("labels the source-view control distinctly from the article-level raw HTML mode naming", () => {
+    render(<TiptapEditor value="<p>Initial Content</p>" onChange={onChange} />);
+    expect(screen.getByRole("button", { name: "視覺內容原始碼" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "HTML" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "原始 HTML" })).not.toBeInTheDocument();
   });
 
   it("handles image upload with crop modal", async () => {

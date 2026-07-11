@@ -39,6 +39,7 @@ export type PostRecord = {
   readingTime: string | null;
   featured: boolean;
   allowRawHtml: boolean;
+  showRawHtmlToc: boolean;
   status: PostStatus;
   publishedAt: Date | null;
   // SEO 欄位
@@ -62,6 +63,7 @@ export type PostVersionRecord = {
   excerpt: string;
   content: string;
   allowRawHtml: boolean;
+  showRawHtmlToc: boolean;
   editor: PostVersionEditorRecord | null;
   createdAt: Date;
 };
@@ -106,6 +108,7 @@ export interface PostRepository {
     readingTime?: string | null;
     featured?: boolean;
     allowRawHtml?: boolean;
+    showRawHtmlToc?: boolean;
     status: PostStatus;
     publishedAt?: Date | null;
     seoTitle?: string | null;
@@ -126,6 +129,7 @@ export interface PostRepository {
       readingTime?: string | null;
       featured?: boolean;
       allowRawHtml?: boolean;
+      showRawHtmlToc?: boolean;
       status: PostStatus;
       publishedAt?: Date | null;
       seoTitle?: string | null;
@@ -138,6 +142,44 @@ export interface PostRepository {
   ): Promise<{ id: string }>;
   softDelete(id: string): Promise<{ id: string }>;
 
+  /**
+   * 原子地「快照當前文章版本 + 樂觀鎖更新文章」。
+   * 於單一 transaction 內先寫入 version 快照，再以 `updatedAt === expectedUpdatedAt`
+   * 為條件更新文章；條件不符（他人已更新）回 `conflict`，文章不存在回 `not-found`，
+   * 兩者皆會 rollback 版本快照，避免版本歷史在並行更新／還原時遺失內容。
+   */
+  updateWithVersion(params: {
+    id: string;
+    expectedUpdatedAt: Date;
+    version: {
+      title: string;
+      excerpt: string;
+      content: string;
+      allowRawHtml?: boolean;
+      showRawHtmlToc?: boolean;
+      editorId?: string | null;
+    };
+    update: {
+      slug: string;
+      title: string;
+      excerpt: string;
+      content: string;
+      coverImage?: string | null;
+      readingTime?: string | null;
+      featured?: boolean;
+      allowRawHtml?: boolean;
+      showRawHtmlToc?: boolean;
+      status: PostStatus;
+      publishedAt?: Date | null;
+      seoTitle?: string | null;
+      seoDescription?: string | null;
+      ogImage?: string | null;
+      authorId?: string | null;
+      categoryIds?: string[] | null;
+      tagIds?: string[] | null;
+    };
+  }): Promise<{ ok: true; id: string; updatedAt: Date } | { ok: false; reason: "conflict" | "not-found" }>;
+
   batchAction(params: { action: "publish" | "draft" | "delete"; postIds: string[] }): Promise<{ count: number }>;
   publishDueScheduled(now: Date): Promise<{ count: number; published: Array<{ id: string; slug: string; publishedAt: Date | null }> }>;
   listForExport(params: { ids?: string[]; orderBy?: "createdAtDesc" }): Promise<
@@ -149,6 +191,8 @@ export interface PostRepository {
       coverImage: string | null;
       readingTime: string | null;
       featured: boolean;
+      allowRawHtml: boolean;
+      showRawHtmlToc: boolean;
       status: PostStatus;
       publishedAt: Date | null;
       seoTitle: string | null;
@@ -171,6 +215,7 @@ export interface PostVersionRepository {
     excerpt: string;
     content: string;
     allowRawHtml?: boolean;
+    showRawHtmlToc?: boolean;
     editorId?: string | null;
   }): Promise<{ id: string }>;
 }

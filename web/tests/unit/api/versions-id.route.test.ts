@@ -51,6 +51,26 @@ describe("/api/posts/[id]/versions/[versionId]", () => {
     expect(jsonOk).toHaveBeenCalled();
   });
 
+  it("includes both allowRawHtml and showRawHtmlToc in the version detail response", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    (postsQueries.getPostVersion as any).mockResolvedValue({
+      id: "v1",
+      title: "T",
+      excerpt: "E",
+      content: "C",
+      allowRawHtml: true,
+      showRawHtmlToc: true,
+      editor: { name: "Ed", email: "e@x.com" },
+      createdAt: new Date("2024-01-01"),
+    });
+
+    await GET(new Request("http://localhost/api/posts/1/versions/v1"), ctx);
+
+    const call = (jsonOk as any).mock.calls[0]?.[0];
+    expect(call?.allowRawHtml).toBe(true);
+    expect(call?.showRawHtmlToc).toBe(true);
+  });
+
   it("returns 404 when versionId does not belong to the post", async () => {
     (requirePermission as any).mockResolvedValue(null);
     (postsQueries.getPostVersion as any).mockResolvedValue(null);
@@ -98,6 +118,15 @@ describe("/api/posts/[id]/versions/[versionId]", () => {
 
     await POST(new Request("http://localhost/api/posts/1/versions/v1", { method: "POST" }), ctx);
     expect(jsonError).toHaveBeenCalledWith("文章不存在", 404);
+  });
+
+  it("returns 409 when restore conflicts with a concurrent edit", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    (getSession as any).mockResolvedValue({ user: { id: "u1" } });
+    (postsUseCases.restorePostVersion as any).mockResolvedValue({ ok: false, error: "conflict" });
+
+    await POST(new Request("http://localhost/api/posts/1/versions/v1", { method: "POST" }), ctx);
+    expect(jsonError).toHaveBeenCalledWith("文章已被其他人更新，請重新整理後再試", 409);
   });
 
   it("returns 404 when restore reports version-not-found", async () => {

@@ -14,6 +14,8 @@ type ImportPost = {
   seoTitle?: string | null;
   seoDescription?: string | null;
   ogImage?: string | null;
+  allowRawHtml?: boolean;
+  showRawHtmlToc?: boolean;
   categories?: string[];
   tags?: string[];
 };

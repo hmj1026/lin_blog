@@ -22,6 +22,33 @@ describe("postSchema", () => {
         const result = postSchema.safeParse(invalidPost);
         expect(result.success).toBe(false);
     });
+
+    it("接受布林值 showRawHtmlToc 並保留其值", () => {
+        const validPost = {
+            slug: "test-slug",
+            title: "Test Title",
+            excerpt: "Test Excerpt",
+            content: "Test Content",
+            status: PostStatus.DRAFT,
+            showRawHtmlToc: true,
+        };
+        const result = postSchema.safeParse(validPost);
+        expect(result.success).toBe(true);
+        expect(result.data?.showRawHtmlToc).toBe(true);
+    });
+
+    it("拒絕非布林值的 showRawHtmlToc", () => {
+        const invalidPost = {
+            slug: "test-slug",
+            title: "Test Title",
+            excerpt: "Test Excerpt",
+            content: "Test Content",
+            status: PostStatus.DRAFT,
+            showRawHtmlToc: "yes",
+        };
+        const result = postSchema.safeParse(invalidPost);
+        expect(result.success).toBe(false);
+    });
 });
 
 describe("postApiSchema", () => {
@@ -56,6 +83,31 @@ describe("postApiSchema", () => {
             excerpt: "Test Excerpt",
             content: "Test Content",
             publishedAt: "invalid-date",
+        };
+        const result = postApiSchema.safeParse(invalidApiInput);
+        expect(result.success).toBe(false);
+    });
+
+    it("接受布林值 showRawHtmlToc 並保留其值", () => {
+        const validApiInput = {
+            slug: "test-slug",
+            title: "Test Title",
+            excerpt: "Test Excerpt",
+            content: "Test Content",
+            showRawHtmlToc: true,
+        };
+        const result = postApiSchema.safeParse(validApiInput);
+        expect(result.success).toBe(true);
+        expect(result.data?.showRawHtmlToc).toBe(true);
+    });
+
+    it("拒絕非布林值的 showRawHtmlToc", () => {
+        const invalidApiInput = {
+            slug: "test-slug",
+            title: "Test Title",
+            excerpt: "Test Excerpt",
+            content: "Test Content",
+            showRawHtmlToc: 1,
         };
         const result = postApiSchema.safeParse(invalidApiInput);
         expect(result.success).toBe(false);

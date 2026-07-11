@@ -37,6 +37,7 @@ export default async function AdminPostEditPage({ params }: Props) {
         readingTime: post.readingTime,
         featured: post.featured,
         allowRawHtml: post.allowRawHtml,
+        showRawHtmlToc: post.showRawHtmlToc,
         status: post.status,
         publishedAt: post.publishedAt ? formatLocalDateTimeInput(new Date(post.publishedAt)) : "",
         categoryIds: post.categories.map((c) => c.id),
@@ -44,6 +45,7 @@ export default async function AdminPostEditPage({ params }: Props) {
         seoTitle: post.seoTitle,
         seoDescription: post.seoDescription,
         ogImage: post.ogImage,
+        updatedAt: post.updatedAt ? new Date(post.updatedAt).toISOString() : null,
       }}
     />
   );

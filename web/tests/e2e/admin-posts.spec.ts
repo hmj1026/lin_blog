@@ -19,10 +19,12 @@ test.describe("文章管理列表", () => {
     await page.goto("/admin/posts");
     
     // 驗證頁面標題
-    await expect(page.locator("h1:has-text('文章列表')")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "文章列表", exact: true }).filter({ visible: true })
+    ).toBeVisible();
     
     // 驗證有新增文章按鈕（是個 Link）
-    const newPostButton = page.locator("a[href='/admin/posts/new']");
+    const newPostButton = page.locator("a[href='/admin/posts/new']").filter({ visible: true });
     await expect(newPostButton).toBeVisible();
     await expect(newPostButton).toHaveText("新增文章");
   });
@@ -32,8 +34,8 @@ test.describe("文章管理列表", () => {
     await page.goto("/admin/posts");
     
     // 檢查是否有表格或文章列表
-    const hasTable = await page.locator("table").isVisible().catch(() => false);
-    const hasSearchInput = await page.locator("input[type='search']").isVisible();
+    const hasTable = await page.locator("table").first().isVisible().catch(() => false);
+    const hasSearchInput = await page.locator("input[type='search']").first().isVisible();
     
     // 至少要有搜尋框（表示頁面正確載入）
     expect(hasSearchInput).toBeTruthy();
@@ -117,28 +119,40 @@ test.describe("新增文章流程", () => {
 test.describe("編輯文章流程", () => {
   test("從列表進入編輯文章", async ({ page }) => {
     await login(page);
+    const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const title = `E2E Edit Fixture ${runId}`;
+    const createResponse = await page.request.post("/api/posts", {
+      data: {
+        slug: `e2e-edit-fixture-${runId}`,
+        title,
+        excerpt: "E2E 編輯流程 fixture",
+        content: "<p>E2E 編輯流程 fixture 內容。</p>",
+        allowRawHtml: false,
+        status: "DRAFT",
+        categoryIds: [],
+        tagIds: [],
+      },
+    });
+    expect(createResponse.ok(), `建立編輯 fixture 失敗：${createResponse.status()}`).toBeTruthy();
+
     await page.goto("/admin/posts");
-    
-    // 找到第一篇文章的編輯連結（表格中的連結）
-    // 在文章列表中，文章標題本身就是連結到編輯頁
-    const editLink = page.locator("table a[href^='/admin/posts/']").first();
-    
-    const isEditLinkVisible = await editLink.isVisible({ timeout: 5000 }).catch(() => false);
-    
-    if (isEditLinkVisible) {
-      await editLink.click();
-      
-      // 驗證進入編輯頁面
-      await page.waitForURL("**/posts/**");
-      
-      // 驗證標題顯示「編輯文章」
-      await expect(page.locator("h1:has-text('編輯文章')")).toBeVisible();
-      
-      // 驗證編輯器載入
-      await expect(page.locator("#post-title")).toBeVisible();
-    } else {
-      test.skip();
-    }
+
+    const searchInput = page.locator("input[type='search']").first();
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill(title);
+
+    const fixtureRow = page.locator("tbody tr", { hasText: title }).first();
+    await expect(fixtureRow).toBeVisible();
+    await fixtureRow.getByRole("button", { name: "編輯" }).click();
+
+    // 驗證進入編輯頁面
+    await page.waitForURL("**/posts/**");
+
+    // 驗證標題顯示「編輯文章」
+    await expect(page.locator("h1:has-text('編輯文章')")).toBeVisible();
+
+    // 驗證編輯器載入
+    await expect(page.locator("#post-title")).toBeVisible();
   });
 });
 

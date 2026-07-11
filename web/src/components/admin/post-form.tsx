@@ -1,9 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import {
   type PostStatus,
@@ -14,21 +12,12 @@ import {
   parseJson,
   formatDateTime,
 } from "./post-form/index";
-import { Field } from "./post-form/field";
-import { Picker } from "./post-form/picker";
 import { PreviewModal } from "./post-form/preview-modal";
-import { CoverUploader } from "./post-form/cover-uploader";
+import { type AuthoringMode } from "./post-form/mode-selector";
+import { ActionBar } from "./post-form/action-bar";
+import { AuthoringPanel } from "./post-form/authoring-panel";
+import { SettingsPanel } from "./post-form/settings-panel";
 import { detectStrippedRichHtml } from "@/lib/utils/detect-rich-html";
-
-const TiptapEditor = dynamic(
-  () => import("@/components/admin/tiptap-editor").then((m) => m.TiptapEditor),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-[360px] animate-pulse rounded-2xl border border-line bg-white shadow-card" />
-    ),
-  }
-);
 
 type Props = {
   mode: "create" | "edit";
@@ -49,7 +38,20 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const [coverImage, setCoverImage] = useState(initial.coverImage ?? "");
   const [readingTime, setReadingTime] = useState(initial.readingTime ?? "");
   const [featured, setFeatured] = useState(initial.featured);
-  const [allowRawHtml, setAllowRawHtml] = useState(initial.allowRawHtml);
+  // 文章層級的 authoring mode（單一擁有者）：allowRawHtml 由此推導，不另存分歧欄位。
+  const [authoringMode, setAuthoringMode] = useState<AuthoringMode>(
+    initial.allowRawHtml ? "raw" : "visual"
+  );
+  const allowRawHtml = authoringMode === "raw";
+  // 每個模式各自的未儲存草稿快照，讓 session 內來回切換不遺失另一模式的編輯內容。
+  const draftsRef = useRef<{ visual: string | null; raw: string | null }>({
+    visual: initial.allowRawHtml ? null : initial.content,
+    raw: initial.allowRawHtml ? initial.content : null,
+  });
+  const [pendingSwitchTarget, setPendingSwitchTarget] = useState<AuthoringMode | null>(null);
+  // 樂觀鎖 token：載入時的 updatedAt，每次成功儲存後以伺服器回傳值更新，避免同一 session 連續儲存誤判衝突。
+  const expectedUpdatedAtRef = useRef<string | null>(initial.updatedAt ?? null);
+  const [showRawHtmlToc, setShowRawHtmlToc] = useState(initial.showRawHtmlToc ?? false);
   const [status, setStatus] = useState<PostStatus>(initial.status);
   const [publishedAt, setPublishedAt] = useState(initial.publishedAt ?? "");
   const [categoryIds, setCategoryIds] = useState<string[]>(initial.categoryIds);
@@ -64,6 +66,53 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const [message, setMessage] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [timeFormat, setTimeFormat] = useState<"24h" | "12h">("24h");
+  const [dirty, setDirty] = useState(false);
+  const [showSavePrompt, setShowSavePrompt] = useState(false);
+
+  // 表單快照：用來判斷自上次成功儲存以來是否有變更（dirty）
+  function buildSnapshot() {
+    return JSON.stringify({
+      slug,
+      title,
+      excerpt,
+      content,
+      coverImage,
+      readingTime,
+      featured,
+      allowRawHtml,
+      showRawHtmlToc,
+      status,
+      publishedAt,
+      categoryIds,
+      tagIds,
+      seoTitle,
+      seoDescription,
+      ogImage,
+    });
+  }
+  const savedSnapshotRef = useRef(buildSnapshot());
+
+  useEffect(() => {
+    setDirty(buildSnapshot() !== savedSnapshotRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    slug,
+    title,
+    excerpt,
+    content,
+    coverImage,
+    readingTime,
+    featured,
+    authoringMode,
+    showRawHtmlToc,
+    status,
+    publishedAt,
+    categoryIds,
+    tagIds,
+    seoTitle,
+    seoDescription,
+    ogImage,
+  ]);
 
   const canSubmit = useMemo(() => {
     return slug.trim() && title.trim() && excerpt.trim() && content.trim();
@@ -73,6 +122,37 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     () => !allowRawHtml && detectStrippedRichHtml(content),
     [allowRawHtml, content]
   );
+
+  // 實際套用模式切換：快照離開模式的內容，還原（或以目前內容初始化）目標模式草稿。
+  // 切換本身不呼叫任何伺服器 sanitizer，只有儲存時才會 sanitize。
+  function performSwitch(target: AuthoringMode) {
+    draftsRef.current[authoringMode] = content;
+    const nextDraft = draftsRef.current[target] ?? content;
+    draftsRef.current[target] = nextDraft;
+    setContent(nextDraft);
+    setAuthoringMode(target);
+  }
+
+  // 模式切換的唯一入口：raw -> visual 且內容含區塊結構/inline 樣式時，先要求使用者確認
+  // 才會不可逆地讓視覺 schema／下次儲存的 sanitizer 剝除該結構；visual -> raw 永不遺失，免確認。
+  function switchMode(target: AuthoringMode) {
+    if (target === authoringMode) return;
+    if (authoringMode === "raw" && target === "visual" && detectStrippedRichHtml(content)) {
+      setPendingSwitchTarget(target);
+      return;
+    }
+    performSwitch(target);
+  }
+
+  function confirmPendingSwitch() {
+    if (!pendingSwitchTarget) return;
+    performSwitch(pendingSwitchTarget);
+    setPendingSwitchTarget(null);
+  }
+
+  function cancelPendingSwitch() {
+    setPendingSwitchTarget(null);
+  }
 
   function validateBeforeSubmit() {
     if (!slug.trim()) return "請輸入 slug";
@@ -92,7 +172,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     return formatDateTime(date, timeFormat);
   }
 
-  async function submit() {
+  // 執行實際儲存（POST/PUT），成功時更新 dirty 快照；不處理導頁或預覽，交由呼叫端決定
+  async function performSave(): Promise<boolean> {
     setSaving(true);
     setMessage(null);
     try {
@@ -104,8 +185,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
           "一般模式將不可逆地剝除區塊結構與 inline 樣式（<div>/style=/<style>）。確定要以一般模式儲存嗎？改用「原始 HTML 模式」可保留樣式。"
         );
         if (!confirmed) {
-          setSaving(false);
-          return;
+          return false;
         }
       }
 
@@ -118,6 +198,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         readingTime: readingTime.trim() ? readingTime.trim() : null,
         featured,
         allowRawHtml,
+        showRawHtmlToc,
         status,
         publishedAt: publishedAt ? new Date(publishedAt).toISOString() : null,
         categoryIds,
@@ -125,6 +206,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         seoTitle: seoTitle.trim() ? seoTitle.trim() : null,
         seoDescription: seoDescription.trim() ? seoDescription.trim() : null,
         ogImage: ogImage.trim() ? ogImage.trim() : null,
+        // edit 模式帶上樂觀鎖 token；create 模式為 null（後端視為未提供）。
+        updatedAt: expectedUpdatedAtRef.current,
       };
 
       const res =
@@ -144,269 +227,141 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       if (!res.ok || !json.success) {
         throw new Error(!json.success ? json.message || "儲存失敗" : "儲存失敗");
       }
-      router.push("/admin/posts");
-      router.refresh();
+      // 以伺服器回傳的新 updatedAt 更新樂觀鎖 token，讓連續儲存不誤判衝突。
+      const savedUpdatedAt = (json.data as { updatedAt?: string } | null)?.updatedAt;
+      if (savedUpdatedAt) expectedUpdatedAtRef.current = savedUpdatedAt;
+      savedSnapshotRef.current = buildSnapshot();
+      setDirty(false);
+      return true;
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "儲存失敗");
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
+  async function submit() {
+    const success = await performSave();
+    if (success) {
+      router.push("/admin/posts");
+      router.refresh();
+    }
+  }
+
+  function handlePreviewClick() {
+    if (dirty) {
+      setShowSavePrompt(true);
+      return;
+    }
+    setPreviewOpen(true);
+  }
+
+  async function saveAndPreview() {
+    const success = await performSave();
+    if (success) {
+      setShowSavePrompt(false);
+      setPreviewOpen(true);
+    }
+  }
+
+  function handleTitleChange(next: string) {
+    setTitle(next);
+    if (!initial.title && (!slug || slug === slugify(title))) setSlug(slugify(next));
+  }
+
+  function toggleCategory(id: string) {
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
+  }
+
+  function toggleTag(id: string) {
+    setTagIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
+  }
+
   return (
     <div className="space-y-4">
-      {/* 標題列 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="font-display text-3xl text-primary">
-            {mode === "create" ? "新增文章" : "編輯文章"}
-          </h1>
-          {mode === "edit" && slug.trim() && (
-            <Button type="button" size="sm" variant="secondary" onClick={() => setPreviewOpen(true)}>
-              預覽
+      <ActionBar
+        title={mode === "create" ? "新增文章" : "編輯文章"}
+        showPreviewButton={mode === "edit" && Boolean(slug.trim())}
+        onPreviewClick={handlePreviewClick}
+        message={message}
+        saving={saving}
+        canSubmit={Boolean(canSubmit)}
+        onSubmit={submit}
+      />
+
+      {/* 未儲存變更時點擊預覽的提示 */}
+      {showSavePrompt && (
+        <div
+          data-testid="save-first-prompt"
+          className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800"
+        >
+          <p>表單有尚未儲存的變更，預覽只會顯示最近一次成功儲存的內容。</p>
+          <div className="mt-2 flex gap-2">
+            <Button type="button" size="sm" onClick={saveAndPreview} disabled={saving}>
+              {saving ? "儲存中..." : "儲存並預覽"}
             </Button>
-          )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowSavePrompt(false)}
+            >
+              取消
+            </Button>
+          </div>
         </div>
-        <Link href="/admin/posts" className="text-sm font-semibold text-accent-600">
-          返回列表
-        </Link>
-      </div>
+      )}
 
       {/* 表單 */}
-      <div className="rounded-2xl border border-line bg-white p-6 shadow-card space-y-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* 標題 */}
-          <Field label="標題" htmlFor="post-title">
-            <input
-              id="post-title"
-              className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-              value={title}
-              onChange={(e) => {
-                const next = e.target.value;
-                setTitle(next);
-                if (!initial.title && (!slug || slug === slugify(title)))
-                  setSlug(slugify(next));
-              }}
-              placeholder="文章標題"
-            />
-          </Field>
-
-          {/* Slug */}
-          <Field label="Slug（網址）" htmlFor="post-slug">
-            <input
-              id="post-slug"
-              className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="例如：my-first-post"
-            />
-          </Field>
-
-          {/* 摘要 */}
-          <Field label="摘要" htmlFor="post-excerpt">
-            <textarea
-              id="post-excerpt"
-              className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-              value={excerpt}
-              onChange={(e) => setExcerpt(e.target.value)}
-              rows={3}
-              placeholder="列表與 SEO 使用"
-            />
-          </Field>
-
-          {/* 狀態與發佈時間 */}
-          <div className="grid gap-4">
-            <Field label="狀態">
-              <div className="flex flex-wrap gap-3">
-                <label className="flex items-center gap-2 text-sm text-primary">
-                  <input
-                    type="radio"
-                    className="h-4 w-4 accent-primary"
-                    checked={status === "DRAFT"}
-                    onChange={() => setStatus("DRAFT")}
-                  />
-                  草稿
-                </label>
-                <label className="flex items-center gap-2 text-sm text-primary">
-                  <input
-                    type="radio"
-                    className="h-4 w-4 accent-primary"
-                    checked={status === "PUBLISHED"}
-                    onChange={() => setStatus("PUBLISHED")}
-                  />
-                  已發佈
-                </label>
-              </div>
-            </Field>
-            <Field label="發佈時間（可空）" htmlFor="post-published-at">
-              <div className="space-y-2">
-                <input
-                  type="datetime-local"
-                  step={1}
-                  id="post-published-at"
-                  className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-                  value={publishedAt}
-                  onChange={(e) => setPublishedAt(e.target.value)}
-                />
-                <div className="flex items-center justify-between text-xs text-base-300">
-                  <div>{formatPublishedAtPreview() ? `顯示：${formatPublishedAtPreview()}` : "未設定"}</div>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-primary"
-                      checked={timeFormat === "12h"}
-                      onChange={(e) => setTimeFormat(e.target.checked ? "12h" : "24h")}
-                    />
-                    AM/PM
-                  </label>
-                </div>
-              </div>
-            </Field>
-          </div>
-
-          {/* 封面上傳 */}
-          <CoverUploader
-            coverImage={coverImage}
-            onCoverChange={setCoverImage}
-            onError={setMessage}
-          />
-
-          {/* 閱讀時間與精選 */}
-          <div className="grid gap-4">
-            <Field label="閱讀時間（可空）" htmlFor="post-reading-time">
-              <input
-                id="post-reading-time"
-                className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-                value={readingTime}
-                onChange={(e) => setReadingTime(e.target.value)}
-                placeholder="例如：8 分鐘"
-              />
-            </Field>
-            <label className="flex items-center gap-3 text-sm text-primary">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-primary"
-                checked={featured}
-                onChange={(e) => setFeatured(e.target.checked)}
-              />
-              精選文章（首頁 Featured）
-            </label>
-          </div>
-        </div>
-
-        {/* 內容編輯器與分類/標籤 */}
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-primary">內容</div>
-              <label className="flex items-center gap-2 text-sm text-primary">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-primary"
-                  checked={allowRawHtml}
-                  onChange={(e) => setAllowRawHtml(e.target.checked)}
-                />
-                原始 HTML 模式
-              </label>
-            </div>
-            {allowRawHtml ? (
-              <textarea
-                data-testid="raw-html-editor"
-                className="min-h-[360px] w-full rounded-2xl border border-line bg-white p-4 font-mono text-sm text-primary"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="直接輸入 HTML（可含 <style>）；儲存時仍會移除 <script>、事件屬性與危險 CSS。"
-              />
-            ) : (
-              <TiptapEditor value={content} onChange={setContent} />
-            )}
-            {allowRawHtml ? (
-              <p className="text-xs text-amber-600">
-                原始 HTML 模式：內容以純文字 HTML 儲存並保留自訂樣式，僅移除 &lt;script&gt;、事件屬性與危險 CSS；
-                前台以隔離 iframe 呈現，站台全域樣式不影響本文、本文樣式也不外洩；目錄僅支援點擊跳轉（無捲動高亮）。
-              </p>
-            ) : (
-              <p className="text-xs text-base-300">內容會以 HTML 字串儲存，儲存時 server 會做 sanitize。</p>
-            )}
-            {!allowRawHtml && showRichHtmlWarning && (
-              <div
-                data-testid="rich-html-warning"
-                className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-700"
-              >
-                <p>
-                  偵測到內容含有區塊結構或自訂樣式（例如 &lt;div&gt;、style=、&lt;style&gt;）；
-                  一般模式會不可逆地剝除區塊結構與 inline 樣式。
-                </p>
-                <button
-                  type="button"
-                  className="mt-1 font-semibold underline"
-                  onClick={() => setAllowRawHtml(true)}
-                >
-                  切換為原始 HTML 模式
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="space-y-6">
-            <Picker
-              title="分類（可多選）"
-              options={categories}
-              selected={categoryIds}
-              onToggle={(id) =>
-                setCategoryIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
-              }
-            />
-            <Picker
-              title="標籤（可多選）"
-              options={tags}
-              selected={tagIds}
-              onToggle={(id) =>
-                setTagIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
-              }
-            />
-            
-            {/* SEO 設定 */}
-            <div className="rounded-2xl border border-line bg-base-50 p-4 space-y-4">
-              <div className="text-sm font-semibold text-primary">SEO 設定（選填）</div>
-              <Field label="SEO 標題" htmlFor="seo-title">
-                <input
-                  id="seo-title"
-                  className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-                  value={seoTitle}
-                  onChange={(e) => setSeoTitle(e.target.value)}
-                  placeholder="自訂搜尋引擎標題（留空使用文章標題）"
-                />
-              </Field>
-              <Field label="SEO 描述" htmlFor="seo-description">
-                <textarea
-                  id="seo-description"
-                  className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-                  rows={2}
-                  value={seoDescription}
-                  onChange={(e) => setSeoDescription(e.target.value)}
-                  placeholder="自訂搜尋引擎描述（留空使用摘要）"
-                />
-              </Field>
-              <Field label="OG 圖片" htmlFor="og-image">
-                <input
-                  id="og-image"
-                  className="w-full rounded-xl border border-line bg-white px-4 py-3 text-sm text-primary"
-                  value={ogImage}
-                  onChange={(e) => setOgImage(e.target.value)}
-                  placeholder="社群分享縮圖網址（留空使用封面）"
-                />
-              </Field>
-            </div>
-          </div>
-        </div>
-
-        {/* 送出 */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-base-300">{message}</div>
-          <Button type="button" onClick={submit} disabled={!canSubmit || saving}>
-            {saving ? "儲存中..." : "儲存"}
-          </Button>
-        </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <AuthoringPanel
+          title={title}
+          onTitleChange={handleTitleChange}
+          slug={slug}
+          onSlugChange={setSlug}
+          excerpt={excerpt}
+          onExcerptChange={setExcerpt}
+          authoringMode={authoringMode}
+          onModeChange={switchMode}
+          pendingSwitchTarget={pendingSwitchTarget}
+          onConfirmPendingSwitch={confirmPendingSwitch}
+          onCancelPendingSwitch={cancelPendingSwitch}
+          content={content}
+          onContentChange={setContent}
+          allowRawHtml={allowRawHtml}
+          showRawHtmlToc={showRawHtmlToc}
+          onShowRawHtmlTocChange={setShowRawHtmlToc}
+          showRichHtmlWarning={showRichHtmlWarning}
+        />
+        <SettingsPanel
+          status={status}
+          onStatusChange={setStatus}
+          publishedAt={publishedAt}
+          onPublishedAtChange={setPublishedAt}
+          publishedAtPreview={formatPublishedAtPreview()}
+          timeFormat={timeFormat}
+          onTimeFormatChange={setTimeFormat}
+          coverImage={coverImage}
+          onCoverChange={setCoverImage}
+          onCoverError={setMessage}
+          readingTime={readingTime}
+          onReadingTimeChange={setReadingTime}
+          featured={featured}
+          onFeaturedChange={setFeatured}
+          categories={categories}
+          categoryIds={categoryIds}
+          onCategoryToggle={toggleCategory}
+          tags={tags}
+          tagIds={tagIds}
+          onTagToggle={toggleTag}
+          seoTitle={seoTitle}
+          onSeoTitleChange={setSeoTitle}
+          seoDescription={seoDescription}
+          onSeoDescriptionChange={setSeoDescription}
+          ogImage={ogImage}
+          onOgImageChange={setOgImage}
+        />
       </div>
 
       {/* 預覽 Modal */}

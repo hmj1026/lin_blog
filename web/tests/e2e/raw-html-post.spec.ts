@@ -57,6 +57,7 @@ test.describe("raw-html-post", () => {
         excerpt: "raw html e2e 摘要",
         content: RAW_CONTENT,
         allowRawHtml: true,
+        showRawHtmlToc: true,
         status: "PUBLISHED",
         categoryIds: [],
         tagIds: [],

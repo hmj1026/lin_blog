@@ -1,4 +1,5 @@
 import type { PostStatus } from "./post-status";
+import { isReadablePost } from "./rules";
 import type { Slug } from "./slug";
 
 /**
@@ -102,10 +103,10 @@ export class Post {
    * @param allowDraft - 是否允許閱讀草稿（預覽模式）
    */
   canView(allowDraft: boolean = false): boolean {
-    if (this.isDeleted()) return false;
-    if (this.isPublished()) return true;
-    if (allowDraft && this.isDraft()) return true;
-    return false;
+    return isReadablePost(
+      { status: this.status, deletedAt: this.deletedAt, publishedAt: this.publishedAt },
+      { allowDraft }
+    );
   }
 
   /**

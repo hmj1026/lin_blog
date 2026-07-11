@@ -67,6 +67,28 @@ describe("API: /api/posts", () => {
       expect(json.data.id).toBe("1");
     });
 
+    it("passes showRawHtmlToc through to createPost when provided", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (postsUseCases.createPost as any).mockResolvedValue({ id: "1" });
+
+      const request = new Request("http://localhost/api/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "New Post",
+          content: "Content",
+          slug: "new-post",
+          excerpt: "Summary",
+          showRawHtmlToc: true,
+        }),
+      });
+
+      await POST(request);
+
+      expect(postsUseCases.createPost).toHaveBeenCalledWith(
+        expect.objectContaining({ showRawHtmlToc: true })
+      );
+    });
+
     it("returns error when unauthorized", async () => {
       const errorResponse = NextResponse.json({ message: "Forbidden" }, { status: 403 });
       (requirePermission as any).mockResolvedValue(errorResponse);

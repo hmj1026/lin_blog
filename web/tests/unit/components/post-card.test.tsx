@@ -14,6 +14,7 @@ const mockPost: FrontendPost = {
   hero: "/images/hero.jpg",
   featured: false,
   allowRawHtml: false,
+  showRawHtmlToc: false,
   content: "<p>Test content.</p>",
   seo: {
     title: "Test Post Title",
