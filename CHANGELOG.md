@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.0 — 2026-07-11 — 讀者探索與訂閱
+
+整合讀者探索、熱門文章、搜尋與電子報訂閱流程，並補齊 production release 所需的
+資料庫 migration、E2E gate 與 immutable deployment 驗證。
+
+### 新增功能 (feat)
+- **reader**: 新增 discovery feed、搜尋、熱門文章與訂閱者管理流程
+- **newsletter**: 新增 reCAPTCHA、限流、重複訂閱與退訂處理
+- **post**: 支援原始 HTML、目錄與公開文章安全檢查
+
+### Release 安全性 (chore)
+- 補齊 `SiteSetting` schema reconciliation migration 與 DB contract test
+- 部署腳本要求版本或 SHA image tag，並以容器 healthcheck 取代固定等待
+- 啟用 PR/main 的 Playwright E2E workflow，保留失敗即阻擋的 gate
+
 ## 1.3.3 — 2026-07-10 — CI 成本與 GitHub Actions runtime 優化
 
 降低 CI 過度觸發與 post-merge 重複矩陣執行，升級 GitHub Actions runtime 至 node24（清除 Node 20 棄用警告），並將執行基準升至 Node 22。

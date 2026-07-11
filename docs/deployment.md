@@ -73,6 +73,13 @@ gh api repos/hmj1026/lin_blog/rulesets/<id> \
 /var/www/products/deploy.sh
 ```
 
+部署前必須明確指定 immutable image tag（版本或 commit SHA），腳本會拒絕未設定及
+`latest` 等 mutable tag：
+
+```bash
+BLOG_IMAGE_TAG=v1.4.0 /var/www/products/deploy.sh
+```
+
 這會完成：
 1. 拉取最新 Docker image
 2. 停止並更新容器
@@ -93,7 +100,7 @@ gh pr checks <PR> --watch          # 等 8 個矩陣 check 全綠
 gh pr merge <PR> --merge           # 個人 repo 無人 approve 時：--admin --merge
 ```
 
-> 💡 合併到 main 後，`docker-build.yml` 會自動建置並推送 `ghcr.io/hmj1026/lin_blog:latest`。
+> 💡 合併到 main 或建立版本 tag 後，`docker-build.yml` 會建置並推送版本／SHA image。
 > **部署前先等 Docker Build 綠燈**：`gh run list --workflow=docker-build.yml -L 3`。
 
 ### 2. 伺服器端更新
@@ -113,15 +120,16 @@ ssh paul@your-server-ip
 # SSH 到伺服器
 ssh paul@your-server-ip
 
-# 拉取最新 image
-docker pull ghcr.io/hmj1026/lin_blog:latest
+# 拉取指定 immutable image
+export BLOG_IMAGE_TAG=v1.4.0
+docker pull "ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG}"
 
 # 進入專案目錄（實際部署路徑）
 cd /var/www/products/lin_blog
 
 # 重啟容器（主機僅安裝 docker-compose v1）
 docker-compose down
-docker-compose up -d
+BLOG_IMAGE_TAG="${BLOG_IMAGE_TAG}" docker-compose up -d
 
 # 執行資料庫遷移（如有 schema 變更）
 docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
@@ -240,8 +248,6 @@ sudo chmod +x /var/www/products/{deploy,backup-db,start-all-services,check-servi
 
 | 標籤 | 說明 | 使用場景 |
 |-----|------|---------|
-| `latest` | main 分支最新版本 | 日常部署 |
-| `main` | main 分支別名 | 同上 |
 | `vX.Y.Z` / `X.Y.Z` / `X.Y` | 版本 tag 建置（push `v*.*.*` tag 時由 CI 產生的 semver 標籤，如 `v1.2.0`/`1.2.0`/`1.2`） | 版本釋出、指定版本部署 / 回滾 |
 | `<短 sha>` | 特定 commit（裸短 sha，如 `f08e7b7`；metadata `type=sha,prefix=` 無前綴） | 精準回滾 |
 
@@ -351,7 +357,7 @@ git push origin develop
 # 查看本機已有的 image 版本
 docker images ghcr.io/hmj1026/lin_blog
 
-# 回滾 / 部署到指定版本（版本 tag 或裸短 sha）——deploy.sh 會 pull + down/up + migrate + 健檢
+# 回滾 / 部署到指定版本（版本 tag 或裸短 sha）——deploy.sh 會 pull + readiness + migrate + 健檢
 BLOG_IMAGE_TAG=v1.2.0 /var/www/products/deploy.sh
 # 或指定 commit：BLOG_IMAGE_TAG=f08e7b7 /var/www/products/deploy.sh
 ```

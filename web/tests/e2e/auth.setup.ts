@@ -6,8 +6,8 @@ import fs from "fs";
  * E2E 測試帳號設定
  * 可透過環境變數 E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD 覆蓋預設值
  */
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@example.com";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin123";
+const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
+const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
 
 /**
  * 認證 Fixture

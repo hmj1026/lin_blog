@@ -1,18 +1,15 @@
 name: E2E Tests
 
-# ⚠️ E2E 測試暫時停用自動觸發
-# 需要時可在 GitHub Actions 頁面手動觸發 (Run workflow)
-# 若要啟用自動觸發，取消下方註解：
 on:
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
-  workflow_dispatch:  # 僅允許手動觸發
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
 
 concurrency:
   # e2e 無真正共享的外部資源（Postgres 為每次 run 全新隔離的 service 容器），
-  # 群組僅影響同一 ref 的重複手動觸發。cancel-in-progress: false = 不砍進行中的手動 run。
+  # 同一 ref 的重複 run 不互相取消，避免取消中的驗證造成誤判。
   group: e2e-${{ github.ref }}
   cancel-in-progress: false
 
@@ -76,10 +73,10 @@ jobs:
 
       - name: Create test user
         run: |
-          node scripts/create-user.js \
-            --email "${E2E_ADMIN_EMAIL:-admin@test.com}" \
-            --password "${E2E_ADMIN_PASSWORD:-Test123456!}" \
-            --name "Test Admin"
+          ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD:-admin}" \
+            node scripts/create-user.js \
+              --email="${E2E_ADMIN_EMAIL:-admin@lin.blog}" \
+              --name="Test Admin"
         working-directory: ./web
 
       - name: Install Playwright browsers

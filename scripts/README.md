@@ -9,7 +9,7 @@
 
 | 腳本 | 用途 |
 |------|------|
-| `deploy.sh` | 一鍵部署 / 回滾：pull image → `docker-compose up -d` → prisma migrate → 健檢。支援 `BLOG_IMAGE_TAG`。 |
+| `deploy.sh` | 一鍵部署 / 回滾：指定 immutable image tag → `docker-compose up -d` → readiness → prisma migrate → healthcheck。必須設定 `BLOG_IMAGE_TAG`。 |
 | `backup-db.sh` | PostgreSQL 每日備份（gzip + 保留輪替），含 restore 說明。**補上目前缺少的自動 DB 備份。** |
 | `start-all-services.sh` | 開機啟動（WP/n8n 下線後僅啟 lin_blog），供 `@reboot` cron。 |
 | `check-services.sh` | 健檢：容器狀態、埠曝露、HTTP、憑證到期、記憶體。 |

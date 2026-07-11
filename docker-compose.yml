@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   blog:
-    image: ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG:-latest}
+    image: ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG:?BLOG_IMAGE_TAG must be set to an immutable release or SHA tag}
     build:
       context: ./web
       args:
@@ -49,7 +49,18 @@ services:
     volumes:
       - blog_storage:/app/storage
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://127.0.0.1:3000/').then((response) =>
+          process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - blog_network
 
@@ -68,6 +79,11 @@ services:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
       - blog_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
 volumes:
   postgres_data:

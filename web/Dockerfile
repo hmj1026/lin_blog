@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 
 # ---------------------------------------------------
 # 階段 2: 建置應用程式
