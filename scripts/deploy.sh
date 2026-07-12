@@ -23,8 +23,8 @@ if [[ ! "$TAG" =~ ^(v?[0-9]+\.[0-9]+\.[0-9]+|sha-[0-9a-f]{7,40}|[0-9a-f]{7,40})$
 fi
 
 echo "開始部署 lin_blog"
-echo "📅 $(date '+%Y-%m-%d %H:%M:%S')"
-echo "📦 image: ${IMAGE}:${TAG}"
+echo "$(date '+%Y-%m-%d %H:%M:%S')"
+echo "image: ${IMAGE}:${TAG}"
 
 cd "$PROJECT_DIR"
 

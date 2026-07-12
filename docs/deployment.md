@@ -179,7 +179,7 @@ echo YOUR_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 
 驗證登入成功：
 ```bash
-docker pull ghcr.io/hmj1026/lin_blog:latest
+docker pull ghcr.io/hmj1026/lin_blog:v1.4.0
 ```
 
 #### 1.3 查看已推送的 Images
@@ -288,8 +288,8 @@ gh pr merge <PR> --merge --delete-branch   # 個人 repo 無人 approve 時：--
 
 `--delete-branch` 會在合併後順手刪除遠端的 `release/vX.Y.Z` 分支，不用再手動清。
 
-> 💡 合併到 main 後，`docker-build.yml` 會自動建置並推送 `ghcr.io/hmj1026/lin_blog:latest` /
-> `:main`（此時**尚未**產生 semver 標籤，那要等第 3 步打 tag）。
+> 💡 合併到 main 後，`docker-build.yml` 會自動建置並推送 commit SHA image；打版本 tag
+> 後再產生 semver image。Production deploy 僅接受版本或 SHA，不使用 mutable alias。
 > `gh run list --workflow=docker-build.yml -L 3` 確認這次 push 建置成功。
 
 ### 3. 打 tag，觸發版本化 image 建置

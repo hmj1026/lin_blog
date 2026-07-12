@@ -42,6 +42,10 @@ export default defineConfig({
       // 因此這裡設定的旗標不會出現在正式 production 建置。
       NEWSLETTER_CAPTCHA_TEST_DOUBLE: "1",
       NEXT_PUBLIC_RECAPTCHA_SITE_KEY: "e2e-test",
+      // Keep the process-local limiter short in the isolated E2E server so a
+      // rerun cannot inherit a ten-minute window from a previous run.
+      NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS: "5",
+      NEWSLETTER_RATE_LIMIT_MAX: "5",
       // Discovery failure-isolation fault injection（server-only；見
       // src/lib/server/discovery-fault-injection.ts）：僅啟用 hook，實際注入
       // 仍須單一請求攜帶 e2e-discovery-fault=1 cookie 才觸發。
