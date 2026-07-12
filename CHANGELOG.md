@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.4 — 2026-07-12 — 修復首頁訂閱表單不可用（reCAPTCHA site key 供應鏈）
+
+v1.4.3 production 首頁「訂閱電子報」區塊顯示「目前無法使用訂閱功能，請稍後再試」。
+根因為 GitHub repo secret `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` 從未設定：CI 建置 image
+時 build-arg 靜默解析為空字串並內嵌進 client bundle（`NEXT_PUBLIC_*` 為 build-time
+內嵌，僅設伺服器 `.env` 對前端無效），觸發前端 fail-closed 降級。secret 已補設，
+本版重建 image 使 site key 正確內嵌。
+
+### CI 防護 (ci)
+- **docker-build**: 新增 build secrets 完整性檢查——release tag 建置缺
+  `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `NEXT_PUBLIC_SITE_URL` 即 fail、
+  main/dispatch 建置僅警告，杜絕缺 secret 靜默建出降級 image
+
+### 文件 (docs)
+- **deploy**: 修正 reCAPTCHA site key 部署說明——明確區分 GitHub secret
+  （build-time）與伺服器 `.env`（執行期），並新增 release 前 secret 檢查清單
+- **knowledge**: 留存 v1.4.3 事故完整調查與修正方案
+  （`docs/knowledge/newsletter-recaptcha-unavailable/`）
+
 ## 1.4.3 — 2026-07-12 — E2E 測試穩定性強化與 hydration 根因修復
 
 修正 CI E2E 間歇性失敗的根因。最關鍵者為 ThemeProvider 以 mounted 條件切換 Fragment/Provider，
