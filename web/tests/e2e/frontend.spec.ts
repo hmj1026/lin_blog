@@ -117,7 +117,11 @@ test.describe("Hydration 保留 SSR DOM", () => {
       });
     });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    // 確定性 hydration 訊號（不用 networkidle——CI 負載下不可靠）：header 搜尋欄
+    // 的 useHydrated disabled gate 於 hydration 後的 effect flush 解除；ThemeProvider
+    // 的 mounted 翻轉（舊 bug 的 remount 時點）在同一個 flush 排程、於同一個後續
+    // commit 生效，因此 input enabled 時，remount（若 bug 存在）必已發生，取樣不會過早。
+    await expect(page.locator("header form input[type='text']")).toBeEnabled({ timeout: 15000 });
     const kept = await page.evaluate(() => {
       const w = window as unknown as { __ssrMain?: Element | null };
       return w.__ssrMain ? w.__ssrMain.isConnected : "missing";
