@@ -23,9 +23,15 @@ const TEST_TOKENS = [
 type RecaptchaTestDoubleWidgetProps = {
   onTokenChange: (token: string) => void;
   onReset: () => void;
+  /** hydration gate：掛載完成前禁用按鈕，避免點擊在 onClick 附掛前流失 */
+  disabled?: boolean;
 };
 
-export function RecaptchaTestDoubleWidget({ onTokenChange, onReset }: RecaptchaTestDoubleWidgetProps) {
+export function RecaptchaTestDoubleWidget({
+  onTokenChange,
+  onReset,
+  disabled = false,
+}: RecaptchaTestDoubleWidgetProps) {
   return (
     <div
       data-testid="recaptcha-stub"
@@ -42,6 +48,7 @@ export function RecaptchaTestDoubleWidget({ onTokenChange, onReset }: RecaptchaT
             key={token.value}
             type="button"
             data-testid={`recaptcha-stub-token-${token.value}`}
+            disabled={disabled}
             onClick={() => onTokenChange(token.value)}
             className="rounded border border-line px-2 py-1 text-xs font-semibold text-primary hover:border-primary/40"
           >
@@ -51,6 +58,7 @@ export function RecaptchaTestDoubleWidget({ onTokenChange, onReset }: RecaptchaT
         <button
           type="button"
           data-testid="recaptcha-stub-reset"
+          disabled={disabled}
           onClick={onReset}
           className="rounded border border-line px-2 py-1 text-xs font-semibold text-primary hover:border-primary/40"
         >

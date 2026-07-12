@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Logo } from "@/components/logo";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -11,11 +12,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // hydration gate：掛載完成前禁用送出，避免 onSubmit 尚未掛上時觸發原生表單送出
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHydrated();
 
   const from = searchParams.get("from") ?? "/admin";
 

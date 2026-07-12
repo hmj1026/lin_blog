@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { publicEnv } from "@/env.public";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { validateSubscriberInput, type SubscriberFieldErrors } from "@/modules/newsletter/client";
 import { RecaptchaTestDoubleWidget } from "@/components/newsletter/recaptcha-test-double-widget";
 
@@ -123,6 +124,9 @@ function loadRecaptchaScript({ onReady, onError }: LoadRecaptchaHandlers): () =>
  * `aria-live` 宣告，label 不因狀態變化被取代（design.md D5）。
  */
 export function NewsletterForm({ compact = false }: NewsletterFormProps) {
+  // hydration gate：掛載完成前禁用輸入與送出，避免 controlled input 在
+  // onChange 附掛前被寫值（值會停留在 SSR 初始 state）或送出走原生表單行為
+  const hydrated = useHydrated();
   const containerId = useId();
   const nameId = useId();
   const emailId = useId();
@@ -377,6 +381,7 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
                 id={nameId}
                 ref={nameInputRef}
                 type="text"
+                disabled={!hydrated}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 aria-invalid={Boolean(fieldErrors.name)}
@@ -399,6 +404,7 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
                 id={emailId}
                 ref={emailInputRef}
                 type="email"
+                disabled={!hydrated}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 aria-invalid={Boolean(fieldErrors.email)}
@@ -415,6 +421,7 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
 
             {isCaptchaTestDouble ? (
               <RecaptchaTestDoubleWidget
+                disabled={!hydrated}
                 onTokenChange={(token) => {
                   setCaptchaToken(token);
                   setCaptchaExpired(false);
@@ -454,7 +461,7 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
 
             <button
               type="submit"
-              disabled={status === "submitting"}
+              disabled={status === "submitting" || !hydrated}
               className="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-amber-500 dark:text-stone-900 dark:hover:bg-amber-400"
             >
               {status === "submitting" ? "送出中..." : "訂閱電子報"}

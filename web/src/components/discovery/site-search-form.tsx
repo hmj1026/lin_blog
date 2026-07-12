@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useId, useState } from "react";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useRouter } from "next/navigation";
 
 /**
@@ -16,6 +17,9 @@ export function SiteSearchForm() {
   const hintId = useId();
   const [query, setQuery] = useState("");
   const [showEmptyHint, setShowEmptyHint] = useState(false);
+  // hydration gate：掛載完成前禁用輸入與送出，避免 controlled input 在
+  // onChange 附掛前被寫值，導致送出時 React state 仍為 SSR 初始空字串
+  const hydrated = useHydrated();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,6 +41,7 @@ export function SiteSearchForm() {
         <input
           id={inputId}
           type="text"
+          disabled={!hydrated}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -48,6 +53,7 @@ export function SiteSearchForm() {
         />
         <button
           type="submit"
+          disabled={!hydrated}
           className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand/90 dark:bg-amber-500 dark:text-stone-900 dark:hover:bg-amber-400"
         >
           搜尋

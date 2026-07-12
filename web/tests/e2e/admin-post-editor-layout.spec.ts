@@ -8,6 +8,8 @@ test.describe("文章編輯頁資訊架構（sticky action bar / 響應式版面
     test.use({ viewport: { width: 1440, height: 900 } });
 
     test("捲動長文章時，action bar 與預覽/儲存/狀態指示仍在可視範圍內", async ({ page }) => {
+      // CI runner 較慢，輸入長內容 + 首次載入編輯器可能超過預設 30s 預算
+      test.setTimeout(60_000);
       await loginAsAdmin(page);
       await page.goto("/admin/posts/new");
 
@@ -21,8 +23,12 @@ test.describe("文章編輯頁資訊架構（sticky action bar / 響應式版面
       await page.locator("#post-excerpt").fill("Sticky action bar regression check");
       const editor = page.locator(".tiptap.ProseMirror").first();
       await editor.click();
+      // insertText 一次插入整段（ProseMirror 以 input event 處理，等同 IME 輸入），
+      // 取代逐字元的 pressSequentially：在 CI 慢速 runner 上逐字打 60 段會超過
+      // test timeout；此測試的目的只是撐長頁面，不驗證打字行為本身。
       for (let i = 0; i < 60; i += 1) {
-        await editor.pressSequentially(`第 ${i} 段落內容，用於撐開頁面長度以測試捲動時的 sticky 行為。\n`);
+        await page.keyboard.insertText(`第 ${i} 段落內容，用於撐開頁面長度以測試捲動時的 sticky 行為。`);
+        await page.keyboard.press("Enter");
       }
 
       // 捲動到頁面底部
