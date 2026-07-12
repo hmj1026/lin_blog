@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -30,6 +31,10 @@ function SearchInput() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
+  // hydration gate：掛載完成前禁用輸入與送出，避免 controlled input 在
+  // onChange 附掛前被寫值，導致送出時 React state 仍為 SSR 初始空字串
+  // （同 site-search-form.tsx 的既有模式）
+  const hydrated = useHydrated();
 
   useEffect(() => {
     setQuery(pathname === "/search" ? (searchParams.get("q") ?? "") : "");
@@ -46,6 +51,7 @@ function SearchInput() {
     <form onSubmit={handleSubmit} className="relative">
       <input
         type="text"
+        disabled={!hydrated}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="搜尋..."
@@ -53,6 +59,7 @@ function SearchInput() {
       />
       <button
         type="submit"
+        disabled={!hydrated}
         className="absolute right-2 top-1/2 -translate-y-1/2 text-base-300 hover:text-primary dark:text-base-600"
         aria-label="搜尋"
       >
