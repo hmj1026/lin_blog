@@ -1,8 +1,17 @@
 import { PrismaClient, PostStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { posts as frontendPosts } from "../src/data/posts";
+import { PERMISSIONS, EDITOR_PERMISSION_KEYS } from "./permission-catalog";
 
 const prisma = new PrismaClient();
+
+type AdminCredentialEnvironment = Readonly<Record<string, string | undefined>>;
+
+/** Resolves the seed administrator credentials from the provided environment. */
+export const resolveAdminCredentials = (env: AdminCredentialEnvironment) => ({
+  email: env.ADMIN_EMAIL || "admin@lin.blog",
+  password: env.ADMIN_PASSWORD || "admin",
+});
 
 function escapeHtml(text: string) {
   return text
@@ -39,18 +48,8 @@ function richContentToHtml(blocks: Array<{ type: string; [key: string]: unknown 
 }
 
 async function main() {
-  const permissions = [
-    { key: "admin:access", name: "後台存取" },
-    { key: "posts:write", name: "文章管理" },
-    { key: "uploads:write", name: "檔案上傳" },
-    { key: "analytics:view", name: "文章統計" },
-    { key: "analytics:view_sensitive", name: "文章統計（IP/UA）" },
-    { key: "categories:manage", name: "分類管理" },
-    { key: "tags:manage", name: "標籤管理" },
-    { key: "users:manage", name: "使用者管理" },
-    { key: "roles:manage", name: "角色權限管理" },
-    { key: "settings:manage", name: "站點設定" },
-  ];
+  const adminCredentials = resolveAdminCredentials(process.env);
+  const permissions = PERMISSIONS;
 
   await prisma.$transaction(
     permissions.map((p) =>
@@ -85,19 +84,16 @@ async function main() {
   await prisma.rolePermission.createMany({
     data: [
       ...permissions.map((p) => ({ roleId: adminRole.id, permissionKey: p.key })),
-      { roleId: editorRole.id, permissionKey: "admin:access" },
-      { roleId: editorRole.id, permissionKey: "posts:write" },
-      { roleId: editorRole.id, permissionKey: "uploads:write" },
-      { roleId: editorRole.id, permissionKey: "analytics:view" },
+      ...EDITOR_PERMISSION_KEYS.map((key) => ({ roleId: editorRole.id, permissionKey: key })),
     ],
     skipDuplicates: true,
   });
 
-  const adminPasswordHash = await bcrypt.hash("admin", 10);
+  const adminPasswordHash = await bcrypt.hash(adminCredentials.password, 10);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@lin.blog" },
+    where: { email: adminCredentials.email },
     update: { password: adminPasswordHash, roleId: adminRole.id, name: "Lin Admin", deletedAt: null },
-    create: { email: "admin@lin.blog", name: "Lin Admin", roleId: adminRole.id, password: adminPasswordHash, deletedAt: null },
+    create: { email: adminCredentials.email, name: "Lin Admin", roleId: adminRole.id, password: adminPasswordHash, deletedAt: null },
   });
 
   await prisma.siteSetting.upsert({
@@ -239,11 +235,13 @@ async function main() {
   });
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

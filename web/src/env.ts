@@ -18,6 +18,10 @@ const envSchema = z.object({
   FIGMA_TOKEN: z.string().optional(),
   UPLOADTHING_TOKEN: z.string().optional(),
 
+  // reCAPTCHA v2（newsletter 訂閱表單，server-only secret；缺任一值時 adapter fail closed，不阻擋開機/建置）
+  RECAPTCHA_SECRET_KEY: z.string().optional(),
+  RECAPTCHA_ALLOWED_HOSTNAMES: z.string().optional(),
+
   // Storage
   STORAGE_PROVIDER: z.enum(["local", "memory", "s3", "r2", "gcs"]).default("local"),
   STORAGE_LOCAL_ROOT_DIR: z.string().optional(),
@@ -57,6 +61,8 @@ export const env = envSchema.parse({
   CRON_SECRET: process.env.CRON_SECRET,
   FIGMA_TOKEN: process.env.FIGMA_TOKEN,
   UPLOADTHING_TOKEN: process.env.UPLOADTHING_TOKEN,
+  RECAPTCHA_SECRET_KEY: process.env.RECAPTCHA_SECRET_KEY,
+  RECAPTCHA_ALLOWED_HOSTNAMES: process.env.RECAPTCHA_ALLOWED_HOSTNAMES,
   // Storage
   STORAGE_PROVIDER: process.env.STORAGE_PROVIDER,
   STORAGE_LOCAL_ROOT_DIR: process.env.STORAGE_LOCAL_ROOT_DIR,

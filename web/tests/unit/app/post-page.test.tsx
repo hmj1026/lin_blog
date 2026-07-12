@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PostPage from "@/app/(frontend)/blog/[slug]/page";
-import { postsQueries } from "@/lib/server-queries";
+import { postsQueries, discoveryQueries } from "@/lib/server-queries";
 import { draftMode } from "next/headers";
 import { notFound } from "next/navigation";
 
@@ -13,6 +13,11 @@ vi.mock("@/lib/server-queries", () => ({
   },
   siteSettingsQueries: {
     getDefault: vi.fn(),
+  },
+  discoveryQueries: {
+    searchPublicPosts: vi.fn(),
+    listPopularPosts: vi.fn(),
+    listLatestPosts: vi.fn(),
   },
 }));
 
@@ -64,6 +69,10 @@ vi.mock("@/components/post-card", () => ({
 vi.mock("@/components/raw-html-post-frame", () => ({
   RawHtmlPostFrame: ({ html }: any) => <div data-testid="raw-html-frame">{html}</div>,
 }));
+vi.mock("@/components/discovery/streamed-post-discovery-panel", () => ({
+  // async server component 無法在 RTL client render 中執行，改以同步替身驗證 variant 佈線
+  StreamedPostDiscoveryPanel: ({ variant }: any) => <div data-testid={`discovery-panel-${variant}`} />,
+}));
 
 const mockPost = {
   slug: "test-post",
@@ -83,6 +92,8 @@ describe("Post Page", () => {
     vi.clearAllMocks();
     (postsQueries.getReadablePostBySlug as any).mockResolvedValue(mockPost);
     (postsQueries.listRelatedPublishedPosts as any).mockResolvedValue([]);
+    (discoveryQueries.listPopularPosts as any).mockResolvedValue({ ok: true, items: [] });
+    (discoveryQueries.listLatestPosts as any).mockResolvedValue({ ok: true, items: [] });
     (draftMode as any).mockResolvedValue({ isEnabled: false, enable: vi.fn(), disable: vi.fn() });
   });
 
@@ -151,5 +162,30 @@ describe("Post Page", () => {
     render(ui);
     expect(screen.getByTestId("raw-html-frame")).toBeInTheDocument();
     expect(screen.getByText(/Raw:/)).toBeInTheDocument();
+  });
+
+  it("renders the sidebar and stacked discovery panels for a normal post", async () => {
+    const params = Promise.resolve({ slug: "test-post" });
+    const ui = await PostPage({ params });
+    render(ui);
+
+    expect(screen.getByTestId("discovery-panel-sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("discovery-panel-stacked")).toBeInTheDocument();
+    expect(screen.queryByTestId("discovery-panel-grid")).not.toBeInTheDocument();
+  });
+
+  it("renders only the grid discovery panel for a raw HTML post", async () => {
+    (postsQueries.getReadablePostBySlug as any).mockResolvedValue({
+      ...mockPost,
+      allowRawHtml: true,
+      content: "<p>raw content</p>",
+    });
+    const params = Promise.resolve({ slug: "raw-post" });
+    const ui = await PostPage({ params });
+    render(ui);
+
+    expect(screen.getByTestId("discovery-panel-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("discovery-panel-sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("discovery-panel-stacked")).not.toBeInTheDocument();
   });
 });

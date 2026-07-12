@@ -29,6 +29,7 @@ export default async function AdminPostNewPage() {
         readingTime: null,
         featured: false,
         allowRawHtml: false,
+        showRawHtmlToc: false,
         status: "DRAFT",
         publishedAt: "",
         categoryIds: [],

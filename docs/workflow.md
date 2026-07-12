@@ -303,7 +303,8 @@ sudo -i
 # 2. 進入專案目錄
 cd /var/www/products
 
-# 3. 拉取最新映像檔
+# 3. 指定 immutable 版本並拉取映像檔
+export BLOG_IMAGE_TAG=v1.4.0
 docker-compose pull
 
 # 4. 重啟容器
@@ -320,15 +321,15 @@ docker exec blog_app npx prisma migrate deploy
 echo "🚀 開始部署..."
 echo "$(date '+%Y-%m-%d %H:%M:%S')"
 
-# 拉取最新 Docker Image
+# 拉取指定 immutable Docker Image
 docker-compose pull
 
 # 重啟服務
 docker-compose down
 docker-compose up -d
 
-# 等待服務啟動
-sleep 5
+# 等待服務 healthcheck 通過
+docker-compose ps
 
 # 執行資料庫遷移
 docker exec blog_app npx prisma migrate deploy
@@ -349,7 +350,7 @@ docker ps
 預期輸出：
 ```
 CONTAINER ID   IMAGE                              STATUS          NAMES
-xxxx           ghcr.io/your-username/lin_blog:latest   Up X minutes    blog_app
+xxxx           ghcr.io/your-username/lin_blog:v1.4.0   Up X minutes (healthy)    blog_app
 yyyy           postgres:16-alpine                 Up X minutes    blog_db
 ```
 

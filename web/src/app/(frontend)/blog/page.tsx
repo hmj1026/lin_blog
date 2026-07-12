@@ -21,8 +21,10 @@ type BlogPageProps = {
 
 export default async function BlogPage({ searchParams }: BlogPageProps) {
   const params = await searchParams;
-  const activeCategory = params?.category ? decodeURIComponent(params.category) : undefined;
-  const activeTag = params?.tag ? decodeURIComponent(params.tag) : undefined;
+  // Next.js 已對 searchParams 完成 URL decode；再呼叫 decodeURIComponent 會對
+  // 含 %（如「100%」）的值拋 URIError 使整頁 500，故直接使用原值。
+  const activeCategory = params?.category || undefined;
+  const activeTag = params?.tag || undefined;
   const currentPage = Math.max(1, Number(params?.page) || 1);
 
   const [categoryRows, tagRows, paginatedResult] = await Promise.all([

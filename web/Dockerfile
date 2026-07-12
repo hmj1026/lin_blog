@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 
 # ---------------------------------------------------
 # 階段 2: 建置應用程式
@@ -34,6 +34,8 @@ ARG NEXT_PUBLIC_APP_ENV=production
 ARG NEXT_PUBLIC_GA_ID=
 ARG NEXT_PUBLIC_GTM_ID=
 ARG NEXT_PUBLIC_FB_PIXEL_ID=
+# Newsletter reCAPTCHA v2 site key；空值時前台訂閱表單顯示不可用狀態、伺服器 fail closed
+ARG NEXT_PUBLIC_RECAPTCHA_SITE_KEY=
 
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET \
     NEXTAUTH_URL=$NEXTAUTH_URL \
@@ -44,7 +46,8 @@ ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET \
     NEXT_PUBLIC_APP_ENV=$NEXT_PUBLIC_APP_ENV \
     NEXT_PUBLIC_GA_ID=$NEXT_PUBLIC_GA_ID \
     NEXT_PUBLIC_GTM_ID=$NEXT_PUBLIC_GTM_ID \
-    NEXT_PUBLIC_FB_PIXEL_ID=$NEXT_PUBLIC_FB_PIXEL_ID
+    NEXT_PUBLIC_FB_PIXEL_ID=$NEXT_PUBLIC_FB_PIXEL_ID \
+    NEXT_PUBLIC_RECAPTCHA_SITE_KEY=$NEXT_PUBLIC_RECAPTCHA_SITE_KEY
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

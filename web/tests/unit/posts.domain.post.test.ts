@@ -180,6 +180,21 @@ describe("Post Domain", () => {
       expect(post.canView()).toBe(false);
       expect(post.canView(true)).toBe(false);
     });
+
+    it("PUBLISHED 但發佈時間在未來的文章公開讀取不可見，預覽模式可見", () => {
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const post = Post.create({
+        id: "1",
+        slug: createSlug("test"),
+        status: "PUBLISHED",
+        publishedAt: future,
+        deletedAt: null,
+      });
+
+      expect(post.canView()).toBe(false);
+      expect(post.canView(false)).toBe(false);
+      expect(post.canView(true)).toBe(true);
+    });
   });
 
   describe("canEdit", () => {

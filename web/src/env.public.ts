@@ -11,6 +11,9 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_GA_ID: z.string().optional(),
   NEXT_PUBLIC_GTM_ID: z.string().optional(),
   NEXT_PUBLIC_FB_PIXEL_ID: z.string().optional(),
+
+  // reCAPTCHA v2 public site key（newsletter 訂閱表單，前端可見；缺少時前端不渲染 CAPTCHA widget）
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: z.string().optional(),
 });
 
 export const publicEnv = publicEnvSchema.parse({
@@ -21,5 +24,6 @@ export const publicEnv = publicEnvSchema.parse({
   NEXT_PUBLIC_GA_ID: process.env.NEXT_PUBLIC_GA_ID,
   NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID,
   NEXT_PUBLIC_FB_PIXEL_ID: process.env.NEXT_PUBLIC_FB_PIXEL_ID,
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY,
 });
 

@@ -2,15 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 
 // Mock Prisma
-vi.mock("@/lib/db", () => ({
-  prisma: {
+vi.mock("@/lib/db", () => {
+  const prisma: any = {
     post: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
       updateMany: vi.fn(),
+    },
+    postVersion: {
+      create: vi.fn(),
     },
     category: {
       findMany: vi.fn(),
@@ -26,8 +30,12 @@ vi.mock("@/lib/db", () => ({
       update: vi.fn(),
       count: vi.fn(),
     },
-  },
-}));
+    // 以 mocked prisma 自身作為 transaction client（tx），讓 updateWithVersion 內的
+    // tx.post / tx.postVersion 呼叫落在同一組 mock 上，方便斷言。
+    $transaction: vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+  };
+  return { prisma };
+});
 
 // Import after mock
 import { postRepositoryPrisma } from "@/modules/posts/infrastructure/prisma/post.repository.prisma";
@@ -48,6 +56,18 @@ describe("postRepositoryPrisma", () => {
           where: expect.objectContaining({
             status: "PUBLISHED",
             deletedAt: null,
+          }),
+        })
+      );
+    });
+
+    it("selects showRawHtmlToc in the post list item projection", async () => {
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      await postRepositoryPrisma.listPublished({});
+      expect(prisma.post.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({
+            showRawHtmlToc: true,
           }),
         })
       );
@@ -102,7 +122,7 @@ describe("postRepositoryPrisma", () => {
       expect(result).toBe(42);
       expect(prisma.post.count).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: "PUBLISHED", deletedAt: null },
+          where: expect.objectContaining({ status: "PUBLISHED", deletedAt: null }),
         })
       );
     });
@@ -202,6 +222,7 @@ describe("postRepositoryPrisma", () => {
         categoryIds: ["c1"],
         tagIds: ["t1"],
         allowRawHtml: true,
+        showRawHtmlToc: true,
       });
       expect(prisma.post.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -210,6 +231,27 @@ describe("postRepositoryPrisma", () => {
             categories: { connect: [{ id: "c1" }] },
             tags: { connect: [{ id: "t1" }] },
             allowRawHtml: true,
+            showRawHtmlToc: true,
+          }),
+        })
+      );
+    });
+
+    it("creates post with showRawHtmlToc defaulting to false when omitted", async () => {
+      (prisma.post.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.create({
+        slug: "s2",
+        title: "t2",
+        status: "DRAFT",
+        content: "c",
+        excerpt: "e",
+        categoryIds: [],
+        tagIds: [],
+      });
+      expect(prisma.post.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            showRawHtmlToc: false,
           }),
         })
       );
@@ -228,6 +270,7 @@ describe("postRepositoryPrisma", () => {
         categoryIds: ["c2"],
         tagIds: [],
         allowRawHtml: false,
+        showRawHtmlToc: false,
       });
       expect(prisma.post.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -237,9 +280,56 @@ describe("postRepositoryPrisma", () => {
             categories: { set: [{ id: "c2" }] },
             tags: { set: [] },
             allowRawHtml: false,
+            showRawHtmlToc: false,
           }),
         })
       );
+    });
+  });
+
+  describe("updateWithVersion", () => {
+    const version = { title: "old", excerpt: "e", content: "old content", allowRawHtml: false, showRawHtmlToc: false, editorId: "u1" };
+    const update = { slug: "s", title: "new", excerpt: "e2", content: "new content", status: "DRAFT" as const, allowRawHtml: false, showRawHtmlToc: false, categoryIds: null, tagIds: null };
+    const expectedUpdatedAt = new Date("2026-01-01T00:00:00.000Z");
+
+    it("snapshots the version and updates the post atomically when the optimistic lock matches", async () => {
+      (prisma.post.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      (prisma.postVersion.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "v1" });
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+      (prisma.post.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ updatedAt: new Date("2026-02-02T00:00:00.000Z") });
+
+      const result = await postRepositoryPrisma.updateWithVersion({ id: "p1", expectedUpdatedAt, version, update });
+
+      expect(result).toEqual({ ok: true, id: "p1", updatedAt: new Date("2026-02-02T00:00:00.000Z") });
+      // 版本快照與更新都發生在同一 $transaction 內。
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.postVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ postId: "p1", content: "old content", editorId: "u1" }) })
+      );
+      // 樂觀鎖：updateMany 以 updatedAt === expectedUpdatedAt 為條件。
+      expect(prisma.post.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: "p1", updatedAt: expectedUpdatedAt }) })
+      );
+    });
+
+    it("returns conflict (and does not commit the version) when the optimistic lock does not match", async () => {
+      (prisma.post.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      (prisma.postVersion.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "v1" });
+      // count === 0 表示他人已更新（updatedAt 已變）。
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 0 });
+
+      const result = await postRepositoryPrisma.updateWithVersion({ id: "p1", expectedUpdatedAt, version, update });
+
+      expect(result).toEqual({ ok: false, reason: "conflict" });
+    });
+
+    it("returns not-found when the post does not exist", async () => {
+      (prisma.post.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      const result = await postRepositoryPrisma.updateWithVersion({ id: "missing", expectedUpdatedAt, version, update });
+
+      expect(result).toEqual({ ok: false, reason: "not-found" });
+      expect(prisma.postVersion.create).not.toHaveBeenCalled();
     });
   });
 
@@ -250,9 +340,15 @@ describe("postRepositoryPrisma", () => {
       expect(prisma.post.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: expect.arrayContaining([
-              { title: { contains: "keyword", mode: "insensitive" } },
-              { excerpt: { contains: "keyword", mode: "insensitive" } },
+            status: "PUBLISHED",
+            deletedAt: null,
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { title: { contains: "keyword", mode: "insensitive" } },
+                  { excerpt: { contains: "keyword", mode: "insensitive" } },
+                ]),
+              }),
             ]),
           }),
         })
@@ -326,6 +422,36 @@ describe("postRepositoryPrisma", () => {
           orderBy: { createdAt: "desc" },
         })
       );
+    });
+
+    it("includes both allowRawHtml and showRawHtmlToc in each mapped record", async () => {
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          slug: "p1",
+          title: "Post 1",
+          excerpt: "e",
+          content: "c",
+          coverImage: null,
+          readingTime: null,
+          featured: false,
+          allowRawHtml: true,
+          showRawHtmlToc: true,
+          status: "PUBLISHED",
+          publishedAt: null,
+          seoTitle: null,
+          seoDescription: null,
+          ogImage: null,
+          categories: [],
+          tags: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
+      const result = await postRepositoryPrisma.listForExport({ orderBy: "createdAtDesc" });
+
+      expect(result[0].allowRawHtml).toBe(true);
+      expect(result[0].showRawHtmlToc).toBe(true);
     });
   });
 });

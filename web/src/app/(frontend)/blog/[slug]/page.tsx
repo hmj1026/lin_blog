@@ -3,11 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AuthorChip } from "@/components/author-chip";
 import { Badge } from "@/components/ui/badge";
-// TODO: Newsletter 功能暫緩實作
-// import { NewsletterForm } from "@/components/newsletter-form";
 import { PostCard } from "@/components/post-card";
-import { Toc } from "@/components/toc";
 import { InlineToc } from "@/components/inline-toc";
+import { StreamedPostDiscoveryPanel } from "@/components/discovery/streamed-post-discovery-panel";
 import { ReadingProgress } from "@/components/reading-progress";
 import { ShareButtons } from "@/components/share-buttons";
 import { prepareContent, prepareRawHtmlContent } from "@/lib/utils/content";
@@ -79,52 +77,88 @@ export default async function PostPage({ params }: PostPageProps) {
           </div>
         </header>
 
-        <section className="section-shell grid gap-12 lg:grid-cols-[1fr_280px]">
-          {isRawHtmlPost ? (
-            <RawHtmlPostFrame html={contentHtml} tocItems={tocItems} />
-          ) : (
+        {isRawHtmlPost ? (
+          <>
+            {/* 原始 HTML 文章：內容階段採 viewport gutter 寬版外框，不建立固定側欄，
+                讓 iframe 取得接近 layout viewport 的可用寬度（見 RawHtmlPostFrame 內部的
+                系統目錄 section-shell + 寬版 iframe 分層）。 */}
+            <RawHtmlPostFrame
+              html={contentHtml}
+              tocItems={tocItems}
+              showRawHtmlToc={postView.showRawHtmlToc}
+            />
+
+            {/* 站台附屬模組（分享、標籤）移到 iframe 後方，改用標準 section-shell，
+                不再與 iframe 爭用橫向空間。 */}
+            <section className="section-shell space-y-6">
+              <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">
+                <h3 className="mb-3 font-semibold text-primary">分享此文</h3>
+                <ShareButtons url={postUrl} title={postView.title} />
+              </div>
+
+              <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">
+                <h3 className="font-semibold text-primary">標籤</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {postView.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/tag/${encodeURIComponent(tag)}`}
+                      className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-primary transition hover:border-primary/40"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* 探索模組（搜尋／訂閱／熱門／最新）：寬版 iframe 之後以站台控制的
+                responsive grid 呈現，不進入雙欄容器、不限縮 iframe 寬度（design.md D1）。 */}
+            <StreamedPostDiscoveryPanel variant="grid" />
+          </>
+        ) : (
+          <section className="section-shell grid gap-12 lg:grid-cols-[1fr_280px]">
             <div className="wysiwyg rounded-3xl border border-line bg-white p-8 shadow-card dark:bg-base-100">
-              {/* 內嵌目錄索引區塊 */}
+              {/* 內嵌目錄索引區塊（唯一 ToC：導覽 + active section 高亮） */}
               <InlineToc items={tocItems} />
               {/* 文章內容 */}
               <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
             </div>
-          )}
-          <aside className="space-y-6">
-            {/* TOC 目錄導航（原始 HTML 模式改由 iframe 內建 ToC 以 postMessage 處理） */}
-            {!isRawHtmlPost && (
-              <div className="hidden lg:block">
-                <Toc contentSelector=".wysiwyg" />
+            <aside className="space-y-6">
+              {/* 探索模組（搜尋／訂閱／熱門／最新）：桌面版右側欄主要內容，
+                  sticky 避開站台 header（design.md D1）；窄螢幕改由下方的
+                  stacked 版面顯示，此處只在 lg 以上斷點呈現。 */}
+              <StreamedPostDiscoveryPanel variant="sidebar" />
+
+              {/* 分享按鈕 */}
+              <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">
+                <h3 className="mb-3 font-semibold text-primary">分享此文</h3>
+                <ShareButtons url={postUrl} title={postView.title} />
               </div>
-            )}
-            
-            {/* 分享按鈕 */}
-            <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">
-              <h3 className="mb-3 font-semibold text-primary">分享此文</h3>
-              <ShareButtons url={postUrl} title={postView.title} />
-            </div>
-            
-            {/* 標籤 */}
-            <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">
-              <h3 className="font-semibold text-primary">標籤</h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {postView.tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    href={`/tag/${encodeURIComponent(tag)}`}
-                    className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-primary transition hover:border-primary/40"
-                  >
-                    #{tag}
-                  </Link>
-                ))}
+
+              {/* 標籤 */}
+              <div className="rounded-2xl border border-line bg-white p-6 shadow-card dark:bg-base-100">
+                <h3 className="font-semibold text-primary">標籤</h3>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {postView.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/tag/${encodeURIComponent(tag)}`}
+                      className="rounded-full border border-line px-3 py-1 text-xs font-semibold text-primary transition hover:border-primary/40"
+                    >
+                      #{tag}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
-            
-            {/* TODO: Newsletter 功能暫緩實作
-            <NewsletterForm compact />
-            */}
-          </aside>
-        </section>
+            </aside>
+          </section>
+        )}
+
+        {!isRawHtmlPost && (
+          // 窄螢幕（lg 以下）：探索模組移至文章內容後方、延伸閱讀之前，只在 lg 以下顯示。
+          <StreamedPostDiscoveryPanel variant="stacked" />
+        )}
 
         {related.length > 0 && (
           <section className="section-shell space-y-6">

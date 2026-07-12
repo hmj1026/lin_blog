@@ -4,21 +4,40 @@
 定義前台進階功能與效能優化的需求，涵蓋目錄導覽、閱讀進度、社群分享、程式碼語法高亮、深色模式、SEO metadata、文章卡片版面與截斷、頁尾社群連結、頁面增量靜態再生（ISR）、打包優化、請求去重、串流渲染與 404 頁面樣式。
 ## Requirements
 ### Requirement: Table of Contents Navigation
-The system SHALL provide a table of contents for blog posts with multiple headings.
+The system SHALL provide one automatically generated inline table of contents in the main content column for normal blog posts with multiple headings, preserving anchor navigation and active-section highlighting without reserving the reader-discovery sidebar. For posts where `allowRawHtml = true`, the system-generated table of contents SHALL be explicitly opt-in through the per-post `showRawHtmlToc` flag and SHALL be hidden by default so author-provided HTML navigation is not duplicated. When enabled, the raw HTML TOC SHALL render in a standard `section-shell` immediately before the wide iframe and SHALL NOT reserve a fixed column beside it.
 
-#### Scenario: Display TOC for long articles
-- **WHEN** a blog post contains H2/H3 headings
-- **THEN** the system SHALL display a sidebar TOC listing all headings
+#### Scenario: Display TOC for a normal long article
+- **GIVEN** a blog post has `allowRawHtml = false`
+- **WHEN** the post contains multiple H2/H3 headings
+- **THEN** the system SHALL display one inline TOC in the main content column listing those headings
+- **AND** the desktop reader-discovery sidebar SHALL NOT contain a duplicate TOC
 
-#### Scenario: TOC navigation
+#### Scenario: Normal article TOC navigation
+- **GIVEN** a normal article displays its TOC
 - **WHEN** a user clicks on a TOC item
 - **THEN** the page SHALL scroll to the corresponding heading
 
-#### Scenario: Highlight active section
+#### Scenario: Highlight active section for normal articles
+- **GIVEN** a normal article displays its inline TOC
 - **WHEN** a user scrolls through the article
 - **THEN** the TOC SHALL highlight the currently visible section
 
----
+#### Scenario: Raw HTML automatic TOC is disabled by default
+- **GIVEN** a post has `allowRawHtml = true` and `showRawHtmlToc = false`
+- **WHEN** the post contains multiple H2/H3 headings
+- **THEN** the system SHALL NOT render its automatically generated TOC
+- **AND** any author-provided TOC inside the raw HTML SHALL remain available
+
+#### Scenario: Raw HTML automatic TOC is displayed when enabled
+- **GIVEN** a post has `allowRawHtml = true`, `showRawHtmlToc = true`, and at least two H2/H3 headings
+- **WHEN** a visitor opens the post
+- **THEN** the system SHALL display the generated raw HTML TOC
+- **AND** it SHALL appear in a standard `section-shell` immediately before the wide iframe without narrowing the iframe
+
+#### Scenario: Raw HTML TOC navigation
+- **GIVEN** a raw HTML post displays its system-generated TOC
+- **WHEN** a user selects a TOC item
+- **THEN** the parent page SHALL use the validated `postMessage` channel to position the iframe heading below the sticky site header
 
 ### Requirement: Reading Progress Indicator
 The system SHALL display a reading progress indicator for blog posts.

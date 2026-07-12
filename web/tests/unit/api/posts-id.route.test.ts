@@ -111,6 +111,22 @@ describe("API: /api/posts/[id]", () => {
       const json = await res.json();
       expect(res.status).toBe(404);
     });
+
+    it("returns showRawHtmlToc when present on the record", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue({ ...published, showRawHtmlToc: true });
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      const json = await res.json();
+      expect(json.data.showRawHtmlToc).toBe(true);
+    });
+
+    it("defaults showRawHtmlToc to false when missing on the record", async () => {
+      (postsQueries.getPostById as any).mockResolvedValue(published);
+      const req = new NextRequest("http://localhost/api/posts/post-1");
+      const res = await GET(req, context);
+      const json = await res.json();
+      expect(json.data.showRawHtmlToc).toBe(false);
+    });
   });
 
   describe("PUT", () => {
@@ -124,7 +140,7 @@ describe("API: /api/posts/[id]", () => {
     it("updates post with version", async () => {
       (requirePermission as any).mockResolvedValue(null);
       (getSession as any).mockResolvedValue({ user: { id: "user-1" } });
-      (postsUseCases.updatePostWithVersion as any).mockResolvedValue({ id: "post-1" });
+      (postsUseCases.updatePostWithVersion as any).mockResolvedValue({ ok: true, id: "post-1", updatedAt: new Date() });
 
       const payload = { 
         slug: "slug", title: "Title", content: "Content", excerpt: "Excerpt", status: "PUBLISHED",
@@ -141,14 +157,67 @@ describe("API: /api/posts/[id]", () => {
       expect(postsUseCases.updatePostWithVersion).toHaveBeenCalledWith("post-1", expect.anything(), "user-1");
     });
 
+    it("passes showRawHtmlToc through to updatePostWithVersion", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (getSession as any).mockResolvedValue({ user: { id: "user-1" } });
+      (postsUseCases.updatePostWithVersion as any).mockResolvedValue({ ok: true, id: "post-1", updatedAt: new Date() });
+
+      const payload = {
+        slug: "slug", title: "Title", content: "Content", excerpt: "Excerpt", status: "PUBLISHED",
+        readingTime: "5 min", publishedAt: new Date().toISOString(),
+        showRawHtmlToc: true,
+      };
+
+      const req = new NextRequest("http://localhost", {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+
+      await PUT(req, context);
+
+      expect(postsUseCases.updatePostWithVersion).toHaveBeenCalledWith(
+        "post-1",
+        expect.objectContaining({ showRawHtmlToc: true }),
+        "user-1"
+      );
+    });
+
     it("returns validation error", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      const req = new NextRequest("http://localhost", { 
+      const req = new NextRequest("http://localhost", {
         method: "PUT",
         body: JSON.stringify({}) // Invalid
       });
       const res = await PUT(req, context);
       expect(res.status).toBe(400);
+    });
+
+    it("returns 409 when the update conflicts with a concurrent edit", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (getSession as any).mockResolvedValue({ user: { id: "user-1" } });
+      (postsUseCases.updatePostWithVersion as any).mockResolvedValue({ ok: false, reason: "conflict" });
+
+      const payload = {
+        slug: "slug", title: "Title", content: "Content", excerpt: "Excerpt", status: "PUBLISHED",
+        readingTime: "5 min", publishedAt: new Date().toISOString(),
+      };
+      const req = new NextRequest("http://localhost", { method: "PUT", body: JSON.stringify(payload) });
+      const res = await PUT(req, context);
+      expect(res.status).toBe(409);
+    });
+
+    it("returns 404 when the post to update no longer exists", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (getSession as any).mockResolvedValue({ user: { id: "user-1" } });
+      (postsUseCases.updatePostWithVersion as any).mockResolvedValue({ ok: false, reason: "not-found" });
+
+      const payload = {
+        slug: "slug", title: "Title", content: "Content", excerpt: "Excerpt", status: "PUBLISHED",
+        readingTime: "5 min", publishedAt: new Date().toISOString(),
+      };
+      const req = new NextRequest("http://localhost", { method: "PUT", body: JSON.stringify(payload) });
+      const res = await PUT(req, context);
+      expect(res.status).toBe(404);
     });
   });
 

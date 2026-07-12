@@ -23,6 +23,24 @@ describe("detectStrippedRichHtml", () => {
     expect(detectStrippedRichHtml("<p>x</p><style>.a{color:red}</style>")).toBe(true);
   });
 
+  it("returns true for <h1> (not in the strict allowlist, so stripped)", () => {
+    expect(detectStrippedRichHtml('<h1 id="hero">T</h1>')).toBe(true);
+  });
+
+  it("returns true for <h4>/<h5>/<h6> (stripped by the strict sanitizer)", () => {
+    expect(detectStrippedRichHtml("<h4>T</h4>")).toBe(true);
+    expect(detectStrippedRichHtml("<h5>T</h5>")).toBe(true);
+    expect(detectStrippedRichHtml("<h6>T</h6>")).toBe(true);
+  });
+
+  it("returns true when content carries an id attribute (stripped by strict sanitizer)", () => {
+    expect(detectStrippedRichHtml('<p id="anchor">x</p>')).toBe(true);
+  });
+
+  it("returns true when content carries a class attribute (stripped by strict sanitizer)", () => {
+    expect(detectStrippedRichHtml('<p class="lead">x</p>')).toBe(true);
+  });
+
   it("returns false for pure WYSIWYG content using only strict-allowlist tags", () => {
     expect(
       detectStrippedRichHtml("<h2>T</h2><p><strong>b</strong> <em>i</em></p><ul><li>a</li></ul>")

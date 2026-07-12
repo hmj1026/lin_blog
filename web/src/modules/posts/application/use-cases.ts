@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { sanitizePostHtml, sanitizeRawPostHtml } from "@/lib/utils/sanitize";
-import { postSchema } from "@/lib/validations/post.schema";
+import { postSchema, importPostSchema } from "@/lib/validations/post.schema";
 import { categorySchema } from "@/lib/validations/category.schema";
 import { tagSchema } from "@/lib/validations/tag.schema";
 import { isPostStatus, isReadablePost, normalizeSlug } from "../domain";
@@ -17,6 +17,14 @@ function sanitizeContentByMode(content: string, allowRawHtml: boolean): string {
 }
 
 /**
+ * showRawHtmlToc 只在原始 HTML 模式下有意義；allowRawHtml 為 false 時強制歸零，
+ * 避免兩個欄位在資料庫中互相分歧。
+ */
+function normalizeShowRawHtmlToc(allowRawHtml: boolean, showRawHtmlToc: boolean): boolean {
+  return allowRawHtml ? showRawHtmlToc : false;
+}
+
+/**
  * 建立文章模組的 Use Cases
  * 包含文章、分類、標籤的管理邏輯
  * 
@@ -28,19 +36,6 @@ export function createPostsUseCases(deps: {
   categories: CategoryRepository;
   tags: TagRepository;
 }) {
-  async function saveCurrentPostVersion(params: { postId: string; editorId?: string | null }) {
-    const currentPost = await deps.posts.getById(params.postId);
-    if (!currentPost) return null;
-    return deps.versions.create({
-      postId: params.postId,
-      title: currentPost.title,
-      excerpt: currentPost.excerpt,
-      content: currentPost.content,
-      allowRawHtml: currentPost.allowRawHtml,
-      editorId: params.editorId ?? null,
-    });
-  }
-
   return {
     /**
      * 取得已發布的文章列表
@@ -83,7 +78,7 @@ export function createPostsUseCases(deps: {
     getReadablePostBySlug: async (input: { slug: string; allowDraft: boolean }) => {
       const post = await deps.posts.getBySlug(input.slug);
       if (!post) return null;
-      if (!isReadablePost({ status: post.status, deletedAt: post.deletedAt }, { allowDraft: input.allowDraft })) return null;
+      if (!isReadablePost({ status: post.status, deletedAt: post.deletedAt, publishedAt: post.publishedAt }, { allowDraft: input.allowDraft })) return null;
       return post;
     },
     listRelatedPublishedPosts: async (input: { post: { slug: string; categories: { id: string }[]; tags: { id: string }[] } }) =>
@@ -113,12 +108,14 @@ export function createPostsUseCases(deps: {
     createPost: async (payload: z.infer<typeof postSchema>) => {
       const data = postSchema.parse(payload);
       const allowRawHtml = data.allowRawHtml ?? false;
+      const showRawHtmlToc = normalizeShowRawHtmlToc(allowRawHtml, data.showRawHtmlToc ?? false);
       return deps.posts.create({
         slug: normalizeSlug(data.slug),
         title: data.title,
         excerpt: data.excerpt,
         content: sanitizeContentByMode(data.content, allowRawHtml),
         allowRawHtml,
+        showRawHtmlToc,
         coverImage: data.coverImage,
         readingTime: data.readingTime,
         featured: data.featured ?? false,
@@ -138,12 +135,14 @@ export function createPostsUseCases(deps: {
     updatePost: async (id: string, payload: z.infer<typeof postSchema>) => {
       const data = postSchema.parse(payload);
       const allowRawHtml = data.allowRawHtml ?? false;
+      const showRawHtmlToc = normalizeShowRawHtmlToc(allowRawHtml, data.showRawHtmlToc ?? false);
       return deps.posts.update(id, {
         slug: normalizeSlug(data.slug),
         title: data.title,
         excerpt: data.excerpt,
         content: sanitizeContentByMode(data.content, allowRawHtml),
         allowRawHtml,
+        showRawHtmlToc,
         coverImage: data.coverImage,
         readingTime: data.readingTime,
         featured: data.featured ?? false,
@@ -163,24 +162,45 @@ export function createPostsUseCases(deps: {
     updatePostWithVersion: async (id: string, payload: z.infer<typeof postSchema>, editorId?: string | null) => {
       const data = postSchema.parse(payload);
       const allowRawHtml = data.allowRawHtml ?? false;
-      await saveCurrentPostVersion({ postId: id, editorId });
-      return deps.posts.update(id, {
-        slug: normalizeSlug(data.slug),
-        title: data.title,
-        excerpt: data.excerpt,
-        content: sanitizeContentByMode(data.content, allowRawHtml),
-        allowRawHtml,
-        coverImage: data.coverImage,
-        readingTime: data.readingTime,
-        featured: data.featured ?? false,
-        status: data.status ?? "DRAFT",
-        publishedAt: data.publishedAt,
-        seoTitle: data.seoTitle ?? null,
-        seoDescription: data.seoDescription ?? null,
-        ogImage: data.ogImage ?? null,
-        authorId: data.authorId,
-        categoryIds: data.categoryIds ?? null,
-        tagIds: data.tagIds ?? null,
+      const showRawHtmlToc = normalizeShowRawHtmlToc(allowRawHtml, data.showRawHtmlToc ?? false);
+
+      const current = await deps.posts.getById(id);
+      if (!current) return { ok: false as const, reason: "not-found" as const };
+
+      // 樂觀鎖 token：優先採用前端載入時的 updatedAt（偵測「你看到後他人已改」），
+      // 未提供時退回目前資料庫值（僅保證原子性）。
+      const expectedUpdatedAt = data.expectedUpdatedAt ?? current.updatedAt;
+
+      return deps.posts.updateWithVersion({
+        id,
+        expectedUpdatedAt,
+        version: {
+          title: current.title,
+          excerpt: current.excerpt,
+          content: current.content,
+          allowRawHtml: current.allowRawHtml,
+          showRawHtmlToc: current.showRawHtmlToc,
+          editorId,
+        },
+        update: {
+          slug: normalizeSlug(data.slug),
+          title: data.title,
+          excerpt: data.excerpt,
+          content: sanitizeContentByMode(data.content, allowRawHtml),
+          allowRawHtml,
+          showRawHtmlToc,
+          coverImage: data.coverImage,
+          readingTime: data.readingTime,
+          featured: data.featured ?? false,
+          status: data.status ?? "DRAFT",
+          publishedAt: data.publishedAt,
+          seoTitle: data.seoTitle ?? null,
+          seoDescription: data.seoDescription ?? null,
+          ogImage: data.ogImage ?? null,
+          authorId: data.authorId,
+          categoryIds: data.categoryIds ?? null,
+          tagIds: data.tagIds ?? null,
+        },
       });
     },
     removePost: (id: string) => deps.posts.softDelete(id),
@@ -198,33 +218,41 @@ export function createPostsUseCases(deps: {
       const post = await deps.posts.getById(postId);
       if (!post) return { ok: false as const, error: "post-not-found" as const };
 
-      await deps.versions.create({
-        postId,
-        title: post.title,
-        excerpt: post.excerpt,
-        content: post.content,
-        allowRawHtml: post.allowRawHtml,
-        editorId: editorId ?? null,
+      // 原子地快照當前文章 + 還原到選定版本；並行更新導致 updatedAt 變動時回 conflict。
+      const result = await deps.posts.updateWithVersion({
+        id: postId,
+        expectedUpdatedAt: post.updatedAt,
+        version: {
+          title: post.title,
+          excerpt: post.excerpt,
+          content: post.content,
+          allowRawHtml: post.allowRawHtml,
+          showRawHtmlToc: post.showRawHtmlToc,
+          editorId,
+        },
+        update: {
+          slug: post.slug,
+          title: version.title,
+          excerpt: version.excerpt,
+          content: version.content,
+          allowRawHtml: version.allowRawHtml,
+          showRawHtmlToc: normalizeShowRawHtmlToc(version.allowRawHtml, version.showRawHtmlToc),
+          coverImage: post.coverImage,
+          readingTime: post.readingTime,
+          featured: post.featured,
+          status: post.status,
+          publishedAt: post.publishedAt,
+          seoTitle: post.seoTitle,
+          seoDescription: post.seoDescription,
+          ogImage: post.ogImage,
+          categoryIds: null,
+          tagIds: null,
+        },
       });
 
-      await deps.posts.update(postId, {
-        slug: post.slug,
-        title: version.title,
-        excerpt: version.excerpt,
-        content: version.content,
-        allowRawHtml: version.allowRawHtml,
-        coverImage: post.coverImage,
-        readingTime: post.readingTime,
-        featured: post.featured,
-        status: post.status,
-        publishedAt: post.publishedAt,
-        seoTitle: post.seoTitle,
-        seoDescription: post.seoDescription,
-        ogImage: post.ogImage,
-        categoryIds: null,
-        tagIds: null,
-      });
-
+      if (!result.ok) {
+        return { ok: false as const, error: result.reason === "conflict" ? ("conflict" as const) : ("post-not-found" as const) };
+      }
       return { ok: true as const };
     },
 
@@ -249,23 +277,32 @@ export function createPostsUseCases(deps: {
         seoDescription?: string | null;
         ogImage?: string | null;
         allowRawHtml?: boolean;
+        showRawHtmlToc?: boolean;
       }>;
       mode?: "skip" | "overwrite";
     }) => {
       const mode = params.mode ?? "skip";
       const results = { created: 0, updated: 0, skipped: 0, errors: [] as string[] };
 
-      for (const p of params.posts) {
-        try {
-          if (!p.slug || !p.title || !p.excerpt || !p.content) {
-            results.errors.push(`文章缺少必要欄位: ${p.slug || p.title || "unknown"}`);
-            continue;
-          }
+      for (const rawPost of params.posts) {
+        // 逐篇嚴格驗證：非布林旗標/缺欄位一律回報 validation error，不做 truthy coercion 也不寫入。
+        const parsed = importPostSchema.safeParse(rawPost);
+        if (!parsed.success) {
+          const label = (rawPost as { slug?: string; title?: string }).slug
+            || (rawPost as { slug?: string; title?: string }).title
+            || "unknown";
+          results.errors.push(`文章驗證失敗: ${label} - ${parsed.error.errors[0]?.message ?? "invalid"}`);
+          continue;
+        }
+        const p = parsed.data;
 
+        try {
           const slug = normalizeSlug(p.slug);
           const existing = await deps.posts.getBySlug(slug);
           const status = p.status && isPostStatus(p.status) ? p.status : "DRAFT";
           const publishedAt = p.publishedAt ? new Date(p.publishedAt) : null;
+          const allowRawHtml = p.allowRawHtml ?? false;
+          const showRawHtmlToc = normalizeShowRawHtmlToc(allowRawHtml, p.showRawHtmlToc ?? false);
 
           if (existing && existing.deletedAt === null) {
             if (mode === "skip") {
@@ -277,8 +314,9 @@ export function createPostsUseCases(deps: {
               slug,
               title: p.title,
               excerpt: p.excerpt,
-              content: sanitizeContentByMode(p.content, p.allowRawHtml ?? false),
-              allowRawHtml: p.allowRawHtml ?? false,
+              content: sanitizeContentByMode(p.content, allowRawHtml),
+              allowRawHtml,
+              showRawHtmlToc,
               coverImage: p.coverImage ?? null,
               readingTime: p.readingTime ?? null,
               featured: p.featured ?? false,
@@ -298,8 +336,9 @@ export function createPostsUseCases(deps: {
             slug,
             title: p.title,
             excerpt: p.excerpt,
-            content: sanitizeContentByMode(p.content, p.allowRawHtml ?? false),
-            allowRawHtml: p.allowRawHtml ?? false,
+            content: sanitizeContentByMode(p.content, allowRawHtml),
+            allowRawHtml,
+            showRawHtmlToc,
             coverImage: p.coverImage ?? null,
             readingTime: p.readingTime ?? null,
             featured: p.featured ?? false,

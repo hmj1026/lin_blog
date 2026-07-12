@@ -1,18 +1,15 @@
 name: E2E Tests
 
-# ⚠️ E2E 測試暫時停用自動觸發
-# 需要時可在 GitHub Actions 頁面手動觸發 (Run workflow)
-# 若要啟用自動觸發，取消下方註解：
 on:
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
-  workflow_dispatch:  # 僅允許手動觸發
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
 
 concurrency:
   # e2e 無真正共享的外部資源（Postgres 為每次 run 全新隔離的 service 容器），
-  # 群組僅影響同一 ref 的重複手動觸發。cancel-in-progress: false = 不砍進行中的手動 run。
+  # 同一 ref 的重複 run 不互相取消，避免取消中的驗證造成誤判。
   group: e2e-${{ github.ref }}
   cancel-in-progress: false
 
@@ -38,7 +35,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U test_user -d test_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -46,10 +43,14 @@ jobs:
     env:
       DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
       NEXTAUTH_SECRET: test-secret-for-ci-minimum-32-characters
+      CRON_SECRET: ci-build-cron-secret-placeholder
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      # secrets 未設定時以 expression 層 fallback 補預設值：確保 seed 步驟與
+      # Playwright specs（process.env || "admin" fallback 不會在 CI 觸發）看到同一組
+      # 憑證。
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || 'admin@lin.blog' }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || 'e2e-admin-pass' }}
 
     steps:
       - name: Checkout repository
@@ -74,13 +75,12 @@ jobs:
         run: npx prisma migrate deploy
         working-directory: ./web
 
-      - name: Create test user
-        run: |
-          node scripts/create-user.js \
-            --email "${E2E_ADMIN_EMAIL:-admin@test.com}" \
-            --password "${E2E_ADMIN_PASSWORD:-Test123456!}" \
-            --name "Test Admin"
+      - name: Seed test database
+        run: npm run db:seed
         working-directory: ./web
+        env:
+          ADMIN_EMAIL: ${{ env.E2E_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.E2E_ADMIN_PASSWORD }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

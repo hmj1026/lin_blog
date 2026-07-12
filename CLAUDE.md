@@ -40,7 +40,7 @@ From the repo root: `docker compose up -d` starts the prod stack (`blog` + `post
 Next.js 15 App Router · TypeScript · React 18 · Prisma 5 / PostgreSQL · NextAuth v4 · Tailwind ·
 Vitest + Playwright. Strict **Clean Architecture / DDD** (see `docs/adr/`, `web/src/modules/AGENTS.md`).
 
-**Modules** (`web/src/modules/<name>/` — posts, media, analytics, security-admin, site-settings):
+**Modules** (`web/src/modules/<name>/` — posts, media, analytics, security-admin, site-settings, newsletter, discovery):
 - `domain/` — pure business logic, entities, repository interfaces. No Prisma, Next, or React.
 - `application/` — use-cases + ports (repository interfaces).
 - `infrastructure/prisma/` — concrete repositories + Prisma↔domain mappers.

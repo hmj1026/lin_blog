@@ -12,6 +12,7 @@ export type PostWithRelations = {
   readingTime: string | null;
   featured: boolean;
   allowRawHtml?: boolean;
+  showRawHtmlToc?: boolean;
   publishedAt: Date | null;
   createdAt: Date;
   categories: Array<{ name: string; deletedAt: Date | null }>;
@@ -31,6 +32,7 @@ export type FrontendPost = {
   hero: string;
   featured?: boolean;
   allowRawHtml: boolean;
+  showRawHtmlToc: boolean;
   content: string;
   seo: {
     title: string;
@@ -62,6 +64,7 @@ export function toFrontendPost(post: PostWithRelations): FrontendPost {
     hero,
     featured: post.featured,
     allowRawHtml: post.allowRawHtml ?? false,
+    showRawHtmlToc: post.showRawHtmlToc ?? false,
     content: post.content ?? "",
     seo: {
       title: post.seoTitle || post.title,
@@ -81,6 +84,7 @@ export type PostByIdResponse = {
   readingTime: string | null;
   featured: boolean;
   allowRawHtml: boolean;
+  showRawHtmlToc: boolean;
   status: PostRecord["status"];
   publishedAt: Date | null;
   seoTitle: string | null;
@@ -104,6 +108,7 @@ export function toPostByIdResponse(post: PostRecord): PostByIdResponse {
     readingTime: post.readingTime,
     featured: post.featured,
     allowRawHtml: post.allowRawHtml,
+    showRawHtmlToc: post.showRawHtmlToc ?? false,
     status: post.status,
     publishedAt: post.publishedAt,
     seoTitle: post.seoTitle,

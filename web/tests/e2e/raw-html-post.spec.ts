@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：原始 HTML 模式（allowRawHtml）文章的隔離 iframe 渲染
@@ -6,17 +7,6 @@ import { test, expect, type Page } from "@playwright/test";
  * 涵蓋：自訂樣式生效、注入的 <script> 不執行、樣式不外洩、ToC 點擊捲動、預覽巢狀 iframe。
  * 需要可連線的資料庫與種子管理員帳號（預設 admin@lin.blog / admin，可用環境變數覆蓋）。
  */
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
 
 // 原始 HTML 內容：自訂 <style>（含會嘗試外洩到 body/h1 的規則）、兩個 H2（供 ToC）、
 // 一個高間隔區塊（讓第二章遠在下方以驗證捲動），以及會在儲存階段被消毒移除的 <script>。
@@ -47,7 +37,7 @@ test.describe("raw-html-post", () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     slug = `raw-html-e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const res = await page.request.post("/api/posts", {
@@ -57,6 +47,7 @@ test.describe("raw-html-post", () => {
         excerpt: "raw html e2e 摘要",
         content: RAW_CONTENT,
         allowRawHtml: true,
+        showRawHtmlToc: true,
         status: "PUBLISHED",
         categoryIds: [],
         tagIds: [],
@@ -175,7 +166,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.5 預覽流程正確顯示巢狀 iframe", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto(`/admin/posts/${postId}`);
     await page.locator("button:has-text('預覽')").first().click();
     const previewFrame = page.frameLocator("iframe[title='post-preview']");

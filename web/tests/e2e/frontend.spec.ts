@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 test.describe("文章詳細頁", () => {
   test("從文章列表進入文章詳細頁並正確顯示內容", async ({ page }) => {
@@ -20,9 +21,13 @@ test.describe("文章詳細頁", () => {
   });
 
   test("文章詳細頁顯示分類和標籤", async ({ page }) => {
+    // 此測試的重點是分類/標籤的呈現，不是導覽本身：
+    // 直接以 href 進入文章頁，避免 client-side soft navigation 的時序干擾
+    // （同下方 SEO meta 測試的既有 pattern）。
     await page.goto("/blog");
     const firstArticleLink = page.locator("a[href^='/blog/']").first();
-    await firstArticleLink.click();
+    const href = await firstArticleLink.getAttribute("href");
+    await page.goto(href ?? "/blog");
     await page.waitForURL("**/blog/**");
 
     // 驗證分類或標籤可見（至少有一個）
@@ -102,27 +107,16 @@ test.describe("標籤頁", () => {
 test.describe("登出流程", () => {
   test("登入後可以登出並重導向", async ({ page }) => {
     // 先登入
-    await page.goto("/login");
-    await page.fill("input[type='email'], input[name='email']", "admin@lin.blog");
-    await page.fill("input[type='password']", "admin");
-    await page.click("button[type='submit']");
-    
-    // 等待重導向到 admin
-    await page.waitForURL("**/admin**", { timeout: 10000 });
-    
+    await loginAsAdmin(page);
+
+
     // sidebar 載入後尋找登出連結（/logout?callbackUrl=/login）
-    await page.waitForTimeout(1000);
     const logoutLink = page.locator("aside a[href*='logout']").first();
-    
-    if (await logoutLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await logoutLink.click();
-      
-      // 等待重導向到登入頁
-      await page.waitForURL("**/login**", { timeout: 15000 });
-      expect(page.url()).toContain("/login");
-    } else {
-      // sidebar 可能沒有載入，跳過
-      test.skip();
-    }
+    await expect(logoutLink).toBeVisible();
+    await logoutLink.click();
+
+    // 等待重導向到登入頁
+    await page.waitForURL("**/login**", { timeout: 15000 });
+    expect(page.url()).toContain("/login");
   });
 });

@@ -1,39 +1,30 @@
 import { test, expect } from "@playwright/test";
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-// 輔助函數：登入
-async function login(page: any) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 10000 });
-}
+import { loginAsAdmin } from "./helpers/auth";
 
 test.describe("文章管理列表", () => {
   test("文章列表頁顯示所有文章", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     
     await page.goto("/admin/posts");
     
     // 驗證頁面標題
-    await expect(page.locator("h1:has-text('文章列表')")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "文章列表", exact: true }).filter({ visible: true })
+    ).toBeVisible();
     
     // 驗證有新增文章按鈕（是個 Link）
-    const newPostButton = page.locator("a[href='/admin/posts/new']");
+    const newPostButton = page.locator("a[href='/admin/posts/new']").filter({ visible: true });
     await expect(newPostButton).toBeVisible();
     await expect(newPostButton).toHaveText("新增文章");
   });
 
   test("文章列表顯示文章資訊", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts");
     
     // 檢查是否有表格或文章列表
-    const hasTable = await page.locator("table").isVisible().catch(() => false);
-    const hasSearchInput = await page.locator("input[type='search']").isVisible();
+    const hasTable = await page.locator("table").first().isVisible().catch(() => false);
+    const hasSearchInput = await page.locator("input[type='search']").first().isVisible();
     
     // 至少要有搜尋框（表示頁面正確載入）
     expect(hasSearchInput).toBeTruthy();
@@ -42,7 +33,7 @@ test.describe("文章管理列表", () => {
 
 test.describe("新增文章流程", () => {
   test("點擊新增文章進入編輯器", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts");
     
     // 點擊新增文章按鈕
@@ -60,7 +51,7 @@ test.describe("新增文章流程", () => {
   });
 
   test("填寫文章並儲存為草稿", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
     
     const testTitle = `E2E 測試文章 ${Date.now()}`;
@@ -116,35 +107,47 @@ test.describe("新增文章流程", () => {
 
 test.describe("編輯文章流程", () => {
   test("從列表進入編輯文章", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
+    const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const title = `E2E Edit Fixture ${runId}`;
+    const createResponse = await page.request.post("/api/posts", {
+      data: {
+        slug: `e2e-edit-fixture-${runId}`,
+        title,
+        excerpt: "E2E 編輯流程 fixture",
+        content: "<p>E2E 編輯流程 fixture 內容。</p>",
+        allowRawHtml: false,
+        status: "DRAFT",
+        categoryIds: [],
+        tagIds: [],
+      },
+    });
+    expect(createResponse.ok(), `建立編輯 fixture 失敗：${createResponse.status()}`).toBeTruthy();
+
     await page.goto("/admin/posts");
-    
-    // 找到第一篇文章的編輯連結（表格中的連結）
-    // 在文章列表中，文章標題本身就是連結到編輯頁
-    const editLink = page.locator("table a[href^='/admin/posts/']").first();
-    
-    const isEditLinkVisible = await editLink.isVisible({ timeout: 5000 }).catch(() => false);
-    
-    if (isEditLinkVisible) {
-      await editLink.click();
-      
-      // 驗證進入編輯頁面
-      await page.waitForURL("**/posts/**");
-      
-      // 驗證標題顯示「編輯文章」
-      await expect(page.locator("h1:has-text('編輯文章')")).toBeVisible();
-      
-      // 驗證編輯器載入
-      await expect(page.locator("#post-title")).toBeVisible();
-    } else {
-      test.skip();
-    }
+
+    const searchInput = page.locator("input[type='search']").first();
+    await expect(searchInput).toBeVisible();
+    await searchInput.fill(title);
+
+    const fixtureRow = page.locator("tbody tr", { hasText: title }).first();
+    await expect(fixtureRow).toBeVisible();
+    await fixtureRow.getByRole("button", { name: "編輯" }).click();
+
+    // 驗證進入編輯頁面
+    await page.waitForURL("**/posts/**");
+
+    // 驗證標題顯示「編輯文章」
+    await expect(page.locator("h1:has-text('編輯文章')")).toBeVisible();
+
+    // 驗證編輯器載入
+    await expect(page.locator("#post-title")).toBeVisible();
   });
 });
 
 test.describe("媒體管理", () => {
   test("媒體頁面可正常載入", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/media");
     
     // 驗證頁面載入
@@ -156,9 +159,9 @@ test.describe("圖片上傳功能", () => {
   test.skip("在編輯器中可以上傳圖片", async ({ page }) => {
     // 這個測試需要真實的圖片檔案，暫時跳過
     // 可以在實際環境中手動測試或使用真實圖片檔案
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
-    
+
     // TODO: 實作圖片上傳測試
   });
 });

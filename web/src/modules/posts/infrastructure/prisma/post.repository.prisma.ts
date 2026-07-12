@@ -1,7 +1,49 @@
 import { PostStatus } from "@prisma/client";
 import type { PostRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
+import { publishTimeReached } from "@/lib/prisma/public-post-visibility";
 import { mapPostStatusFromPrisma, mapPostStatusToPrisma } from "./mappers";
+
+// updateWithVersion 內用來觸發 transaction rollback 並回報結果的哨兵錯誤。
+class VersionConflictError extends Error {}
+class PostNotFoundError extends Error {}
+
+/** 文章更新的純量欄位映射（不含 categories/tags 關聯——updateMany 不支援 nested relation 寫入）。 */
+function toScalarUpdateData(data: {
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  coverImage?: string | null;
+  readingTime?: string | null;
+  featured?: boolean;
+  allowRawHtml?: boolean;
+  showRawHtmlToc?: boolean;
+  status: PostStatus;
+  publishedAt?: Date | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  ogImage?: string | null;
+  authorId?: string | null;
+}) {
+  return {
+    slug: data.slug,
+    title: data.title,
+    excerpt: data.excerpt,
+    content: data.content,
+    coverImage: data.coverImage,
+    readingTime: data.readingTime,
+    featured: data.featured ?? false,
+    allowRawHtml: data.allowRawHtml ?? false,
+    showRawHtmlToc: data.showRawHtmlToc ?? false,
+    status: mapPostStatusToPrisma(data.status),
+    publishedAt: data.publishedAt,
+    seoTitle: data.seoTitle ?? null,
+    seoDescription: data.seoDescription ?? null,
+    ogImage: data.ogImage ?? null,
+    authorId: data.authorId ?? undefined,
+  };
+}
 
 /**
  * 公開文章列表查詢的最大筆數上限，避免呼叫端未指定或誤傳過大 take 造成無界查詢。
@@ -23,6 +65,7 @@ const postListItemSelect = {
   readingTime: true,
   featured: true,
   allowRawHtml: true,
+  showRawHtmlToc: true,
   status: true,
   publishedAt: true,
   seoTitle: true,
@@ -67,6 +110,7 @@ export const postRepositoryPrisma: PostRepository = {
         status: PostStatus.PUBLISHED,
         featured: params?.featured ?? undefined,
         deletedAt: null,
+        ...publishTimeReached(new Date()),
         categories: params?.categorySlug ? { some: { slug: params.categorySlug } } : undefined,
         tags: params?.tag
           ? {
@@ -77,7 +121,7 @@ export const postRepositoryPrisma: PostRepository = {
           : undefined,
       },
       select: postListItemSelect,
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: { sort: "desc", nulls: "last" } },
       take: Math.max(1, Math.min(params?.take ?? MAX_LIST_TAKE, MAX_LIST_TAKE)),
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
@@ -90,6 +134,7 @@ export const postRepositoryPrisma: PostRepository = {
     const where = {
       status: PostStatus.PUBLISHED,
       deletedAt: null,
+      ...publishTimeReached(new Date()),
       categories: categorySlug ? { some: { slug: categorySlug } } : undefined,
       tags: tag
         ? {
@@ -104,7 +149,7 @@ export const postRepositoryPrisma: PostRepository = {
       prisma.post.findMany({
         where,
         select: postListItemSelect,
-        orderBy: { publishedAt: "desc" },
+        orderBy: { publishedAt: { sort: "desc", nulls: "last" } },
         skip,
         take: pageSize,
       }),
@@ -131,13 +176,18 @@ export const postRepositoryPrisma: PostRepository = {
       where: {
         status: PostStatus.PUBLISHED,
         deletedAt: null,
-        OR: [
-          { title: { contains: trimmed, mode: "insensitive" } },
-          { excerpt: { contains: trimmed, mode: "insensitive" } },
+        AND: [
+          publishTimeReached(new Date()),
+          {
+            OR: [
+              { title: { contains: trimmed, mode: "insensitive" } },
+              { excerpt: { contains: trimmed, mode: "insensitive" } },
+            ],
+          },
         ],
       },
       select: postListItemSelect,
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: { sort: "desc", nulls: "last" } },
       take,
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
@@ -152,16 +202,18 @@ export const postRepositoryPrisma: PostRepository = {
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },
   async countPublished() {
-    return prisma.post.count({ where: { status: PostStatus.PUBLISHED, deletedAt: null } });
+    return prisma.post.count({
+      where: { status: PostStatus.PUBLISHED, deletedAt: null, ...publishTimeReached(new Date()) },
+    });
   },
   async countActive() {
     return prisma.post.count({ where: { deletedAt: null } });
   },
   async listPublishedForSitemap() {
     return prisma.post.findMany({
-      where: { status: PostStatus.PUBLISHED, deletedAt: null },
+      where: { status: PostStatus.PUBLISHED, deletedAt: null, ...publishTimeReached(new Date()) },
       select: { slug: true, updatedAt: true, publishedAt: true },
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: { sort: "desc", nulls: "last" } },
     });
   },
   async getBySlug(slug) {
@@ -200,10 +252,13 @@ export const postRepositoryPrisma: PostRepository = {
         status: PostStatus.PUBLISHED,
         deletedAt: null,
         slug: { not: params.excludeSlug },
-        OR: relatedOr.length ? relatedOr : undefined,
+        AND: [
+          publishTimeReached(new Date()),
+          ...(relatedOr.length ? [{ OR: relatedOr }] : []),
+        ],
       },
       select: postListItemSelect,
-      orderBy: { publishedAt: "desc" },
+      orderBy: { publishedAt: { sort: "desc", nulls: "last" } },
       take: params.take,
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
@@ -219,6 +274,7 @@ export const postRepositoryPrisma: PostRepository = {
         readingTime: data.readingTime,
         featured: data.featured ?? false,
         allowRawHtml: data.allowRawHtml ?? false,
+        showRawHtmlToc: data.showRawHtmlToc ?? false,
         status: mapPostStatusToPrisma(data.status),
         publishedAt: data.publishedAt,
         seoTitle: data.seoTitle ?? null,
@@ -235,25 +291,65 @@ export const postRepositoryPrisma: PostRepository = {
     return prisma.post.update({
       where: { id },
       data: {
-        slug: data.slug,
-        title: data.title,
-        excerpt: data.excerpt,
-        content: data.content,
-        coverImage: data.coverImage,
-        readingTime: data.readingTime,
-        featured: data.featured ?? false,
-        allowRawHtml: data.allowRawHtml ?? false,
-        status: mapPostStatusToPrisma(data.status),
-        publishedAt: data.publishedAt,
-        seoTitle: data.seoTitle ?? null,
-        seoDescription: data.seoDescription ?? null,
-        ogImage: data.ogImage ?? null,
-        authorId: data.authorId ?? undefined,
+        ...toScalarUpdateData(data),
         categories: data.categoryIds ? { set: data.categoryIds.map((cid) => ({ id: cid })) } : undefined,
         tags: data.tagIds ? { set: data.tagIds.map((tid) => ({ id: tid })) } : undefined,
       },
       select: { id: true },
     });
+  },
+  async updateWithVersion({ id, expectedUpdatedAt, version, update }) {
+    try {
+      let nextUpdatedAt: Date | null = null;
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.post.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
+        if (!existing) throw new PostNotFoundError();
+
+        // 1) 先在同一 transaction 內快照當前版本
+        await tx.postVersion.create({
+          data: {
+            postId: id,
+            title: version.title,
+            excerpt: version.excerpt,
+            content: version.content,
+            allowRawHtml: version.allowRawHtml ?? false,
+            showRawHtmlToc: version.showRawHtmlToc ?? false,
+            editorId: version.editorId ?? null,
+          },
+        });
+
+        // 2) 樂觀鎖更新純量欄位：僅當 updatedAt 未變更時才寫入；count === 0 表示他人已更新
+        const result = await tx.post.updateMany({
+          where: { id, updatedAt: expectedUpdatedAt, deletedAt: null },
+          data: toScalarUpdateData(update),
+        });
+        if (result.count === 0) throw new VersionConflictError();
+
+        // 3) 關聯欄位（updateMany 不支援），在樂觀鎖確認後於同一 transaction 內寫入
+        if (update.categoryIds) {
+          await tx.post.update({
+            where: { id },
+            data: { categories: { set: update.categoryIds.map((cid) => ({ id: cid })) } },
+            select: { id: true },
+          });
+        }
+        if (update.tagIds) {
+          await tx.post.update({
+            where: { id },
+            data: { tags: { set: update.tagIds.map((tid) => ({ id: tid })) } },
+            select: { id: true },
+          });
+        }
+
+        const row = await tx.post.findUnique({ where: { id }, select: { updatedAt: true } });
+        nextUpdatedAt = row?.updatedAt ?? null;
+      });
+      return { ok: true as const, id, updatedAt: nextUpdatedAt ?? new Date() };
+    } catch (error) {
+      if (error instanceof VersionConflictError) return { ok: false as const, reason: "conflict" as const };
+      if (error instanceof PostNotFoundError) return { ok: false as const, reason: "not-found" as const };
+      throw error;
+    }
   },
   async softDelete(id) {
     return prisma.post.update({ where: { id }, data: { deletedAt: new Date() }, select: { id: true } });
@@ -312,6 +408,8 @@ export const postRepositoryPrisma: PostRepository = {
       coverImage: p.coverImage,
       readingTime: p.readingTime,
       featured: p.featured,
+      allowRawHtml: p.allowRawHtml,
+      showRawHtmlToc: p.showRawHtmlToc,
       status: mapPostStatusFromPrisma(p.status),
       publishedAt: p.publishedAt,
       seoTitle: p.seoTitle,

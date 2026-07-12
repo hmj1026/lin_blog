@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminPostForm } from "@/components/admin/post-form";
 
@@ -139,6 +139,33 @@ describe("AdminPostForm", () => {
     }));
   });
 
+  it("defaults showRawHtmlToc to false in the create submit payload", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(
+      <AdminPostForm
+        mode="create"
+        initial={mockInitial}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+
+    await userEvent.type(screen.getByLabelText("標題"), "My Title");
+    await userEvent.type(screen.getByLabelText("摘要"), "My Excerpt");
+    await userEvent.type(screen.getByTestId("tiptap-editor"), "<p>Content</p>");
+
+    const saveButton = screen.getByRole("button", { name: "儲存" });
+    await userEvent.click(saveButton);
+
+    const call = fetchMock.mock.calls[0];
+    const body = JSON.parse(call?.[1]?.body as string);
+    expect(body.showRawHtmlToc).toBe(false);
+  });
+
   it("submits edit form", async () => {
      fetchMock.mockResolvedValue({
       ok: true,
@@ -173,6 +200,38 @@ describe("AdminPostForm", () => {
     }));
   });
 
+  it("reflects a loaded showRawHtmlToc=true value in the edit submit payload", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    const editInitial = {
+      ...mockInitial,
+      title: "Old Title",
+      slug: "old",
+      content: "Old",
+      excerpt: "Old",
+      showRawHtmlToc: true,
+    };
+
+    render(
+      <AdminPostForm
+        mode="edit"
+        postId="123"
+        initial={editInitial as any}
+        categories={mockCategories as any}
+        tags={mockTags as any}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "儲存" }));
+
+    const call = fetchMock.mock.calls[0];
+    const body = JSON.parse(call?.[1]?.body as string);
+    expect(body.showRawHtmlToc).toBe(true);
+  });
+
   it("toggles to a raw HTML textarea and shows the risk warning", async () => {
     render(
       <AdminPostForm
@@ -186,8 +245,8 @@ describe("AdminPostForm", () => {
     expect(screen.getByTestId("tiptap-editor")).toBeInTheDocument();
     expect(screen.queryByTestId("raw-html-editor")).not.toBeInTheDocument();
 
-    // 開啟原始 HTML 模式
-    await userEvent.click(screen.getByLabelText("原始 HTML 模式"));
+    // 開啟原始 HTML 模式（透過互斥的模式選擇器）
+    await userEvent.click(screen.getByRole("radio", { name: "原始 HTML" }));
 
     expect(screen.getByTestId("raw-html-editor")).toBeInTheDocument();
     expect(screen.queryByTestId("tiptap-editor")).not.toBeInTheDocument();
@@ -284,5 +343,561 @@ describe("AdminPostForm", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     confirmSpy.mockRestore();
+  });
+
+  describe("dirty-form preview flow", () => {
+    function renderEditForm() {
+      const editInitial = {
+        ...mockInitial,
+        title: "Old Title",
+        slug: "old",
+        content: "Old",
+        excerpt: "Old",
+      };
+      return render(
+        <AdminPostForm
+          mode="edit"
+          postId="123"
+          initial={editInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+    }
+
+    it("opens the preview modal directly when the form is clean", async () => {
+      renderEditForm();
+
+      await userEvent.click(screen.getByRole("button", { name: "預覽" }));
+
+      expect(screen.getByTestId("preview-modal")).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("shows a save-first prompt instead of the preview modal when the form is dirty", async () => {
+      renderEditForm();
+
+      const titleInput = screen.getByLabelText("標題");
+      await userEvent.type(titleInput, " Edited");
+
+      await userEvent.click(screen.getByRole("button", { name: "預覽" }));
+
+      expect(screen.queryByTestId("preview-modal")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "儲存並預覽" })
+      ).toBeInTheDocument();
+    });
+
+    it("saves then opens the preview modal on 儲存並預覽 success", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      renderEditForm();
+
+      const titleInput = screen.getByLabelText("標題");
+      await userEvent.type(titleInput, " Edited");
+
+      await userEvent.click(screen.getByRole("button", { name: "預覽" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "儲存並預覽" })
+      );
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/api/posts/123",
+          expect.objectContaining({ method: "PUT" })
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("preview-modal")).toBeInTheDocument();
+      });
+    });
+
+    it("keeps form content and shows the error without opening preview on 儲存並預覽 failure", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: async () => ({ success: false, message: "儲存失敗了" }),
+      });
+
+      renderEditForm();
+
+      const titleInput = screen.getByLabelText("標題");
+      await userEvent.type(titleInput, " Edited");
+
+      await userEvent.click(screen.getByRole("button", { name: "預覽" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "儲存並預覽" })
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("儲存失敗了")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId("preview-modal")).not.toBeInTheDocument();
+      expect(titleInput).toHaveValue("Old Title Edited");
+    });
+  });
+
+  describe("authoring mode selector (4.1)", () => {
+    it("renders mutually exclusive visual/raw options where selecting one deselects the other", async () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      const visualOption = screen.getByRole("radio", { name: "視覺編輯器" });
+      const rawOption = screen.getByRole("radio", { name: "原始 HTML" });
+
+      expect(visualOption).toBeChecked();
+      expect(rawOption).not.toBeChecked();
+
+      await userEvent.click(rawOption);
+
+      expect(rawOption).toBeChecked();
+      expect(visualOption).not.toBeChecked();
+    });
+
+    it("each mode option has a visible text label and a hit target at least 44px tall", () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      const visualLabel = screen.getByText("視覺編輯器").closest("label");
+      const rawLabel = screen.getByText("原始 HTML").closest("label");
+      expect(visualLabel?.className).toMatch(/min-h-\[44px\]/);
+      expect(rawLabel?.className).toMatch(/min-h-\[44px\]/);
+    });
+
+    it("both mode options are keyboard-focusable and arrow-key navigable within the radiogroup", async () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      const visualOption = screen.getByRole("radio", { name: "視覺編輯器" });
+      const rawOption = screen.getByRole("radio", { name: "原始 HTML" });
+
+      visualOption.focus();
+      expect(document.activeElement).toBe(visualOption);
+
+      await userEvent.keyboard("{ArrowRight}");
+      expect(document.activeElement).toBe(rawOption);
+      expect(rawOption).toBeChecked();
+    });
+  });
+
+  describe("raw HTML TOC control (4.4/4.5)", () => {
+    it("hides the TOC control in visual mode and defaults it off for a new post", async () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      expect(screen.queryByLabelText("顯示系統自動目錄")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("radio", { name: "原始 HTML" }));
+
+      expect(screen.getByLabelText("顯示系統自動目錄")).not.toBeChecked();
+    });
+
+    it("shows a description mentioning the author can provide their own TOC", async () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      await userEvent.click(screen.getByRole("radio", { name: "原始 HTML" }));
+
+      expect(screen.getByText(/自行.*目錄/)).toBeInTheDocument();
+    });
+
+    it("shows the TOC control checked in edit mode when initial.showRawHtmlToc is true and submits it", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      const editInitial = {
+        ...mockInitial,
+        title: "Old Title",
+        slug: "old",
+        content: "Old",
+        excerpt: "Old",
+        allowRawHtml: true,
+        showRawHtmlToc: true,
+      };
+
+      render(
+        <AdminPostForm
+          mode="edit"
+          postId="123"
+          initial={editInitial as any}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      const tocCheckbox = screen.getByLabelText("顯示系統自動目錄");
+      expect(tocCheckbox).toBeChecked();
+
+      await userEvent.click(screen.getByRole("button", { name: "儲存" }));
+
+      const call = fetchMock.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      expect(body.showRawHtmlToc).toBe(true);
+    });
+
+    it("toggling the TOC control in raw mode changes the submit payload", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      const editInitial = {
+        ...mockInitial,
+        title: "Old Title",
+        slug: "old",
+        content: "Old",
+        excerpt: "Old",
+        allowRawHtml: true,
+        showRawHtmlToc: false,
+      };
+
+      render(
+        <AdminPostForm
+          mode="edit"
+          postId="123"
+          initial={editInitial as any}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      const tocCheckbox = screen.getByLabelText("顯示系統自動目錄");
+      expect(tocCheckbox).not.toBeChecked();
+
+      await userEvent.click(tocCheckbox);
+      expect(tocCheckbox).toBeChecked();
+
+      await userEvent.click(screen.getByRole("button", { name: "儲存" }));
+
+      const call = fetchMock.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+      expect(body.showRawHtmlToc).toBe(true);
+    });
+  });
+
+  describe("lossy mode-switch confirmation (4.2)", () => {
+    it("switching visual -> raw with rich HTML content does not warn and switches immediately", async () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      await userEvent.type(
+        screen.getByTestId("tiptap-editor"),
+        '<div style="color:red">x</div>'
+      );
+
+      await userEvent.click(screen.getByRole("radio", { name: "原始 HTML" }));
+
+      expect(screen.queryByTestId("mode-switch-warning")).not.toBeInTheDocument();
+      expect(screen.getByTestId("raw-html-editor")).toHaveValue(
+        '<div style="color:red">x</div>'
+      );
+    });
+
+    it("switching raw -> visual with block/inline-style content shows a pre-switch warning and does not switch yet", async () => {
+      const editInitial = {
+        ...mockInitial,
+        content: '<div style="color:red">x</div>',
+        allowRawHtml: true,
+      };
+
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={editInitial as any}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      expect(screen.getByTestId("raw-html-editor")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("radio", { name: "視覺編輯器" }));
+
+      expect(screen.getByTestId("mode-switch-warning")).toBeInTheDocument();
+      // 尚未切換：raw editor 仍在畫面上，內容未被 sanitize
+      expect(screen.getByTestId("raw-html-editor")).toHaveValue(
+        '<div style="color:red">x</div>'
+      );
+      expect(screen.getByRole("radio", { name: "原始 HTML" })).toBeChecked();
+    });
+
+    it("cancelling the pre-switch warning leaves mode and content unchanged", async () => {
+      const editInitial = {
+        ...mockInitial,
+        content: '<div style="color:red">x</div>',
+        allowRawHtml: true,
+      };
+
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={editInitial as any}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      await userEvent.click(screen.getByRole("radio", { name: "視覺編輯器" }));
+      expect(screen.getByTestId("mode-switch-warning")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "取消" }));
+
+      expect(screen.queryByTestId("mode-switch-warning")).not.toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "原始 HTML" })).toBeChecked();
+      expect(screen.getByTestId("raw-html-editor")).toHaveValue(
+        '<div style="color:red">x</div>'
+      );
+    });
+
+    it("confirming the pre-switch warning switches modes without sanitizing the content itself", async () => {
+      const editInitial = {
+        ...mockInitial,
+        content: '<div style="color:red">x</div>',
+        allowRawHtml: true,
+      };
+
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={editInitial as any}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      await userEvent.click(screen.getByRole("radio", { name: "視覺編輯器" }));
+      await userEvent.click(screen.getByRole("button", { name: "確認切換" }));
+
+      expect(screen.queryByTestId("mode-switch-warning")).not.toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: "視覺編輯器" })).toBeChecked();
+      // 切換本身不呼叫任何伺服器 sanitizer；raw 內容原樣進入視覺編輯器 state
+      expect(screen.getByTestId("tiptap-editor")).toHaveValue(
+        '<div style="color:red">x</div>'
+      );
+    });
+
+    it("restores each mode's unsaved draft when switching back and forth within the same session", async () => {
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      // 視覺模式輸入純文字內容（不觸發 lossy 警告）
+      await userEvent.type(screen.getByTestId("tiptap-editor"), "<p>hello</p>");
+
+      // 切到原始 HTML 模式（非破壞性），編輯 raw 草稿
+      await userEvent.click(screen.getByRole("radio", { name: "原始 HTML" }));
+      const rawEditor = screen.getByTestId("raw-html-editor");
+      await userEvent.clear(rawEditor);
+      await userEvent.type(rawEditor, "<p>raw draft</p>");
+
+      // 切回視覺模式：應恢復先前的視覺草稿，而不是遺失
+      await userEvent.click(screen.getByRole("radio", { name: "視覺編輯器" }));
+      expect(screen.getByTestId("tiptap-editor")).toHaveValue("<p>hello</p>");
+
+      // 再切回原始 HTML 模式：應恢復剛才編輯的 raw 草稿
+      await userEvent.click(screen.getByRole("radio", { name: "原始 HTML" }));
+      expect(screen.getByTestId("raw-html-editor")).toHaveValue("<p>raw draft</p>");
+    });
+  });
+
+  describe("sticky action bar / IA regions (4.6)", () => {
+    function renderEditForm(overrides: Partial<typeof mockInitial> = {}) {
+      const editInitial = {
+        ...mockInitial,
+        title: "Old Title",
+        slug: "old",
+        content: "Old",
+        excerpt: "Old",
+        ...overrides,
+      };
+      return render(
+        <AdminPostForm
+          mode="edit"
+          postId="123"
+          initial={editInitial as any}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+    }
+
+    it("renders a sticky action bar region containing the back link, status area, and preview/save controls", () => {
+      renderEditForm();
+
+      const actionBar = screen.getByTestId("post-form-action-bar");
+      expect(actionBar).toBeInTheDocument();
+
+      expect(
+        within(actionBar).getByRole("link", { name: "返回列表" })
+      ).toBeInTheDocument();
+      expect(
+        within(actionBar).getByTestId("post-form-status")
+      ).toBeInTheDocument();
+      expect(
+        within(actionBar).getByRole("button", { name: "預覽" })
+      ).toBeInTheDocument();
+      expect(
+        within(actionBar).getByRole("button", { name: "儲存" })
+      ).toBeInTheDocument();
+    });
+
+    it("renders the main authoring region containing title, excerpt, mode selector, and the content editor", () => {
+      renderEditForm();
+
+      const mainRegion = screen.getByTestId("post-form-main");
+      expect(mainRegion).toBeInTheDocument();
+
+      expect(within(mainRegion).getByLabelText("標題")).toBeInTheDocument();
+      expect(within(mainRegion).getByLabelText("摘要")).toBeInTheDocument();
+      expect(
+        within(mainRegion).getByRole("radiogroup", { name: "編輯模式" })
+      ).toBeInTheDocument();
+      expect(within(mainRegion).getByTestId("tiptap-editor")).toBeInTheDocument();
+    });
+
+    it("renders the settings region containing status, publish time, categories, tags, cover, featured, reading time, and SEO fields", () => {
+      renderEditForm();
+
+      const settingsRegion = screen.getByTestId("post-form-settings");
+      expect(settingsRegion).toBeInTheDocument();
+
+      expect(within(settingsRegion).getByText("狀態")).toBeInTheDocument();
+      expect(
+        within(settingsRegion).getByLabelText("發佈時間（可空）")
+      ).toBeInTheDocument();
+      expect(within(settingsRegion).getByText("分類（可多選）")).toBeInTheDocument();
+      expect(within(settingsRegion).getByText("標籤（可多選）")).toBeInTheDocument();
+      expect(
+        within(settingsRegion).getByLabelText("閱讀時間（可空）")
+      ).toBeInTheDocument();
+      expect(
+        within(settingsRegion).getByText("精選文章（首頁 Featured）")
+      ).toBeInTheDocument();
+      expect(within(settingsRegion).getByLabelText("SEO 標題")).toBeInTheDocument();
+      expect(within(settingsRegion).getByLabelText("SEO 描述")).toBeInTheDocument();
+      expect(within(settingsRegion).getByLabelText("OG 圖片")).toBeInTheDocument();
+    });
+
+    it("orders the regions in the DOM as action bar, then main authoring, then settings", () => {
+      renderEditForm();
+
+      const actionBar = screen.getByTestId("post-form-action-bar");
+      const mainRegion = screen.getByTestId("post-form-main");
+      const settingsRegion = screen.getByTestId("post-form-settings");
+
+      expect(
+        actionBar.compareDocumentPosition(mainRegion) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+      expect(
+        mainRegion.compareDocumentPosition(settingsRegion) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy();
+    });
+
+    it("shows the save error message inside the action bar status area on save failure", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        json: async () => ({ success: false, message: "儲存失敗了" }),
+      });
+
+      renderEditForm();
+
+      await userEvent.click(screen.getByRole("button", { name: "儲存" }));
+
+      await waitFor(() => {
+        expect(
+          within(screen.getByTestId("post-form-action-bar")).getByTestId(
+            "post-form-status"
+          )
+        ).toHaveTextContent("儲存失敗了");
+      });
+    });
+
+    it("keeps editing title, excerpt, categories, tags, and SEO fields all reflected in the submit payload after the layout split", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      });
+
+      render(
+        <AdminPostForm
+          mode="create"
+          initial={mockInitial}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+
+      await userEvent.type(screen.getByLabelText("標題"), "Split Title");
+      await userEvent.type(screen.getByLabelText("摘要"), "Split Excerpt");
+      await userEvent.type(screen.getByTestId("tiptap-editor"), "<p>Content</p>");
+      await userEvent.click(screen.getByLabelText("Tech"));
+      await userEvent.click(screen.getByLabelText("React"));
+      await userEvent.type(screen.getByLabelText("SEO 標題"), "Split SEO Title");
+      await userEvent.type(screen.getByLabelText("SEO 描述"), "Split SEO Desc");
+      await userEvent.type(screen.getByLabelText("OG 圖片"), "og.jpg");
+
+      await userEvent.click(screen.getByRole("button", { name: "儲存" }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const call = fetchMock.mock.calls[0];
+      const body = JSON.parse(call?.[1]?.body as string);
+
+      expect(body.title).toBe("Split Title");
+      expect(body.excerpt).toBe("Split Excerpt");
+      expect(body.categoryIds).toEqual(["cat1"]);
+      expect(body.tagIds).toEqual(["tag1"]);
+      expect(body.seoTitle).toBe("Split SEO Title");
+      expect(body.seoDescription).toBe("Split SEO Desc");
+      expect(body.ogImage).toBe("og.jpg");
+    });
   });
 });

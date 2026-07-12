@@ -137,6 +137,8 @@ describe("Posts Batch/Export API", () => {
         coverImage: null,
         readingTime: "5 min",
         featured: false,
+        allowRawHtml: true,
+        showRawHtmlToc: true,
         status: "PUBLISHED",
         publishedAt: new Date("2024-01-01"),
         seoTitle: null,
@@ -171,7 +173,19 @@ describe("Posts Batch/Export API", () => {
       expect(res.headers.get("Content-Disposition")).toContain("attachment");
     });
 
-    it("should export posts as Markdown", async () => {
+    it("should include both allowRawHtml and showRawHtmlToc in the JSON export", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (postsQueries.exportPosts as any).mockResolvedValue(mockPosts);
+
+      const req = new NextRequest("http://localhost/api/posts/export?format=json");
+      const res = await GET(req);
+      const json = await res.json();
+
+      expect(json[0].allowRawHtml).toBe(true);
+      expect(json[0].showRawHtmlToc).toBe(true);
+    });
+
+    it("should export posts as a Markdown ZIP", async () => {
       (requirePermission as any).mockResolvedValue(null);
       (postsQueries.exportPosts as any).mockResolvedValue(mockPosts);
 
@@ -179,7 +193,26 @@ describe("Posts Batch/Export API", () => {
       const res = await GET(req);
 
       expect(res.status).toBe(200);
-      expect(res.headers.get("Content-Type")).toBe("text/markdown");
+      expect(res.headers.get("Content-Type")).toBe("application/zip");
+      expect(res.headers.get("Content-Disposition")).toContain(".zip");
+    });
+
+    it("round-trips the Markdown ZIP back into posts preserving both raw flags", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (postsQueries.exportPosts as any).mockResolvedValue(mockPosts);
+
+      const req = new NextRequest("http://localhost/api/posts/export?format=markdown");
+      const res = await GET(req);
+      const buffer = await res.arrayBuffer();
+
+      const { unpackZip } = await import("@/lib/posts/markdown-archive");
+      const posts = await unpackZip(buffer);
+
+      expect(posts).toHaveLength(1);
+      expect(posts[0].slug).toBe("test-post");
+      expect(posts[0].allowRawHtml).toBe(true);
+      expect(posts[0].showRawHtmlToc).toBe(true);
+      expect(posts[0].content).toBe("<p>Content</p>");
     });
 
     it("should export specific posts by IDs", async () => {

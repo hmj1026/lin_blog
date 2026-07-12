@@ -4,12 +4,15 @@ import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Logo } from "@/components/logo";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // hydration gate：掛載完成前禁用送出，避免 onSubmit 尚未掛上時觸發原生表單送出
+  const mounted = useHydrated();
 
   const from = searchParams.get("from") ?? "/admin";
 
@@ -70,7 +73,7 @@ function LoginForm() {
       {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !mounted}
         className="w-full rounded-full bg-brand px-4 py-3 text-sm font-semibold text-white shadow-card transition hover:-translate-y-0.5 hover:bg-brand/90 disabled:opacity-60"
       >
         {loading ? "登入中..." : "登入"}

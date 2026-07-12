@@ -13,7 +13,7 @@
             ],
             "patterns": [
               { "group": ["@/modules/*/infrastructure", "@/modules/*/infrastructure/**"], "message": "UI layer MUST NOT import a module's infrastructure; use the read facade (server-queries) or the module's *UseCases singleton" },
-              { "group": ["@/modules/*/domain", "@/modules/*/domain/**"], "message": "UI layer MUST NOT import a module's domain; use the read facade (server-queries), the *UseCases singleton, or the module's public index barrel" }
+              { "group": ["@/modules/*/domain", "@/modules/*/domain/**"], "message": "UI layer MUST NOT import a module's domain; use the read facade (server-queries), the *UseCases singleton, the module's public index barrel, or its client-safe client.ts barrel (pure domain re-exports only)" }
             ]
           }
         ]
@@ -31,7 +31,7 @@
             ],
             "patterns": [
               { "group": ["@/modules/*/infrastructure", "@/modules/*/infrastructure/**"], "message": "App Router adapter MUST NOT import a module's infrastructure; use the read facade (server-queries) or the module's *UseCases singleton" },
-              { "group": ["@/modules/*/domain", "@/modules/*/domain/**"], "message": "App Router adapter MUST NOT import a module's domain; use the read facade (server-queries), the *UseCases singleton, or the module's public index barrel" }
+              { "group": ["@/modules/*/domain", "@/modules/*/domain/**"], "message": "App Router adapter MUST NOT import a module's domain; use the read facade (server-queries), the *UseCases singleton, the module's public index barrel, or its client-safe client.ts barrel (pure domain re-exports only)" }
             ]
           }
         ]

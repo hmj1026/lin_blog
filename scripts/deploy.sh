@@ -7,19 +7,24 @@
 #
 # 主機僅安裝 docker-compose v1（1.29.x），故一律使用 `docker-compose`（連字號）。
 # 用法：
-#   ./deploy.sh                # 部署 latest
-#   BLOG_IMAGE_TAG=sha-abc123 ./deploy.sh   # 部署 / 回滾指定版本
+#   BLOG_IMAGE_TAG=v1.4.0 ./deploy.sh       # 部署版本 image
+#   BLOG_IMAGE_TAG=f08e7b7 ./deploy.sh      # 部署 / 回滾指定 commit image
 # ===================================================
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/var/www/products/lin_blog}"
 IMAGE="ghcr.io/hmj1026/lin_blog"
-TAG="${BLOG_IMAGE_TAG:-latest}"
+TAG="${BLOG_IMAGE_TAG:?BLOG_IMAGE_TAG must be set to an immutable version or SHA tag}"
 HEALTH_URL="${HEALTH_URL:-http://localhost:3100}"
 
-echo "🚀 開始部署 lin_blog"
-echo "📅 $(date '+%Y-%m-%d %H:%M:%S')"
-echo "📦 image: ${IMAGE}:${TAG}"
+if [[ ! "$TAG" =~ ^(v?[0-9]+\.[0-9]+\.[0-9]+|sha-[0-9a-f]{7,40}|[0-9a-f]{7,40})$ ]]; then
+  echo "BLOG_IMAGE_TAG must be a semantic version or commit SHA: ${TAG}" >&2
+  exit 1
+fi
+
+echo "開始部署 lin_blog"
+echo "$(date '+%Y-%m-%d %H:%M:%S')"
+echo "image: ${IMAGE}:${TAG}"
 
 cd "$PROJECT_DIR"
 
@@ -31,17 +36,41 @@ export BLOG_IMAGE_TAG="$TAG"
 docker-compose down
 docker-compose up -d --remove-orphans
 
-# 3. 等待容器啟動
-sleep 5
+# 3. 等待 PostgreSQL readiness（不使用固定 sleep 取代檢查）
+for attempt in {1..30}; do
+  if docker-compose exec -T postgres pg_isready -q; then
+    break
+  fi
+  if [[ "$attempt" -eq 30 ]]; then
+    echo "PostgreSQL readiness check failed" >&2
+    docker-compose logs --tail 50 postgres || true
+    exit 1
+  fi
+  sleep 2
+done
 
 # 4. 執行資料庫遷移（如有 schema 變更）
 docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
 
-# 5. 健康檢查
+# 5. 等待應用程式 healthcheck
+for attempt in {1..30}; do
+  status="$(docker inspect --format '{{.State.Health.Status}}' blog_app 2>/dev/null || true)"
+  if [[ "$status" == "healthy" ]]; then
+    break
+  fi
+  if [[ "$status" == "unhealthy" || "$attempt" -eq 30 ]]; then
+    echo "Application healthcheck failed (status: ${status:-unknown})" >&2
+    docker logs --tail 50 blog_app || true
+    exit 1
+  fi
+  sleep 2
+done
+
+# 6. 外部 endpoint 健康檢查
 if curl -sf "$HEALTH_URL" >/dev/null; then
-    echo "✅ 部署完成！（${IMAGE}:${TAG}）"
+    echo "部署完成（${IMAGE}:${TAG}）"
 else
-    echo "❌ 健康檢查失敗（${HEALTH_URL}），輸出最近日誌："
+    echo "健康檢查失敗（${HEALTH_URL}），輸出最近日誌：" >&2
     docker logs --tail 50 blog_app || true
     exit 1
 fi

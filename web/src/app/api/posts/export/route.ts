@@ -1,6 +1,7 @@
 import { requirePermission } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 import { postsQueries } from "@/lib/server-queries";
+import { packZip, type ArchivePost } from "@/lib/posts/markdown-archive";
 
 /**
  * GET /api/posts/export - 匯出文章為 JSON
@@ -24,6 +25,8 @@ export async function GET(request: NextRequest) {
     coverImage: p.coverImage,
     readingTime: p.readingTime,
     featured: p.featured,
+    allowRawHtml: p.allowRawHtml,
+    showRawHtmlToc: p.showRawHtmlToc,
     status: p.status,
     publishedAt: p.publishedAt?.toISOString() || null,
     seoTitle: p.seoTitle,
@@ -44,29 +47,32 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Markdown 格式（簡化實作）
-  const markdown = exportData.map((p) => {
-    const frontmatter = [
-      "---",
-      `title: "${p.title}"`,
-      `slug: "${p.slug}"`,
-      `excerpt: "${p.excerpt}"`,
-      `status: "${p.status}"`,
-      `featured: ${p.featured}`,
-      p.publishedAt ? `publishedAt: "${p.publishedAt}"` : null,
-      p.categories.length ? `categories: [${p.categories.join(", ")}]` : null,
-      p.tags.length ? `tags: [${p.tags.join(", ")}]` : null,
-      "---",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    return `${frontmatter}\n\n${p.content}`;
-  }).join("\n\n---\n\n");
+  // Markdown 格式：每篇一個 .md（含 JSON frontmatter）打包成 ZIP，符合可再匯入的 round-trip 契約。
+  const archivePosts: ArchivePost[] = exportData.map((p) => ({
+    slug: p.slug,
+    title: p.title,
+    excerpt: p.excerpt,
+    content: p.content,
+    status: p.status,
+    featured: p.featured,
+    allowRawHtml: p.allowRawHtml,
+    showRawHtmlToc: p.showRawHtmlToc,
+    publishedAt: p.publishedAt,
+    coverImage: p.coverImage,
+    readingTime: p.readingTime,
+    seoTitle: p.seoTitle,
+    seoDescription: p.seoDescription,
+    ogImage: p.ogImage,
+    categories: p.categories,
+    tags: p.tags,
+  }));
 
-  return new Response(markdown, {
+  const zip = await packZip(archivePosts);
+
+  return new Response(zip, {
     headers: {
-      "Content-Type": "text/markdown",
-      "Content-Disposition": `attachment; filename="posts-export-${Date.now()}.md"`,
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="posts-export-${Date.now()}.zip"`,
     },
   });
 }

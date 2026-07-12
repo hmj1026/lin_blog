@@ -9,6 +9,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ImageCropperModal, cropImageToBlob } from "@/components/admin/image-cropper-modal";
+import { uploadImageBlob } from "@/lib/media/upload-image";
 import {
   Bold,
   Italic,
@@ -116,14 +117,8 @@ export function TiptapEditor({ value, onChange }: Props) {
     if (!editor) return;
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("file", new File([blob], fileName, { type: blob.type || "image/jpeg" }));
-      const res = await fetch("/api/uploads", { method: "POST", body: form });
-      const json = (await res.json()) as { success: boolean; data?: { src: string }; message?: string };
-      if (!res.ok || !json.success || !json.data?.src) {
-        throw new Error(json.message || "上傳失敗");
-      }
-      editor.chain().focus().setImage({ src: json.data.src, alt: fileName }).run();
+      const result = await uploadImageBlob(blob, fileName);
+      editor.chain().focus().setImage({ src: result.src, alt: fileName }).run();
     } finally {
       setUploading(false);
     }
@@ -161,7 +156,8 @@ export function TiptapEditor({ value, onChange }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1">
-        {/* HTML 模式切換 */}
+        {/* 視覺內容原始碼：僅檢視/編輯目前視覺內容的 HTML 原始碼，仍會在儲存時嚴格 sanitize；
+            並非文章層級的「原始 HTML 模式」（後者在文章表單的模式選擇器中設定）。 */}
         <Button
           type="button"
           size="sm"
@@ -176,8 +172,8 @@ export function TiptapEditor({ value, onChange }: Props) {
               setMode("html");
             }
           }}
-          aria-label="HTML"
-          title="HTML 模式"
+          aria-label="視覺內容原始碼"
+          title="視覺內容原始碼（仍會嚴格 sanitize，非文章層級原始 HTML 模式）"
           className="px-2"
         >
           <Code className="h-4 w-4" />
@@ -330,11 +326,17 @@ export function TiptapEditor({ value, onChange }: Props) {
         }}
       />
       {mode === "html" ? (
-        <textarea
-          className="min-h-[360px] w-full rounded-2xl border border-line bg-white p-6 text-sm text-primary shadow-card focus:outline-none font-mono"
-          value={htmlDraft}
-          onChange={(e) => setHtmlDraft(e.target.value)}
-        />
+        <div className="space-y-2">
+          <textarea
+            className="min-h-[360px] w-full rounded-2xl border border-line bg-white p-6 text-sm text-primary shadow-card focus:outline-none font-mono"
+            value={htmlDraft}
+            onChange={(e) => setHtmlDraft(e.target.value)}
+          />
+          <p className="text-xs text-base-300">
+            進階「視覺內容原始碼」檢視：僅供編輯目前視覺內容的 HTML，儲存時仍會嚴格 sanitize；
+            這不是文章層級的「原始 HTML 模式」。
+          </p>
+        </div>
       ) : (
         <EditorContent editor={editor} />
       )}
