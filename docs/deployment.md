@@ -112,12 +112,22 @@ BLOG_IMAGE_TAG=v1.4.0 /var/www/products/deploy.sh
 
 ### Newsletter 訂閱功能先決條件（v1.4.x+）
 
-訂閱表單採 reCAPTCHA fail-closed 設計：**生產環境未設定以下 env 時，首頁／文章頁的
+訂閱表單採 reCAPTCHA fail-closed 設計：**未設定以下變數時，首頁／文章頁的
 訂閱表單會呈「目前無法使用訂閱功能」的降級狀態**（此為 spec 既定行為，非故障）。
 
+> [!IMPORTANT]
+> `NEXT_PUBLIC_*` 變數是 **build-time 內嵌**進 client bundle 的：site key 必須設為
+> GitHub repo secret（`gh secret set NEXT_PUBLIC_RECAPTCHA_SITE_KEY`）才會進入
+> CI 建置的 image。**只設在伺服器 `.env` 再重啟容器對前端表單無效**
+> （v1.4.3 首頁訂閱表單不可用即此根因，詳見
+> `docs/knowledge/newsletter-recaptcha-unavailable/investigation.md`）。
+
 ```bash
-# .env（伺服器端，設定後需重啟容器）
-NEXT_PUBLIC_RECAPTCHA_SITE_KEY="<reCAPTCHA v2 site key>"   # 前端可見
+# GitHub repo secret（build-time，進 client bundle；設定後需重建 image）
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY="<reCAPTCHA v2 site key>"   # 前端可見（公開值）
+
+# .env（伺服器端執行期，設定後需重啟容器）
+# NEXT_PUBLIC_RECAPTCHA_SITE_KEY 建議同步保留於 .env（compose build fallback），詳見「Newsletter 訂閱與 reCAPTCHA v2 部署」步驟 2
 RECAPTCHA_SECRET_KEY="<reCAPTCHA v2 secret key>"           # 僅伺服器
 RECAPTCHA_ALLOWED_HOSTNAMES="nx.linstar.win"               # 必填，允許的 hostname 白名單（逗號分隔，缺少即 fail closed）
 ```
@@ -133,6 +143,19 @@ RECAPTCHA_ALLOWED_HOSTNAMES="nx.linstar.win"               # 必填，允許的 
 ---
 
 ## 🚀 完整部署步驟
+
+### 0. Release 前檢查：build-time secrets
+
+`NEXT_PUBLIC_*` 變數於 CI 建置時內嵌進 client bundle，缺失的 secret 會被靜默替換為
+空字串。release 前用 `gh secret list` 核對以下清單（`docker-build.yml` 僅檢查
+必要項：tag 建置缺少即 fail、main/dispatch 建置僅警告；選填項不檢查，缺少時
+靜默內嵌為空字串）：
+
+| Secret | 必要性 |
+|--------|--------|
+| `NEXT_PUBLIC_SITE_URL` | ✅ 必要 |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | ✅ 必要（缺少時訂閱表單整體降級不可用） |
+| `NEXT_PUBLIC_GA_ID` / `NEXT_PUBLIC_GTM_ID` / `NEXT_PUBLIC_FB_PIXEL_ID` | ❌ 選填（缺少時對應追蹤不啟用） |
 
 ### 1. 開發端：以 PR 合併到 main（不可直接 push）
 
@@ -464,7 +487,7 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 | `NEXT_PUBLIC_SITE_URL` | 前端網站 URL | ✅ |
 | `BLOG_PORT` | 對外 Port（預設 3100） | ❌ |
 | `NEXT_PUBLIC_GA_ID` | Google Analytics ID | ❌ |
-| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | Newsletter 訂閱表單 reCAPTCHA v2 site key | ❌ |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | Newsletter 訂閱表單 reCAPTCHA v2 site key（**build-time 內嵌，須設為 GitHub repo secret**，只設 `.env` 對前端無效） | ❌ |
 | `RECAPTCHA_SECRET_KEY` | reCAPTCHA v2 secret key（server-only，缺少時訂閱驗證 fail closed） | ❌ |
 | `RECAPTCHA_ALLOWED_HOSTNAMES` | reCAPTCHA 允許的 hostname 清單，逗號分隔 | ❌ |
 | `NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS` | Newsletter 訂閱限流視窗（秒，預設 600） | ❌ |
@@ -499,11 +522,18 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 
 ### 2. 環境變數設定
 
-複製環境變數至根目錄 `.env` 並重建/重啟容器：
+分兩處設定——**site key 走 GitHub secret（build-time），其餘走伺服器 `.env`（執行期）**：
 
 ```bash
-# reCAPTCHA v2 必要設定（含下方 hostname 清單共三個變數，缺一不可，否則驗證 fail closed）
-NEXT_PUBLIC_RECAPTCHA_SITE_KEY="your-recaptcha-v2-site-key"
+# (a) GitHub repo secret — build-time 內嵌進 client bundle，設定後需重建 image 才生效
+gh secret set NEXT_PUBLIC_RECAPTCHA_SITE_KEY --repo hmj1026/lin_blog
+```
+
+伺服器根目錄 `.env`（設定後重啟容器）：
+
+```bash
+# reCAPTCHA v2 必要設定（伺服器驗證用；與上方 site key 三者缺一不可，否則驗證 fail closed）
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY="your-recaptcha-v2-site-key"  # 供 compose build fallback 與 SSR 一致性，仍建議同步設定
 RECAPTCHA_SECRET_KEY="your-recaptcha-v2-secret-key"
 
 # 允許的 hostname 清單（逗號分隔；必須與 Google Admin Console 設定的網域相符，
