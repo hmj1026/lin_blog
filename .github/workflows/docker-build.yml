@@ -64,6 +64,25 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=
 
+      # NEXT_PUBLIC_* 為 build-time 內嵌：secret 缺失時 Actions 靜默解析為空字串，
+      # 問題直到 production UI 才顯現（v1.4.3 訂閱表單事故根因）。release tag 建置
+      # 缺必要 secret 即 fail；main/dispatch 建置僅警告，不阻擋開發流程。
+      - name: Validate build secrets
+        env:
+          RECAPTCHA_SITE_KEY: ${{ secrets.NEXT_PUBLIC_RECAPTCHA_SITE_KEY }}
+          SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+        run: |
+          missing=""
+          [ -z "$RECAPTCHA_SITE_KEY" ] && missing="$missing NEXT_PUBLIC_RECAPTCHA_SITE_KEY"
+          [ -z "$SITE_URL" ] && missing="$missing NEXT_PUBLIC_SITE_URL"
+          if [ -n "$missing" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+              echo "::error::Release build missing required secrets:$missing"
+              exit 1
+            fi
+            echo "::warning::Build secrets empty (will be inlined as empty strings):$missing"
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
