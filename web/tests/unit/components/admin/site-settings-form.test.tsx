@@ -114,6 +114,35 @@ describe("SiteSettingsForm", () => {
     });
   });
 
+  it("renders newsletter checkbox reflecting initial state", () => {
+    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+
+    const checkbox = screen.getByLabelText("顯示 Newsletter 訂閱區塊");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it("toggles newsletter checkbox and submits updated value", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    });
+
+    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+
+    const checkbox = screen.getByLabelText("顯示 Newsletter 訂閱區塊");
+    await userEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    const saveButton = screen.getByRole("button", { name: "儲存" });
+    await userEvent.click(saveButton);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/site-settings", expect.objectContaining({
+      method: "PUT",
+      body: expect.stringContaining('"showNewsletter":true'),
+    }));
+  });
+
   it("handles category updates", async () => {
     render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
     

@@ -184,7 +184,6 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 />
                 顯示「部落格」連結
               </label>
-              {/* TODO: Newsletter 功能暫緩實作
               <label className="flex items-center gap-3 text-sm text-primary">
                 <input
                   type="checkbox"
@@ -194,7 +193,6 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 />
                 顯示 Newsletter 訂閱區塊
               </label>
-              */}
               <label className="flex items-center gap-3 text-sm text-primary">
                 <input
                   type="checkbox"
