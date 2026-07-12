@@ -65,6 +65,12 @@ export default async function globalSetup(config: FullConfig) {
         await anonPage.goto(firstPostHref);
       }
       await anonPage.goto("/search?q=warmup");
+      // 暖機 notFound() 路徑：/blog/[slug] 對不存在（或草稿）slug 會渲染
+      // not-found boundary；dev server 首次冷編譯該 boundary 時，與其他請求
+      // 併發可能觸發 Next.js dev 的 InvariantError（Expected
+      // clientReferenceManifest to be defined）而回 500，導致
+      // isr-draft-preview.spec.ts C（預期 404）誤判。先在任何 spec 前壓實。
+      await anonPage.goto("/blog/warmup-not-found-fixture");
     } finally {
       await anonContext.close();
     }

@@ -111,6 +111,9 @@ test.describe("首頁 Header 搜尋欄", () => {
     await page.goto("/");
     const searchInput = page.locator("header form input[type='text']");
     await expect(searchInput).toBeVisible();
+    // SearchInput 為 controlled input，掛載前被 useHydrated gate 禁用；
+    // 等待 enabled 確保 hydration 完成、onChange 已附掛，fill 的值才會進 React state
+    await expect(searchInput).toBeEnabled({ timeout: 15000 });
 
     const keyword = "策略";
     await searchInput.fill(keyword);

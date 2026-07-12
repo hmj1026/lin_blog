@@ -269,11 +269,16 @@ test.describe("raw-html-wide-layout", () => {
       });
       expect(hasNoHorizontalScroll).toBeTruthy();
 
-      // 行動版 iframe 位於首屏之下且高度不抖動（實測穩定），用 element 截圖（會自動捲入視窗），
-      // 不套用桌面的 viewport clip（其 y 在首屏之下，clip 會落在截圖範圍外）。
+      // 行動版 iframe 的 async auto-resize 高度同樣會 ±2px 抖動（CI 實測
+      // 597 vs 599），而 Playwright 對「尺寸不符」是硬性失敗（容差不適用）。
+      // 比照桌面測試：先捲入視窗取得座標，再以固定尺寸 clip 鎖定截圖範圍，
+      // 讓高度抖動不影響影像尺寸。
       await page.evaluate(() => document.fonts.ready);
       await waitForSettledSize(iframe);
-      await expect(iframe).toHaveScreenshot("raw-html-wide-mobile-375.png", {
+      await iframe.scrollIntoViewIfNeeded();
+      const box = await stableBoundingBox(iframe);
+      await expect(page).toHaveScreenshot("raw-html-wide-mobile-375.png", {
+        clip: { x: Math.round(box.x), y: Math.round(box.y), width: 343, height: 560 },
         maxDiffPixelRatio: 0.02,
       });
     });

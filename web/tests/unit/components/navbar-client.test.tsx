@@ -15,6 +15,13 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// 預設回傳 true（jsdom 中 effect 於 render 後同步執行，等同已 hydrate），
+// 供 disabled gate 測試改寫回傳值
+const useHydratedMock = vi.fn(() => true);
+vi.mock("@/hooks/use-hydrated", () => ({
+  useHydrated: () => useHydratedMock(),
+}));
+
 vi.mock("@/components/logo", () => ({
   Logo: () => <div data-testid="logo">Logo</div>,
 }));
@@ -38,6 +45,7 @@ describe("NavbarClient", () => {
     vi.clearAllMocks();
     usePathnameMock.mockReturnValue("/");
     useSearchParamsMock.mockReturnValue(new URLSearchParams());
+    useHydratedMock.mockReturnValue(true);
   });
 
   it("renders navigation items", () => {
@@ -129,6 +137,16 @@ describe("NavbarClient", () => {
     expect(homeLink?.className).toContain("text-accent-600");
     expect(homeLink?.className).toContain("dark:text-accent-400");
     expect(homeLink?.className).toContain("font-semibold");
+  });
+
+  it("disables the search input and submit button before hydration", () => {
+    useHydratedMock.mockReturnValue(false);
+
+    render(<NavbarClient navItems={mockNavItems} adminUser={null} />);
+
+    const searchInput = screen.getByPlaceholderText("搜尋...") as HTMLInputElement;
+    expect(searchInput.disabled).toBe(true);
+    expect((screen.getByLabelText("搜尋") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("reflects the q query param in the search input when on /search", () => {

@@ -102,7 +102,11 @@ test.describe("newsletter-subscribe", () => {
     await page.getByRole("button", { name: /訂閱/ }).click();
 
     const status = page.getByRole("status");
-    await expect(status).toHaveText(/稍後再試/);
+    // 本測試是此 serial 檔案第一個實際命中 /api/newsletter/subscribe 的
+    // （前兩個測試皆被 client-side 驗證擋下不送出）；dev server 首次命中
+    // API route 的冷編譯可能讓回應超過預設 5s expect 預算，status 會停在
+    // 「訂閱送出中」過渡態，放寬首次命中的等待預算
+    await expect(status).toHaveText(/稍後再試/, { timeout: 15000 });
     await expect(page.getByLabel("姓名")).toHaveValue("Expired Recovery");
     await expect(page.getByLabel("Email")).toHaveValue(email);
 

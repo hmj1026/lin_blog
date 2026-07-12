@@ -12,7 +12,10 @@ test.describe("ISR 公開頁與草稿預覽", () => {
     await expect(firstPostLink).toBeVisible();
     await firstPostLink.click();
 
-    await expect(page.locator("article")).toBeVisible();
+    // dev server 首次命中該 slug 需即時渲染（DB 查詢 + RSC render），CI runner
+    // 負載高時可能超過預設 5s expect 預算；先等 URL 落定再以放寬預算斷言
+    await page.waitForURL(/\/blog\/.+/);
+    await expect(page.locator("article")).toBeVisible({ timeout: 15000 });
     await expect(page.locator("h1")).toBeVisible();
   });
 
