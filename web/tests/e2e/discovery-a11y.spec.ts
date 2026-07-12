@@ -19,14 +19,19 @@ import { loginAsAdmin } from "./helpers/auth";
  */
 
 /**
- * 導向頁面並等待 client-side hydration 完成再互動。純鍵盤流程雖然不依賴 React
- * onChange，但 `.focus()` / Tab 走到的是 SSR 串流階段尚未穩定的 DOM 時，
- * 焦點可能落回 `<body>` 而非目標元素——這是測試時機問題，不是應用程式的
- * 焦點管理有 bug（見 discovery-normal-post.spec.ts 的同名 helper與說明）。
+ * 導向頁面並等待 client-side hydration 相關控制項啟用再互動。`networkidle`
+ * 只代表網路請求暫時清空，不代表 React 已完成 hydration；對 hydration gate
+ * 控制的欄位必須以 `toBeEnabled()` 等待，避免 `.focus()` 落到 disabled 的 SSR DOM。
  */
 async function gotoAndWaitHydrated(page: Page, path: string) {
   await page.goto(path);
   await page.waitForLoadState("networkidle");
+
+  if (path.startsWith("/blog/")) {
+    for (const label of ["站內搜尋", "姓名", "Email"]) {
+      await expect(page.getByLabel(label)).toBeEnabled();
+    }
+  }
 }
 
 /** 聚焦時是否具備可見焦點樣式（outline 或 box-shadow/ring，Tailwind `focus:ring` 走 box-shadow）。 */
@@ -88,6 +93,7 @@ test.describe("discovery-a11y", () => {
     await expect(input).toHaveValue("a11y");
 
     // 鍵盤操作：聚焦（具可見焦點樣式）→ 改寫查詢 → Enter 送出導向新結果
+    await expect(input).toBeEnabled();
     await input.focus();
     await expect(input).toBeFocused();
     expect(await hasVisibleFocusStyle(input)).toBe(true);
@@ -155,8 +161,10 @@ test.describe("discovery-a11y", () => {
     await page.getByLabel("姓名").fill("A11y Reader");
     await page.getByLabel("Email").fill(`e2e-a11y-${runId}@example.com`);
     await page.getByTestId("recaptcha-stub-token-e2e-expired").click();
-    await page.getByTestId("recaptcha-stub-reset").focus();
-    await expect(page.getByTestId("recaptcha-stub-reset")).toBeFocused();
+    const resetButton = page.getByTestId("recaptcha-stub-reset");
+    await expect(resetButton).toBeEnabled();
+    await resetButton.focus();
+    await expect(resetButton).toBeFocused();
 
     // 從重設按鈕繼續 Tab，焦點應能持續前進（不被困在同一個節點），
     // 最終可離開 Newsletter 表單卡片。
@@ -179,6 +187,7 @@ test.describe("discovery-a11y", () => {
     await gotoAndWaitHydrated(page, "/admin/subscribers");
 
     const searchInput = page.getByLabel("搜尋姓名或 Email");
+    await expect(searchInput).toBeEnabled();
     await searchInput.focus();
     await expect(searchInput).toBeFocused();
     await page.keyboard.type("nonexistent-search-term-for-a11y-check");
@@ -197,6 +206,7 @@ test.describe("discovery-a11y", () => {
     const nextButton = page.getByRole("button", { name: "下一頁" });
     const nextDisabled = await nextButton.isDisabled();
     if (!nextDisabled) {
+      await expect(nextButton).toBeEnabled();
       await nextButton.focus();
       await expect(nextButton).toBeFocused();
       expect(await hasVisibleFocusStyle(nextButton)).toBe(true);
