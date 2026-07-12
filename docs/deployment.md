@@ -127,6 +127,7 @@ BLOG_IMAGE_TAG=v1.4.0 /var/www/products/deploy.sh
 NEXT_PUBLIC_RECAPTCHA_SITE_KEY="<reCAPTCHA v2 site key>"   # 前端可見（公開值）
 
 # .env（伺服器端執行期，設定後需重啟容器）
+# NEXT_PUBLIC_RECAPTCHA_SITE_KEY 建議同步保留於 .env（compose build fallback），詳見「Newsletter 訂閱與 reCAPTCHA v2 部署」步驟 2
 RECAPTCHA_SECRET_KEY="<reCAPTCHA v2 secret key>"           # 僅伺服器
 RECAPTCHA_ALLOWED_HOSTNAMES="nx.linstar.win"               # 必填，允許的 hostname 白名單（逗號分隔，缺少即 fail closed）
 ```
@@ -146,8 +147,9 @@ RECAPTCHA_ALLOWED_HOSTNAMES="nx.linstar.win"               # 必填，允許的 
 ### 0. Release 前檢查：build-time secrets
 
 `NEXT_PUBLIC_*` 變數於 CI 建置時內嵌進 client bundle，缺失的 secret 會被靜默替換為
-空字串。release 前用 `gh secret list` 核對以下清單（`docker-build.yml` 對必要項
-在 tag 建置時會 fail，選填項僅警告）：
+空字串。release 前用 `gh secret list` 核對以下清單（`docker-build.yml` 僅檢查
+必要項：tag 建置缺少即 fail、main/dispatch 建置僅警告；選填項不檢查，缺少時
+靜默內嵌為空字串）：
 
 | Secret | 必要性 |
 |--------|--------|
