@@ -104,6 +104,29 @@ test.describe("標籤頁", () => {
   });
 });
 
+test.describe("首頁 Header 搜尋欄", () => {
+  test("搜尋後導覽回首頁，header 搜尋欄清空", async ({ page }) => {
+    // header 搜尋欄僅在 lg 斷點顯示（見 navbar-client.tsx `hidden ... lg:flex`），
+    // Desktop Chrome 專案預設 viewport 1280x720 已足夠寬，無需額外設定。
+    await page.goto("/");
+    const searchInput = page.locator("header form input[type='text']");
+    await expect(searchInput).toBeVisible();
+
+    const keyword = "策略";
+    await searchInput.fill(keyword);
+    await searchInput.press("Enter");
+
+    // 導覽至搜尋結果頁，且 header 搜尋欄反映查詢字串
+    await page.waitForURL(/\/search\?q=/);
+    await expect(searchInput).toHaveValue(keyword);
+
+    // 點擊 logo 回首頁
+    await page.getByRole("link", { name: "返回首頁" }).click();
+    await page.waitForURL((url) => url.pathname === "/");
+    await expect(searchInput).toHaveValue("");
+  });
+});
+
 test.describe("登出流程", () => {
   test("登入後可以登出並重導向", async ({ page }) => {
     // 先登入

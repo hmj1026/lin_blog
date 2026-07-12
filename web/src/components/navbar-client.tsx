@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -27,7 +27,13 @@ function NavLink({ href, label }: NavItem) {
 
 function SearchInput() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    setQuery(pathname === "/search" ? (searchParams.get("q") ?? "") : "");
+  }, [pathname, searchParams]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +92,9 @@ export function NavbarClient({
         </nav>
         <div className={`hidden items-center ${actionGap} lg:flex`}>
           {/* 搜尋欄位 */}
-          <SearchInput />
+          <Suspense fallback={null}>
+            <SearchInput />
+          </Suspense>
           {/* 主題切換 */}
           <ThemeToggle />
           {/* TODO: 未來實作後啟用

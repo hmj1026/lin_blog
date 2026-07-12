@@ -5,8 +5,11 @@ import { NavbarClient } from "@/components/navbar-client";
 
 // Mocks
 const pushMock = vi.fn();
+const usePathnameMock = vi.fn(() => "/");
+const useSearchParamsMock = vi.fn(() => new URLSearchParams());
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/",
+  usePathname: () => usePathnameMock(),
+  useSearchParams: () => useSearchParamsMock(),
   useRouter: () => ({
     push: pushMock,
   }),
@@ -33,6 +36,8 @@ const mockAdminUser = {
 describe("NavbarClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    usePathnameMock.mockReturnValue("/");
+    useSearchParamsMock.mockReturnValue(new URLSearchParams());
   });
 
   it("renders navigation items", () => {
@@ -124,6 +129,32 @@ describe("NavbarClient", () => {
     expect(homeLink?.className).toContain("text-accent-600");
     expect(homeLink?.className).toContain("dark:text-accent-400");
     expect(homeLink?.className).toContain("font-semibold");
+  });
+
+  it("reflects the q query param in the search input when on /search", () => {
+    usePathnameMock.mockReturnValue("/search");
+    useSearchParamsMock.mockReturnValue(new URLSearchParams("q=hello"));
+
+    render(<NavbarClient navItems={mockNavItems} adminUser={null} />);
+
+    const searchInput = screen.getByPlaceholderText("搜尋...") as HTMLInputElement;
+    expect(searchInput.value).toBe("hello");
+  });
+
+  it("clears the search input when navigating away from /search", () => {
+    usePathnameMock.mockReturnValue("/search");
+    useSearchParamsMock.mockReturnValue(new URLSearchParams("q=hello"));
+
+    const { rerender } = render(<NavbarClient navItems={mockNavItems} adminUser={null} />);
+
+    const searchInput = screen.getByPlaceholderText("搜尋...") as HTMLInputElement;
+    expect(searchInput.value).toBe("hello");
+
+    usePathnameMock.mockReturnValue("/");
+    useSearchParamsMock.mockReturnValue(new URLSearchParams());
+    rerender(<NavbarClient navItems={mockNavItems} adminUser={null} />);
+
+    expect(searchInput.value).toBe("");
   });
 });
 
