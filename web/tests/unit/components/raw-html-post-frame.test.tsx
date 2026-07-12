@@ -35,6 +35,28 @@ describe("RawHtmlPostFrame", () => {
     expect(screen.queryByRole("navigation", { name: "目錄" })).not.toBeInTheDocument();
   });
 
+  it("requests the iframe height once mounted so a pre-hydration push is not lost", () => {
+    // 回歸鎖定：iframe 首次載入時 push 的高度訊息可能早於 parent listener
+    // 附掛而丟失；parent 掛載完成後必須主動向 iframe 請求高度（握手）。
+    const postMessageSpy = vi.fn();
+    const original = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow");
+    Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", {
+      get: () => ({ postMessage: postMessageSpy }),
+      configurable: true,
+    });
+
+    try {
+      render(<RawHtmlPostFrame html="<p>content</p>" tocItems={twoTocItems} />);
+
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        { type: "raw-html-frame:reportHeight" },
+        "*"
+      );
+    } finally {
+      if (original) Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", original);
+    }
+  });
+
   it("posts a scroll message to the iframe when a TOC item is clicked", () => {
     const { container } = render(
       <RawHtmlPostFrame html="<p>content</p>" tocItems={twoTocItems} showRawHtmlToc={true} />

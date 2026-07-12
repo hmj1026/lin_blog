@@ -83,11 +83,14 @@ export function ThemeProvider({
     setThemeState(newTheme);
   };
 
-  // 防止 hydration mismatch
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // Provider 必須無條件渲染：若以 mounted 條件在 Fragment 與 Provider 之間
+  // 切換，mounted 翻轉時該位置的元素型別改變，React reconciliation 會把
+  // children 整棵卸載重建 —— 等同每次 hydration 後丟棄全頁 SSR DOM（body 以下
+  // 全部 remount），除了浪費 SSR 成果、造成閃爍外，raw-html iframe 也會
+  // detach/reattach 重載，E2E 對 iframe 的互動若跨越該時窗會以
+  // "Unable to adopt element handle from a different document" 間歇性失敗。
+  // Provider 本身不輸出任何 DOM，SSR 渲染它不會造成 hydration mismatch；
+  // 主題解析仍由上方 effect 於 mounted 後才寫入 <html> class。
   return (
     <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
       {children}

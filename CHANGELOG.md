@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.3 — 2026-07-12 — E2E 測試穩定性強化與 hydration 根因修復
+
+修正 CI E2E 間歇性失敗的根因。最關鍵者為 ThemeProvider 以 mounted 條件切換 Fragment/Provider，
+導致每次 hydration 後 body 以下整棵 SSR DOM 被靜默卸載重建（dev 與 production 皆然）——
+除浪費 SSR 成果外，raw-html iframe 因此 detach/reattach 重載，E2E 互動跨越該時窗即以
+「Unable to adopt element handle from a different document」隨機失敗。
+
+### 修正 (fix)
+- **theme**: ThemeProvider 無條件渲染 Context.Provider，hydration 後不再整頁 remount（根因）
+- **raw-html**: iframe 高度回報改為握手機制——父頁面掛載後主動請求重報，修復 remount 消失後初始高度訊息丟失、iframe 高度卡在預設 600px 的衍生問題
+- **navbar**: header 搜尋欄加上 hydration gate，避免 hydration 完成前的輸入遺失（同步修正 E2E 搜尋測試逾時）
+
+### 測試優化 (test)
+- **e2e**: 新增回歸鎖定——hydration 不得丟棄 SSR DOM、iframe 自動高度必須生效
+- **e2e**: global setup 暖機 notFound() 路徑，避免 Next.js dev InvariantError 使草稿 404 測試誤判為 500
+- **e2e**: ISR 文章頁與 newsletter 首次 API 命中改用事件等待並放寬冷編譯預算
+- **e2e**: raw HTML 行動視覺基準改用固定尺寸 clip，消除 iframe 高度 ±2px 抖動造成的尺寸不符失敗
+
 ## 1.4.2 — 2026-07-12 — 提升 E2E 測試穩定性
 
 優化 a11y E2E 測試中的 hydration 欄位檢查，提高測試在時序競爭下的穩定度。

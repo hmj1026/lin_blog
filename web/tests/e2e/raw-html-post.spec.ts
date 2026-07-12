@@ -92,6 +92,20 @@ test.describe("raw-html-post", () => {
     expect(outerBodyBg).not.toBe("rgb(10, 20, 30)");
   });
 
+  test("8.3b iframe 自動高度：hydration 後高度依內容調整（高度握手不丟失）", async ({ page }) => {
+    // 回歸鎖定：iframe 首次載入 push 的高度訊息可能早於父頁面 hydration 而
+    // 丟失（先前被 ThemeProvider 的全頁 remount 意外掩蓋）；父頁面掛載後會
+    // 主動請求 iframe 重報高度。內容含 1600px 間隔區塊，高度必須遠超過
+    // 預設 600px。
+    await page.goto(`/blog/${slug}`);
+    const iframe = page.locator("iframe[title='post-content']");
+    await expect
+      .poll(async () => parseInt((await iframe.evaluate((el) => el.style.height)) || "0", 10), {
+        timeout: 15000,
+      })
+      .toBeGreaterThan(600);
+  });
+
   test("8.4 點擊目錄可捲動至對應標題", async ({ page }) => {
     await page.goto(`/blog/${slug}`);
     const tocButtons = page.locator("nav[aria-label='目錄'] button");
