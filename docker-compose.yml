@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   blog:
     image: ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG:?BLOG_IMAGE_TAG must be set to an immutable release or SHA tag}

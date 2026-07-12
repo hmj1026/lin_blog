@@ -17,6 +17,12 @@ All notable changes to this project will be documented in this file.
 - 部署腳本要求版本或 SHA image tag，並以容器 healthcheck 取代固定等待
 - 啟用 PR/main 的 Playwright E2E workflow，保留失敗即阻擋的 gate
 
+### 工具警告修復與文件同步 (chore/docs)
+- `lint` script 由已棄用的 `next lint` 遷移至 ESLint CLI（`eslint src`，範圍與規則等效，CI job 名與 required status contexts 不變）
+- 移除 `docker-compose.yml` obsolete 的 `version: "3.8"`
+- `next.config.mjs` 設定 `outputFileTracingRoot`，消除多 lockfile workspace root 推斷警告
+- `docs/deployment.md` CI/CD 觸發表對齊實際 workflows（含 `cd.yml` 停用狀態）並新增 branch protection API 403 替代驗證程序
+
 ## 1.3.3 — 2026-07-10 — CI 成本與 GitHub Actions runtime 優化
 
 降低 CI 過度觸發與 post-merge 重複矩陣執行，升級 GitHub Actions runtime 至 node24（清除 Node 20 棄用警告），並將執行基準升至 Node 22。

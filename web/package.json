@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src --ext .js,.mjs,.cjs,.jsx,.ts,.mts,.cts,.tsx",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck",
     "db:push": "prisma db push",
