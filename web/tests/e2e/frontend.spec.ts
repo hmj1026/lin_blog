@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
 
+const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
+const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
+
 test.describe("文章詳細頁", () => {
   test("從文章列表進入文章詳細頁並正確顯示內容", async ({ page }) => {
     // 前往文章列表頁
@@ -103,8 +106,8 @@ test.describe("登出流程", () => {
   test("登入後可以登出並重導向", async ({ page }) => {
     // 先登入
     await page.goto("/login");
-    await page.fill("input[type='email'], input[name='email']", "admin@lin.blog");
-    await page.fill("input[type='password']", "admin");
+    await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
+    await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
     await page.click("button[type='submit']");
     
     // 等待重導向到 admin

@@ -5,6 +5,14 @@ import { PERMISSIONS, EDITOR_PERMISSION_KEYS } from "./permission-catalog";
 
 const prisma = new PrismaClient();
 
+type AdminCredentialEnvironment = Readonly<Record<string, string | undefined>>;
+
+/** Resolves the seed administrator credentials from the provided environment. */
+export const resolveAdminCredentials = (env: AdminCredentialEnvironment) => ({
+  email: env.ADMIN_EMAIL || "admin@lin.blog",
+  password: env.ADMIN_PASSWORD || "admin",
+});
+
 function escapeHtml(text: string) {
   return text
     .replace(/&/g, "&amp;")
@@ -40,6 +48,7 @@ function richContentToHtml(blocks: Array<{ type: string; [key: string]: unknown 
 }
 
 async function main() {
+  const adminCredentials = resolveAdminCredentials(process.env);
   const permissions = PERMISSIONS;
 
   await prisma.$transaction(
@@ -80,11 +89,11 @@ async function main() {
     skipDuplicates: true,
   });
 
-  const adminPasswordHash = await bcrypt.hash("admin", 10);
+  const adminPasswordHash = await bcrypt.hash(adminCredentials.password, 10);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@lin.blog" },
+    where: { email: adminCredentials.email },
     update: { password: adminPasswordHash, roleId: adminRole.id, name: "Lin Admin", deletedAt: null },
-    create: { email: "admin@lin.blog", name: "Lin Admin", roleId: adminRole.id, password: adminPasswordHash, deletedAt: null },
+    create: { email: adminCredentials.email, name: "Lin Admin", roleId: adminRole.id, password: adminPasswordHash, deletedAt: null },
   });
 
   await prisma.siteSetting.upsert({
@@ -226,11 +235,13 @@ async function main() {
   });
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (require.main === module) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

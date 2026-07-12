@@ -45,9 +45,9 @@ jobs:
       NEXTAUTH_SECRET: test-secret-for-ci-minimum-32-characters
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      # secrets 未設定時以 expression 層 fallback 補預設值：確保 create-user 步驟與
+      # secrets 未設定時以 expression 層 fallback 補預設值：確保 seed 步驟與
       # Playwright specs（process.env || "admin" fallback 不會在 CI 觸發）看到同一組
-      # 憑證，且密碼滿足 create-user.js 的至少 6 字元檢核
+      # 憑證。
       E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || 'admin@lin.blog' }}
       E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || 'e2e-admin-pass' }}
 
@@ -74,13 +74,12 @@ jobs:
         run: npx prisma migrate deploy
         working-directory: ./web
 
-      - name: Create test user
-        run: |
-          ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD:-admin}" \
-            node scripts/create-user.js \
-              --email="${E2E_ADMIN_EMAIL:-admin@lin.blog}" \
-              --name="Test Admin"
+      - name: Seed test database
+        run: npm run db:seed
         working-directory: ./web
+        env:
+          ADMIN_EMAIL: ${{ env.E2E_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ env.E2E_ADMIN_PASSWORD }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
