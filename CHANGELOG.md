@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.3 — 2026-07-12 — E2E 測試穩定性強化
+
+修正 CI E2E 五項間歇性失敗的根因：navbar 搜尋欄 hydration gate、dev server 冷編譯時序與視覺基準尺寸抖動。
+
+### 新增功能 (feat)
+- **navbar**: header 搜尋欄加上 hydration gate，避免 hydration 完成前的輸入遺失（同步修正 E2E 搜尋測試逾時）
+
+### 測試優化 (fix/test)
+- **e2e**: global setup 暖機 notFound() 路徑，避免 Next.js dev InvariantError 使草稿 404 測試誤判為 500
+- **e2e**: ISR 文章頁與 newsletter 首次 API 命中改用事件等待並放寬冷編譯預算
+- **e2e**: raw HTML 行動視覺基準改用固定尺寸 clip，消除 iframe 高度 ±2px 抖動造成的尺寸不符失敗
+
 ## 1.4.2 — 2026-07-12 — 提升 E2E 測試穩定性
 
 優化 a11y E2E 測試中的 hydration 欄位檢查，提高測試在時序競爭下的穩定度。
