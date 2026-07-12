@@ -1,0 +1,74 @@
+import { chromium, type FullConfig } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
+
+const WARMUP_TIMEOUT_MS = 90_000;
+
+/**
+ * Playwright globalSetup：暖機 Next.js dev server 的熱門路由。
+ *
+ * dev server 對每個路由的第一次請求會即時編譯（cold compile），在 CI 較慢的
+ * runner 上單一路由可能耗費超過各 spec 檔案 beforeAll 內登入流程的
+ * waitForURL 預算（10–15 秒）。若「登入」本身撞上 /login 或 /admin 的冷編譯，
+ * 會直接導致整份 serial describe 檔案的 beforeAll 逾時，使檔案內所有測試被
+ * 標記為 did-not-run（見 playwright.config.ts 的 workers:1 註解；診斷順序見
+ * e2e-runner trap sheet：先排除測試工具／環境本身的時機效應，而非誤判為
+ * app 邏輯錯誤）。
+ *
+ * 這裡在任何 spec 開始前，用一個獨立、用完即丟的 context 依序造訪熱門路由，
+ * 讓對應的 webpack chunk 在測試開始前就編譯完成。刻意不呼叫
+ * `context.storageState()`，登入狀態不會外洩進實際測試——各 spec 仍各自登入。
+ */
+export default async function globalSetup(config: FullConfig) {
+  const baseURL = config.projects[0]?.use?.baseURL ?? "http://localhost:3000";
+  const browser = await chromium.launch();
+
+  try {
+    const adminContext = await browser.newContext({ baseURL });
+    const adminPage = await adminContext.newPage();
+    adminPage.setDefaultTimeout(WARMUP_TIMEOUT_MS);
+    adminPage.setDefaultNavigationTimeout(WARMUP_TIMEOUT_MS);
+
+    try {
+      // 統一走共用登入 helper；冷編譯下 /login 與 /admin 首次命中較慢，放寬預算
+      await loginAsAdmin(adminPage, { timeout: WARMUP_TIMEOUT_MS });
+
+      const hotAdminRoutes = [
+        "/admin",
+        "/admin/posts",
+        "/admin/posts/new",
+        "/admin/media",
+        "/admin/subscribers",
+      ];
+      for (const route of hotAdminRoutes) {
+        await adminPage.goto(route);
+      }
+    } finally {
+      await adminContext.close();
+    }
+
+    const anonContext = await browser.newContext({ baseURL });
+    const anonPage = await anonContext.newPage();
+    anonPage.setDefaultTimeout(WARMUP_TIMEOUT_MS);
+    anonPage.setDefaultNavigationTimeout(WARMUP_TIMEOUT_MS);
+
+    try {
+      await anonPage.goto("/blog");
+      const firstPostHref = await anonPage
+        .locator("a[href^='/blog/']")
+        .first()
+        .getAttribute("href");
+      if (firstPostHref) {
+        // 暖機 /blog/[slug] 動態路由：一般文章與 raw HTML 文章共用同一支
+        // page.tsx，PostDiscoveryPanel／NewsletterForm 等元件的 webpack chunk
+        // 在這裡就會編譯完成，覆蓋 newsletter-subscribe.spec.ts 等 spec 後續
+        // 動態建立的其他 slug。
+        await anonPage.goto(firstPostHref);
+      }
+      await anonPage.goto("/search?q=warmup");
+    } finally {
+      await anonContext.close();
+    }
+  } finally {
+    await browser.close();
+  }
+}

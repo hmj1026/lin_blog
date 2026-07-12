@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：Newsletter 訂閱表單（使用可控 CAPTCHA 測試替身）
@@ -30,17 +31,6 @@ import { test, expect, type Page } from "@playwright/test";
  *   這是 process-local rate limiter 的已知限制，重跑前建議重啟 dev server。
  */
 
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
-
 function uniqueEmail(tag: string, runId: string) {
   return `e2e-newsletter-${tag}-${runId}@example.com`;
 }
@@ -54,7 +44,7 @@ test.describe("newsletter-subscribe", () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     const res = await page.request.post("/api/posts", {
       data: {

@@ -3,17 +3,7 @@
 // 已發布文章可正常渲染、草稿僅能透過 /api/preview 的 draft bypass cookie 檢視，
 // 一般訪客無法看到草稿內容（回傳 404）。
 import { test, expect } from "@playwright/test";
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-async function login(page: import("@playwright/test").Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 10000 });
-}
+import { loginAsAdmin } from "./helpers/auth";
 
 test.describe("ISR 公開頁與草稿預覽", () => {
   test("A. 匿名訪客可正常瀏覽已發布文章（無需 session 查詢）", async ({ page }) => {
@@ -32,7 +22,7 @@ test.describe("ISR 公開頁與草稿預覽", () => {
   const DRAFT_FIXTURE_TITLE = "E2E 草稿預覽 Fixture";
 
   test("B. 已登入編輯者可透過 /api/preview 檢視草稿", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
 
     // 透過 /api/preview 啟用 draftMode（帶 draft bypass cookie 重導向至 /blog/[slug]），
     // 具 posts:write 權限的編輯者應能看到 DRAFT 文章內容。

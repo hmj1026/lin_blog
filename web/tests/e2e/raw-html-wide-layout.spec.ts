@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：原始 HTML 文章的寬版（viewport gutter）內容版面與 opt-in 系統目錄
@@ -15,9 +16,6 @@ import { test, expect, type Page } from "@playwright/test";
  * - 作者 inline `grid-template-columns: repeat(auto-fit, minmax(...))` 附件區塊在 iframe 內的欄數符合預期。
  * - 桌面／行動 raw 版面截圖，作為可審查的視覺基準。
  */
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
 
 type Box = { x: number; y: number; width: number; height: number };
 
@@ -48,14 +46,6 @@ async function waitForSettledSize(locator: ReturnType<Page["locator"]>): Promise
     .toBe(true);
 }
 
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
-
 // 附件情境：兩個 H2（供系統目錄）+ 一個 auto-fit/minmax 網格附件區塊（3 欄，用來驗證寬版畫布
 // 不再被 280px 側欄壓縮到提早換行）。
 const RAW_CONTENT = `<h2>第一章</h2>
@@ -75,7 +65,7 @@ test.describe("raw-html-wide-layout", () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     slug = `raw-html-wide-e2e-${runId}`;

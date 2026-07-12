@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：原始 HTML 模式的圖片插入工具（task 3.3/3.4 acceptance, section 6）
@@ -10,17 +11,6 @@ import { test, expect, type Page } from "@playwright/test";
  * 於 task 6.4 執行；若環境缺少可用的管理員帳號，測試會在 login() 逾時後失敗，
  * 執行者應確認 `web/scripts/init-admin.js` 或等效種子已完成。
  */
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
 
 // 1x1 紅色像素 PNG，供上傳/裁切流程使用。
 const TEST_PNG_BASE64 =
@@ -59,7 +49,7 @@ async function uploadAndCropInRawMode(page: Page) {
 
 test.describe("原始 HTML 模式圖片工具", () => {
   test("6.1 上傳圖片後顯示 alt 輸入、預覽與操作按鈕", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
 
     await uploadAndCropInRawMode(page);
@@ -72,7 +62,7 @@ test.describe("原始 HTML 模式圖片工具", () => {
   });
 
   test("6.2 輸入 alt 後插入到游標會寫入 <img> 片段", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
 
     const textarea = page.getByTestId("raw-html-editor");
@@ -90,7 +80,7 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
   test("6.3 複製圖片網址會將相對路徑寫入剪貼簿", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await login(page);
+    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
     await uploadAndCropInRawMode(page);
 
@@ -102,7 +92,7 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
   test("6.4 複製 <img> 標籤會將完整片段寫入剪貼簿", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await login(page);
+    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
     await uploadAndCropInRawMode(page);
 
@@ -114,7 +104,7 @@ test.describe("原始 HTML 模式圖片工具", () => {
   });
 
   test("6.5 上傳失敗顯示錯誤訊息且不影響內容", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
 
     const textarea = page.getByTestId("raw-html-editor");
@@ -143,7 +133,7 @@ test.describe("原始 HTML 模式圖片工具", () => {
   test("6.6 剪貼簿寫入失敗顯示複製失敗訊息", async ({ page, context }) => {
     // 不授予剪貼簿權限，讓 navigator.clipboard.writeText 於瀏覽器內被拒絕/拋錯。
     await context.clearPermissions();
-    await login(page);
+    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
     await uploadAndCropInRawMode(page);
 
@@ -155,7 +145,7 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
 test.describe("VISUAL 模式圖片插入（TipTap）迴歸檢查", () => {
   test("6.7 VISUAL 模式下圖片上傳流程仍可用，無需第二個上傳端點", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
     await page.locator("#post-title").fill(`E2E Visual Media ${Date.now()}`);
     await page.locator("#post-slug").fill(`e2e-visual-media-${Date.now()}`);

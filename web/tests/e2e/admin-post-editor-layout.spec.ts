@@ -1,16 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-// 輔助函數：登入（沿用 tests/e2e/admin-posts.spec.ts 的慣例）
-async function login(page: any) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 10000 });
-}
+import { loginAsAdmin } from "./helpers/auth";
 
 // 對應 openspec/changes/improve-post-authoring-and-raw-html-layout 任務 4.6/4.8、6.4/6.5：
 // 這份 spec 在撰寫階段先不執行（write-only），將於 4.8/6.5 執行並修正整合問題。
@@ -19,7 +8,7 @@ test.describe("文章編輯頁資訊架構（sticky action bar / 響應式版面
     test.use({ viewport: { width: 1440, height: 900 } });
 
     test("捲動長文章時，action bar 與預覽/儲存/狀態指示仍在可視範圍內", async ({ page }) => {
-      await login(page);
+      await loginAsAdmin(page);
       await page.goto("/admin/posts/new");
 
       const actionBar = page.getByTestId("post-form-action-bar");
@@ -59,7 +48,7 @@ test.describe("文章編輯頁資訊架構（sticky action bar / 響應式版面
     test.use({ viewport: { width: 375, height: 812 } });
 
     test("版面為單欄且沒有任何元素被遮擋，也沒有水平捲動", async ({ page }) => {
-      await login(page);
+      await loginAsAdmin(page);
       await page.goto("/admin/posts/new");
 
       const actionBar = page.getByTestId("post-form-action-bar");
@@ -89,7 +78,7 @@ test.describe("文章編輯頁資訊架構（sticky action bar / 響應式版面
     test("完整 tab 順序可到達所有控制項（標題、摘要、模式選擇器、編輯器、狀態、發佈時間、分類、標籤、封面、精選、閱讀時間、SEO、預覽、儲存）", async ({
       page,
     }) => {
-      await login(page);
+      await loginAsAdmin(page);
       await page.goto("/admin/posts/new");
 
       // 依序 Tab 並收集可聚焦元素的 accessible name / role，確認關鍵控制項皆可達

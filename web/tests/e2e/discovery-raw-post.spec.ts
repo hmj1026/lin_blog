@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：原始 HTML（allowRawHtml=true）寬版文章的探索 grid
@@ -15,18 +16,7 @@ import { test, expect, type Page } from "@playwright/test";
  *   由 9.9 於同一次 `npx playwright test` 執行中一併涵蓋（見 report）。
  */
 
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
 type Box = { x: number; y: number; width: number; height: number };
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
 
 async function stableBoundingBox(locator: ReturnType<Page["locator"]>): Promise<Box> {
   let box: Box | null = null;
@@ -45,7 +35,7 @@ test.describe("discovery-raw-post", () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     slug = `discovery-raw-e2e-${runId}`;

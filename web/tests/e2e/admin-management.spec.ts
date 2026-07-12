@@ -1,16 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-// 輔助函數：登入
-async function login(page: any) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 10000 });
-}
+import { loginAsAdmin } from "./helpers/auth";
 
 let adminContext: BrowserContext;
 let page: Page;
@@ -18,7 +7,7 @@ let page: Page;
 test.beforeAll(async ({ browser }) => {
   adminContext = await browser.newContext();
   page = await adminContext.newPage();
-  await login(page);
+  await loginAsAdmin(page);
 });
 
 test.afterAll(async () => {

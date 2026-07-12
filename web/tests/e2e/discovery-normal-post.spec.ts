@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：一般文章（非 raw HTML）的探索側欄/文末堆疊版面
@@ -16,18 +17,7 @@ import { test, expect, type Page } from "@playwright/test";
  *   讓查詢層拋出例外，驗證文章主內容仍可讀、探索模組顯示泛化錯誤。
  */
 
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
 type Box = { x: number; y: number; width: number; height: number };
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
 
 /**
  * 導向頁面並等待 client-side hydration 完成，才進行表單互動。
@@ -78,7 +68,7 @@ test.describe("discovery-normal-post", () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     // 建立兩篇「同批」姊妹文章，確保最新文章模組必定非空，讓熱門模組的
     // fallback-to-latest 斷言不是 vacuous（見 design.md D2）。
@@ -98,7 +88,9 @@ test.describe("discovery-normal-post", () => {
     test.use({ viewport: { width: 1280, height: 800 } });
 
     test("sticky 側欄可見、寬度落在 280–320px 區間", async ({ page }) => {
-      await page.goto(`/blog/${targetSlug}`);
+      // 等 hydration 完成再量測：Suspense fallback 與正式面板都有 lg:sticky，
+      // 但單次 evaluate 若落在節點被替換（detached）的瞬間會讀到空字串。
+      await gotoAndWaitHydrated(page, `/blog/${targetSlug}`);
       await expect(page.getByRole("heading", { level: 1, name: "Discovery Normal E2E Target" })).toBeVisible();
 
       const sidebar = page.locator("aside > div").first();
@@ -107,8 +99,8 @@ test.describe("discovery-normal-post", () => {
       expect(box.width).toBeGreaterThanOrEqual(280);
       expect(box.width).toBeLessThanOrEqual(320);
 
-      const position = await sidebar.evaluate((el) => getComputedStyle(el).position);
-      expect(position).toBe("sticky");
+      // auto-retry 的 CSS 斷言取代單次 getComputedStyle 讀取
+      await expect(sidebar).toHaveCSS("position", "sticky");
     });
 
     test("模組順序為 搜尋 → 訂閱 → 熱門（最多 5 篇）→ 最新（最多 5 篇）", async ({ page }) => {

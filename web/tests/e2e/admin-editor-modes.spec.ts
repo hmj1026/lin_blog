@@ -1,7 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
+import { loginAsAdmin } from "./helpers/auth";
 
 // 輔助函數：登入（沿用 tests/e2e/admin-posts.spec.ts 的慣例）
 // radio input 為 sr-only（視覺上隱藏，由外層 <label> 承接點擊），直接點擊
@@ -10,19 +8,11 @@ async function selectMode(page: any, label: "視覺編輯器" | "原始 HTML") {
   await page.getByRole("radiogroup", { name: "編輯模式" }).getByText(label, { exact: true }).click();
 }
 
-async function login(page: any) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 10000 });
-}
-
 // 對應 openspec/changes/improve-post-authoring-and-raw-html-layout 任務 4.1/4.2、6.4、6.5：
 // 這份 spec 在撰寫階段先不執行（write-only），將於 6.4/6.5 執行並修正整合問題。
 test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", () => {
   test("使用鍵盤在視覺編輯器／原始 HTML 之間切換模式", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
 
     const radiogroup = page.getByRole("radiogroup", { name: "編輯模式" });
@@ -35,8 +25,13 @@ test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", (
     await expect(visualOption).toBeChecked();
     await expect(rawOption).not.toBeChecked();
 
-    // 每個選項的 hit target 至少 44px 高（4.1）
-    const visualBox = await visualOption.locator("xpath=ancestor::label[1]").boundingBox();
+    // 每個選項的 hit target 至少 44px 高（4.1）。boundingBox() 不會等待元素
+    // 可見（不像 click() 有 actionability 等待），在較慢環境下可能於 label
+    // 完成佈局前就量測到 null，讀成 0 而誤判為零高度（見 e2e-runner trap
+    // sheet 診斷順序：先排除工具本身的時機效應，而非誤判為 app 邏輯錯誤）。
+    const visualLabel = visualOption.locator("xpath=ancestor::label[1]");
+    await visualLabel.waitFor({ state: "visible" });
+    const visualBox = await visualLabel.boundingBox();
     expect(visualBox?.height ?? 0).toBeGreaterThanOrEqual(44);
 
     // 鍵盤 Tab 到選項，方向鍵在選項間移動並切換
@@ -58,7 +53,7 @@ test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", (
   test("原始 HTML 內容含區塊結構切回視覺編輯器時，鍵盤可完成警告的取消與確認", async ({
     page,
   }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
 
     const rawOption = page.getByRole("radio", { name: "原始 HTML" });
@@ -99,7 +94,7 @@ test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", (
   });
 
   test("模式狀態透過可存取名稱／狀態被宣告（accessible name/state）", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
 
     const visualOption = page.getByRole("radio", { name: "視覺編輯器" });

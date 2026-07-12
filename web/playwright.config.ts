@@ -2,6 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // dev server 冷編譯暖機（見 tests/e2e/global-setup.ts 開頭註解）：在任何
+  // spec 執行前先登入並造訪熱門路由，避免各檔案 beforeAll 內的登入流程撞上
+  // 首次命中路由的即時編譯，拖垮 waitForURL 預算並導致整份 serial describe
+  // 檔案 did-not-run。
+  globalSetup: require.resolve("./tests/e2e/global-setup.ts"),
   timeout: 30 * 1000,
   expect: {
     timeout: 5 * 1000,
@@ -11,10 +16,13 @@ export default defineConfig({
   // E2E 檔案同時登入／觸發 cold compile。測試不得靠 retry 掩蓋不穩定失敗。
   workers: 1,
   retries: 0,
-  reporter: [["list"]],
+  // HTML report 供 CI 上傳（e2e.yml 已上傳 playwright-report/，之前因只有
+  // list reporter 而是空的）；retries: 0 下 on-first-retry 永不觸發，改為
+  // 失敗即保留 trace，讓 CI artifact 有可分析的證據。
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:3000",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
     headless: true,
   },
   projects: [

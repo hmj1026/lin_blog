@@ -1,20 +1,9 @@
 import { test, expect } from "@playwright/test";
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-// 輔助函數：登入
-async function login(page: any) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 10000 });
-}
+import { loginAsAdmin } from "./helpers/auth";
 
 test.describe("文章管理列表", () => {
   test("文章列表頁顯示所有文章", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     
     await page.goto("/admin/posts");
     
@@ -30,7 +19,7 @@ test.describe("文章管理列表", () => {
   });
 
   test("文章列表顯示文章資訊", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts");
     
     // 檢查是否有表格或文章列表
@@ -44,7 +33,7 @@ test.describe("文章管理列表", () => {
 
 test.describe("新增文章流程", () => {
   test("點擊新增文章進入編輯器", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts");
     
     // 點擊新增文章按鈕
@@ -62,7 +51,7 @@ test.describe("新增文章流程", () => {
   });
 
   test("填寫文章並儲存為草稿", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
     
     const testTitle = `E2E 測試文章 ${Date.now()}`;
@@ -118,7 +107,7 @@ test.describe("新增文章流程", () => {
 
 test.describe("編輯文章流程", () => {
   test("從列表進入編輯文章", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const title = `E2E Edit Fixture ${runId}`;
     const createResponse = await page.request.post("/api/posts", {
@@ -158,7 +147,7 @@ test.describe("編輯文章流程", () => {
 
 test.describe("媒體管理", () => {
   test("媒體頁面可正常載入", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/media");
     
     // 驗證頁面載入
@@ -170,9 +159,9 @@ test.describe("圖片上傳功能", () => {
   test.skip("在編輯器中可以上傳圖片", async ({ page }) => {
     // 這個測試需要真實的圖片檔案，暫時跳過
     // 可以在實際環境中手動測試或使用真實圖片檔案
-    await login(page);
+    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
-    
+
     // TODO: 實作圖片上傳測試
   });
 });

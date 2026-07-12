@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
+import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：探索模組／Newsletter／後台名單的鍵盤與無障礙檢查
@@ -16,17 +17,6 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
  * 本檔案只讀取/聚焦表單，不送出 Newsletter 訂閱請求，因此不消耗
  * newsletter 專用限流額度（不影響 newsletter-subscribe.spec.ts 的預算假設）。
  */
-
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
-}
 
 /**
  * 導向頁面並等待 client-side hydration 完成再互動。純鍵盤流程雖然不依賴 React
@@ -59,7 +49,7 @@ test.describe("discovery-a11y", () => {
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     const res = await page.request.post("/api/posts", {
       data: {
@@ -185,7 +175,7 @@ test.describe("discovery-a11y", () => {
   });
 
   test("後台訂閱者名單：搜尋輸入可用鍵盤聚焦與 Enter 送出，分頁按鈕可聚焦", async ({ page }) => {
-    await login(page);
+    await loginAsAdmin(page);
     await gotoAndWaitHydrated(page, "/admin/subscribers");
 
     const searchInput = page.getByLabel("搜尋姓名或 Email");

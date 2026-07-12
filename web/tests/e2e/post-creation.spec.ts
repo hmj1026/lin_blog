@@ -1,11 +1,5 @@
 import { test, expect } from "@playwright/test";
-
-/**
- * E2E 測試帳號設定
- * 可透過環境變數 E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD 覆蓋預設值
- */
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
+import { E2E_ADMIN_EMAIL, loginAsAdmin } from "./helpers/auth";
 
 test.describe("Blog Frontend", () => {
   test("首頁可正常載入", async ({ page }) => {
@@ -26,7 +20,10 @@ test.describe("Blog Frontend", () => {
   test("搜尋功能可輸入關鍵字", async ({ page }) => {
     await page.goto("/search");
     const searchInput = page.locator("input[name='q']");
-    await expect(searchInput).toBeVisible();
+    // /search 是 force-dynamic 的 server component（input 為 uncontrolled，
+    // 不受 hydration 影響）；放寬可見等待以容忍 dev server 冷編譯超過
+    // 預設 5s expect 預算。
+    await expect(searchInput).toBeVisible({ timeout: 15000 });
     await searchInput.fill("測試文章");
     // 用條件式等待（auto-retry）取代固定 waitForTimeout：在並行執行、
     // dev server 負載較高時，固定時間的等待可能在值尚未穩定前就讀取，
@@ -62,13 +59,7 @@ test.describe("Admin Panel - 未登入", () => {
 
 test.describe("Admin Panel - 登入流程", () => {
   test("使用正確帳密可登入", async ({ page }) => {
-    await page.goto("/login");
-    await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-    await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-    await page.click("button[type='submit']");
-
-    // 等待重導向到 admin
-    await page.waitForURL("**/admin**", { timeout: 10000 });
+    await loginAsAdmin(page);
     expect(page.url()).toContain("/admin");
   });
 });

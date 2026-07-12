@@ -1,7 +1,8 @@
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
+import { loginAsAdmin, login } from "./helpers/auth";
 
 /**
  * E2E：後台訂閱者名單（唯讀）RBAC 與功能
@@ -22,9 +23,6 @@ import { PrismaClient } from "@prisma/client";
  * 完全繞過公開訂閱 API，符合「唯讀後台名單」的測試意圖。
  */
 
-const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
-const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
-
 function loadDatabaseUrl(): string {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   const envPath = path.resolve(__dirname, "../../.env");
@@ -34,14 +32,6 @@ function loadDatabaseUrl(): string {
     throw new Error("找不到 DATABASE_URL，無法直連 dev DB 建立測試用訂閱者資料");
   }
   return match[1];
-}
-
-async function login(page: Page) {
-  await page.goto("/login");
-  await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
-  await page.fill("input[type='password']", E2E_ADMIN_PASSWORD);
-  await page.click("button[type='submit']");
-  await page.waitForURL("**/admin**", { timeout: 15000 });
 }
 
 async function findRoleId(request: APIRequestContext, roleKey: string): Promise<string> {
@@ -81,7 +71,7 @@ test.describe("admin-subscribers", () => {
 
     const context = await browser.newContext();
     const page = await context.newPage();
-    await login(page);
+    await loginAsAdmin(page);
 
     const editorRoleId = await findRoleId(page.request, "EDITOR");
     editorEmail = `e2e-subscribers-editor-${runId}@example.com`;
@@ -102,7 +92,7 @@ test.describe("admin-subscribers", () => {
     if (editorUserId) {
       const context = await browser.newContext();
       const page = await context.newPage();
-      await login(page);
+      await loginAsAdmin(page);
       await page.request.delete(`/api/users/${editorUserId}`);
       await context.close();
     }
@@ -110,7 +100,7 @@ test.describe("admin-subscribers", () => {
 
   test.describe("ADMIN", () => {
     test("顯示訂閱者名單，含姓名/Email/建立時間，且沒有匯出/刪除/群發入口", async ({ page }) => {
-      await login(page);
+      await loginAsAdmin(page);
       await page.goto("/admin/subscribers");
       await expect(page.getByRole("heading", { name: "訂閱者名單" })).toBeVisible();
       await expect(page.getByText(searchableEmail)).toBeVisible({ timeout: 15000 });
@@ -127,7 +117,7 @@ test.describe("admin-subscribers", () => {
     });
 
     test("依姓名/Email 搜尋，結果保留查詢條件", async ({ page }) => {
-      await login(page);
+      await loginAsAdmin(page);
       await page.goto("/admin/subscribers");
       const searchInput = page.getByLabel("搜尋姓名或 Email");
       await searchInput.fill(searchableEmail);
@@ -138,7 +128,7 @@ test.describe("admin-subscribers", () => {
     });
 
     test("分頁控制項可操作（第一頁上一頁停用）", async ({ page }) => {
-      await login(page);
+      await loginAsAdmin(page);
       await page.goto("/admin/subscribers");
       await expect(page.getByText(searchableEmail)).toBeVisible({ timeout: 15000 });
       await expect(page.getByRole("button", { name: "上一頁" })).toBeDisabled();
@@ -147,11 +137,7 @@ test.describe("admin-subscribers", () => {
 
   test.describe("EDITOR（缺少 subscribers:view 權限）", () => {
     test("開啟後台訂閱者頁面被導向，畫面不閃現訂閱者資料", async ({ page }) => {
-      await page.goto("/login");
-      await page.fill("input[type='email'], input[name='email']", editorEmail);
-      await page.fill("input[type='password']", editorPassword);
-      await page.click("button[type='submit']");
-      await page.waitForURL("**/admin**", { timeout: 15000 });
+      await login(page, editorEmail, editorPassword);
 
       await page.goto("/admin/subscribers");
       await page.waitForURL(/\/admin(?!\/subscribers)/, { timeout: 15000 });
@@ -159,11 +145,7 @@ test.describe("admin-subscribers", () => {
     });
 
     test("直接呼叫 GET /api/admin/subscribers 回傳 403，body 不含姓名/Email/total", async ({ page }) => {
-      await page.goto("/login");
-      await page.fill("input[type='email'], input[name='email']", editorEmail);
-      await page.fill("input[type='password']", editorPassword);
-      await page.click("button[type='submit']");
-      await page.waitForURL("**/admin**", { timeout: 15000 });
+      await login(page, editorEmail, editorPassword);
 
       const res = await page.request.get("/api/admin/subscribers");
       expect(res.status()).toBe(403);
