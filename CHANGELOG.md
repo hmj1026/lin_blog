@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.1 — 2026-07-12 — 修正搜尋與訂閱設定整合
+
+優化 Newsletter 後台控制開關與 header 搜尋欄導覽狀態清理，並補齊權限佈建 migration 與部署先決條件說明。
+
+### 新增功能 (feat)
+- **admin**: 啟用後台站台設定中的 Newsletter 訂閱區塊顯示開關
+- **navbar**: 於頁面切換或返回首頁時，自動同步與清空 header 搜尋欄的欄位值
+- **migration**: 佈建 subscribers:view 訂閱者名單檢視權限以供後台存取
+
+### 文件與規則 (docs/chore)
+- **deploy**: 補充 Newsletter 啟用之 reCAPTCHA/env 先決條件與部署指引
+- **config**: 導入 GitNexus 程式碼分析規則與引導
+
 ## 1.4.0 — 2026-07-11 — 讀者探索與訂閱
 
 整合讀者探索、熱門文章、搜尋與電子報訂閱流程，並補齊 production release 所需的

@@ -73,6 +73,41 @@ test.describe("站點設定", () => {
       await expect(siteNameInput).toBeVisible();
     }
   });
+
+  test("Newsletter 開關可控制首頁訂閱區塊顯示，測試結束還原原始狀態", async () => {
+    await page.goto("/admin/settings");
+
+    const checkbox = page.getByLabel("顯示 Newsletter 訂閱區塊");
+    await expect(checkbox).toBeVisible();
+    const saveButton = page.getByRole("button", { name: "儲存", exact: true });
+    const homepageHeading = page.getByRole("heading", { name: "訂閱電子報", level: 3 });
+
+    const originalChecked = await checkbox.isChecked();
+
+    async function setAndSave(target: boolean) {
+      await page.goto("/admin/settings");
+      if ((await checkbox.isChecked()) !== target) {
+        target ? await checkbox.check() : await checkbox.uncheck();
+      }
+      await saveButton.click();
+      await expect(page.getByText("已儲存")).toBeVisible({ timeout: 10000 });
+    }
+
+    try {
+      // 開啟：首頁應顯示 Newsletter 訂閱區塊
+      await setAndSave(true);
+      await page.goto("/");
+      await expect(homepageHeading).toBeVisible();
+
+      // 關閉：首頁不應渲染該區塊
+      await setAndSave(false);
+      await page.goto("/");
+      await expect(homepageHeading).toHaveCount(0);
+    } finally {
+      // 還原為測試開始前的原始狀態，避免污染其他測試
+      await setAndSave(originalChecked);
+    }
+  });
 });
 
 test.describe("使用者管理", () => {

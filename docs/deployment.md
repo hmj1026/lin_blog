@@ -110,6 +110,26 @@ BLOG_IMAGE_TAG=v1.4.0 /var/www/products/deploy.sh
 3. 執行資料庫遷移（如有）
 4. 健康檢查（`curl http://localhost:3100`）
 
+### Newsletter 訂閱功能先決條件（v1.4.x+）
+
+訂閱表單採 reCAPTCHA fail-closed 設計：**生產環境未設定以下 env 時，首頁／文章頁的
+訂閱表單會呈「目前無法使用訂閱功能」的降級狀態**（此為 spec 既定行為，非故障）。
+
+```bash
+# .env（伺服器端，設定後需重啟容器）
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY="<reCAPTCHA v2 site key>"   # 前端可見
+RECAPTCHA_SECRET_KEY="<reCAPTCHA v2 secret key>"           # 僅伺服器
+RECAPTCHA_ALLOWED_HOSTNAMES="nx.linstar.win"               # 必填，允許的 hostname 白名單（逗號分隔，缺少即 fail closed）
+```
+
+升級部署後的人工作業：
+
+1. 確認上述 reCAPTCHA env 已設定並重啟容器。
+2. 首頁訂閱區塊預設隱藏（`showNewsletter` 預設 `false`）：管理者於
+   **後台 → 站台設定 → 功能開關** 勾選「顯示 Newsletter 訂閱區塊」並儲存。
+3. `subscribers:view` 權限由 migration 於 `migrate deploy` 自動佈建（冪等），
+   既有登入工作階段會在下次請求自動刷新權限，無需重跑 `init-admin.js`。
+
 ---
 
 ## 🚀 完整部署步驟
