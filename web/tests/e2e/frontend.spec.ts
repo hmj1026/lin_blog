@@ -104,6 +104,28 @@ test.describe("標籤頁", () => {
   });
 });
 
+test.describe("Hydration 保留 SSR DOM", () => {
+  test("首頁 hydration 後保留 SSR 渲染的 DOM 節點（不整棵 client 重建）", async ({ page }) => {
+    // 回歸鎖定：ThemeProvider 曾以 mounted 條件在 Fragment 與 Provider 間切換，
+    // 使 hydration 後整個 body 以下被卸載重建（SSR 成果全丟、iframe 重載，
+    // E2E 互動跨越該時窗會間歇性失敗）。此測試在 DOMContentLoaded 時抓住
+    // SSR 的 <main> 節點，hydration 完成後斷言同一節點仍在文件中。
+    await page.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        (window as unknown as { __ssrMain?: Element | null }).__ssrMain =
+          document.querySelector("main");
+      });
+    });
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    const kept = await page.evaluate(() => {
+      const w = window as unknown as { __ssrMain?: Element | null };
+      return w.__ssrMain ? w.__ssrMain.isConnected : "missing";
+    });
+    expect(kept).toBe(true);
+  });
+});
+
 test.describe("首頁 Header 搜尋欄", () => {
   test("搜尋後導覽回首頁，header 搜尋欄清空", async ({ page }) => {
     // header 搜尋欄僅在 lg 斷點顯示（見 navbar-client.tsx `hidden ... lg:flex`），
