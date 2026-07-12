@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.2 — 2026-07-12 — 提升 E2E 測試穩定性
+
+優化 a11y E2E 測試中的 hydration 欄位檢查，提高測試在時序競爭下的穩定度。
+
+### 測試優化 (test)
+- **e2e**: 在焦點操作前等待欄位與按鈕啟用，防止 a11y 測試聚焦於未完成 hydration 的 SSR DOM
+
 ## 1.4.1 — 2026-07-12 — 修正搜尋與訂閱設定整合
 
 優化 Newsletter 後台控制開關與 header 搜尋欄導覽狀態清理，並補齊權限佈建 migration 與部署先決條件說明。
