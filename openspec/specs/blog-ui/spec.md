@@ -95,11 +95,40 @@ The blog detail page SHALL render the hero/media, title, author/date metadata, r
 - **THEN** those modules SHALL appear after the wide iframe content rather than reserving a fixed column beside it
 
 ### Requirement: Forms and Engagement
-The site SHALL include newsletter subscription and contact/community forms as shown in Figma with validation states and confirmation UI.
+The site SHALL include newsletter subscription and contact/community forms as shown in Figma with
+accessible validation, submitting, confirmation, and recoverable error states. The newsletter form
+SHALL require name, valid email, and a completed Google reCAPTCHA v2 checkbox; it SHALL submit to a
+server-verified, rate-limited API and only report success after the server returns the generic
+persisted-or-already-subscribed result. The interface SHALL NOT reveal whether an email was already
+subscribed. Every input SHALL have a visible, programmatically associated label; focus SHALL move to
+the first invalid field or error summary after failure, and submitting/success/error/rate-limit
+states SHALL be announced through `aria-live`. Contact/community form behavior remains unchanged.
 
-#### Scenario: Newsletter form works
-- **WHEN** entering a valid email in the newsletter form,
-- **THEN** the submission control and success/error states match the Figma styling.
+#### Scenario: Newsletter subscription succeeds
+- **GIVEN** a visitor enters a valid name and email and completes the reCAPTCHA v2 checkbox
+- **WHEN** the server accepts the subscription or the normalized email was already subscribed
+- **THEN** the form displays the same accessible generic success confirmation and prevents an
+  accidental duplicate submission while the request is pending
+
+#### Scenario: Newsletter fields and CAPTCHA are validated
+- **GIVEN** the name or email is invalid, or the reCAPTCHA checkbox is incomplete
+- **WHEN** the visitor attempts to submit the newsletter form
+- **THEN** the form displays field-level or CAPTCHA guidance, moves focus appropriately, and does
+  not display a false success state
+
+#### Scenario: Newsletter service failure is recoverable
+- **GIVEN** CAPTCHA configuration is missing, verification is unavailable, the request is rate
+  limited, or the server rejects the request
+- **WHEN** the newsletter submission completes
+- **THEN** the form displays an accessible, non-sensitive retry or wait message and preserves the
+  user's non-secret input where safe, resets an expired or failed CAPTCHA token, and provides a
+  keyboard-accessible way to load or complete the checkbox again
+
+#### Scenario: Newsletter status is announced without replacing labels
+- **WHEN** the newsletter request enters submitting, success, validation-error, provider-error, or
+  rate-limited state
+- **THEN** visible labels remain associated with their inputs, the status is announced via
+  `aria-live`, and keyboard focus moves only when needed to recover from an error
 
 #### Scenario: Contact/community form behaves
 - **WHEN** submitting the contact/community form,

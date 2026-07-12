@@ -4,14 +4,54 @@
 定義持續整合與持續部署流程的需求，包括 CI 品質關卡、可重現的容器映像建置、受保護分支需通過 CI 檢查方可合併，以及自動化的部署工作流程。
 ## Requirements
 ### Requirement: Continuous Integration Quality Gate
-系統 SHALL 提供一個 CI workflow，在每個 Pull Request 與對主要分支的 push 上，於 Node.js 版本矩陣（20 與 22，兩個受支援的 LTS 版本）執行完整品質檢查：ESLint、TypeScript 類型檢查、Vitest 單元測試、Next.js production build。任一步驟失敗時整個 workflow SHALL 判定為失敗。
+系統 SHALL 提供一個 CI workflow，在每個對 `main` 或 `develop` 的 Pull Request，以及
+其他 workflow（如 `docker-build.yml`）以 `workflow_call` 重用呼叫時，執行完整品質
+檢查：ESLint、TypeScript 類型檢查、Vitest 單元測試、Next.js production build。
+任一步驟失敗時整個 workflow SHALL 判定為失敗。
 
-> 註：原規格指定 Node 18 與 20；實作階段驗證發現測試工具鏈 Vitest 4（依賴 ESM-only 的 Vite 6/7）無法在 Node 18 執行（`ERR_REQUIRE_ESM`），且 Node 18 已於 2025-04 EOL。故將矩陣改為兩個仍受支援的 LTS 版本 20 與 22，維持「多版本驗證」之原始意圖。
+Node.js 版本矩陣 SHALL 依觸發情境條件化：
+- Pull Request 目標為 `main`、或由 `workflow_call`／`push` 觸發時，SHALL 在雙版本
+  （20 與 22）上執行；`main` 的 branch protection 綁定 `Build (Node 20)` /
+  `Build (Node 22)` 兩個必要狀態檢查，此路徑不得減少版本。
+- Pull Request 目標為 `develop` 時，MAY 僅在單一版本（預設 **22**，對齊升級後的
+  `node:22-slim` 基準）上執行，因 `develop` 未設定 branch protection、無固定 context
+  名稱的約束。
 
-#### Scenario: Pull request triggers full quality gate
-- **GIVEN** 一個對 `develop` 或 `main` 的 Pull Request
+Node 22（Jod，支援至 2027-04-30）SHALL 為開發/正式環境的 runtime 基準；Node 20（Iron）
+已於 2026-04-30 EOL，僅為向後相容且維持 `main` 必要 context 而暫留於矩陣，其退出時程
+需另以協調式治理變更（同步調整 branch protection 必要 context）決定。
+
+`docker-build.yml` 的 `push` 觸發 SHALL 套用 `paths` 過濾（`web/**` 與相關 workflow
+檔案），使「僅改文件的 `main` 分支 push」不重建映像、不重跑內部 CI 重用。因 GitHub 明文
+規定「Path filters are not evaluated for pushes of tags.」，`v*.*.*` release tag push
+一定會建置映像、不受 `paths` 影響。`pull_request` 觸發 SHALL NOT 套用 `paths` 過濾，
+因為 `main` 的 branch protection 要求對應的必要狀態檢查一定要產生；若在 `pull_request`
+加 `paths`，不符合路徑的 PR 將無法產生該檢查、永遠卡在 pending 而無法合併。`ci.yml`
+自身無 `push` 觸發（見下段），故無 `ci.yml` push paths。
+
+CI workflow 自身 SHALL NOT 保留獨立的 `push` 觸發；合併後（post-merge）對 `main`
+的驗證改由 `docker-build.yml` 的 `push` 觸發內部以 `workflow_call` 呼叫本 workflow
+提供。
+
+> 註：原規格指定 Node 18 與 20；實作階段驗證發現測試工具鏈 Vitest 4（依賴 ESM-only 的 Vite 6/7）無法在 Node 18 執行（`ERR_REQUIRE_ESM`），且 Node 18 已於 2025-04 EOL，故改為 20 與 22。後續（2026-07-10）Node 20（Iron）亦已於 2026-04-30 EOL；本次將 runtime 基準升至 Node 22，但因 `main` branch protection 綁定 `Build (Node 20)` 必要 context，暫時保留 20 於矩陣，其退出需搭配 branch protection context 的協調式調整。
+
+#### Scenario: Pull request to main triggers full dual-version quality gate
+- **GIVEN** 一個對 `main` 的 Pull Request
 - **WHEN** CI workflow 被觸發
-- **THEN** 系統在 Node 20 與 22 兩個版本上依序執行 lint、typecheck、unit test 與 build
+- **THEN** 系統在 Node 20 與 22 兩個版本上依序執行 lint、typecheck、unit test 與 build，
+  且不因變更路徑而略過任何步驟
+
+#### Scenario: Pull request to develop may run a single version
+- **GIVEN** 一個對 `develop` 的 Pull Request
+- **WHEN** CI workflow 被觸發
+- **THEN** 系統至少在 Node 22 上執行 lint、typecheck、unit test 與 build（矩陣可縮減為
+  單一版本，因 `develop` 無 branch protection 約束）
+
+#### Scenario: Docker build filters branch pushes by path but never tags
+- **GIVEN** 一個僅修改文件（未觸及 `web/**`）的 commit 被 push 到 `main`
+- **WHEN** `docker-build.yml` 的 `push` 觸發評估其 `paths` 過濾
+- **THEN** 該 push 被略過、不重建映像；但若改為推送 `v*.*.*` tag，則因 tag 不評估 path
+  filter，映像建置一定執行
 
 #### Scenario: Failing check blocks the workflow
 - **GIVEN** 某次提交導致 ESLint、typecheck、unit test 或 build 其中之一失敗
@@ -22,6 +62,13 @@
 - **GIVEN** 專案的 typecheck / test / build 依賴 Prisma 生成的型別
 - **WHEN** CI workflow 執行
 - **THEN** 系統在 typecheck、test、build 之前先執行 `prisma generate`
+
+#### Scenario: Merge to main is verified via the image build workflow
+- **GIVEN** 一個 commit 被 merge 到 `main`
+- **WHEN** `docker-build.yml` 的 `push` 觸發啟動
+- **THEN** 該 workflow 內部以 `workflow_call` 呼叫 CI workflow，並在 CI 通過後才
+  執行映像建置與推送；CI workflow 自身不會因為這次 merge 而再被 `push` 觸發一次
+  （post-merge 的 CI 矩陣只跑一次）
 
 ### Requirement: Reproducible Container Image
 系統 SHALL 提供一個 multi-stage `Dockerfile` 與 `docker-compose.yml`（app + postgres），使專案可在本機以容器方式建置並執行，且 `.dockerignore` 排除非必要檔案。
@@ -56,4 +103,64 @@
 #### Scenario: Production deploy is manually triggered
 - **WHEN** 維運者手動觸發 Production 部署
 - **THEN** 系統以指定版本部署至 Production 環境
+
+### Requirement: CI Run Deduplication and Concurrency Control
+系統 SHALL 為 `ci.yml`、`docker-build.yml`、`e2e.yml` 設定 `concurrency` 群組，讓
+同一 ref / 同一觸發來源下較舊的執行中 run 在有新 run 產生時被取消（`e2e.yml` 的
+`cancel-in-progress` 依手動測試體驗決定，預設不砍進行中的手動 run），以避免重複消耗
+Actions 執行分鐘數。
+
+reusable workflow（`workflow_call`）呼叫 CI 的執行，SHALL 與 CI workflow 自身其他
+觸發方式（`pull_request`）的執行互不干擾、不會互相取消對方的 run。
+
+系統 SHALL 為 `ci.yml`、`e2e.yml` 及 reusable CI 的呼叫端（`docker-build.yml`）設定
+top-level 最小權限 `permissions: { contents: read }`，僅映像 build-push job 保留
+`packages: write`。因 reusable workflow 的權限只能被呼叫端**降低**、無法提升，呼叫端
+SHALL 自行宣告最小權限。
+
+#### Scenario: Rapid consecutive pushes cancel stale runs
+- **GIVEN** 對同一個已開啟的 Pull Request 在短時間內連續 push 兩次
+- **WHEN** 第二次 push 觸發新的 CI run
+- **THEN** 系統取消第一次仍在執行中的 run，只保留最新一次的結果
+
+#### Scenario: Reusable CI call does not collide with unrelated triggers
+- **GIVEN** `docker-build.yml` 的 `push` 觸發以 `workflow_call` 呼叫 CI workflow，
+  同時有另一個開發者對 `develop` 開啟 Pull Request 觸發 CI workflow 自身的
+  `pull_request` 事件
+- **WHEN** 兩者幾乎同時執行
+- **THEN** 系統將兩者視為不同的 concurrency 群組，兩個 run 都能正常執行到完成，
+  不會有任一方被誤取消
+
+#### Scenario: Workflows run with least-privilege token
+- **GIVEN** CI 與 e2e workflow 及 reusable CI 呼叫端
+- **WHEN** workflow 執行
+- **THEN** 其 `GITHUB_TOKEN` 權限為 `contents: read`，且只有映像 build-push job 具備
+  `packages: write`，不多授予其他權限
+
+### Requirement: Consistent Runtime Version Pinning
+系統 SHALL 提供 `.nvmrc`（值為 `22`）與 `web/package.json` 的 `engines.node`
+（有界區間 `">=22 <25"`）作為 runtime **基準契約**（baseline contract）。由於
+`.nvmrc`、`engines.node`、`Dockerfile`、e2e Postgres 等宣告彼此不會自動強制一致，
+系統 SHALL 於 CI 提供一個一致性檢查 step，斷言這些版本宣告彼此相符，否則它們只是
+各自硬編、易於漂移。CI 矩陣（`[20, 22]`）仍用於驗證多版本相容性，不因此改變。
+
+E2E workflow 使用的 Postgres service image 版本 SHALL 與 `docker-compose.yml`
+（正式環境使用的版本）保持一致。
+
+#### Scenario: Local and CI use a consistent Node baseline
+- **GIVEN** 開發者在本機執行 `nvm use` 或相容工具讀取 `.nvmrc`
+- **WHEN** 開發者接著在本機執行測試或建置
+- **THEN** 使用的 Node 版本（22）與 CI 矩陣中的其中一個版本一致，且與
+  `web/package.json` 的 `engines.node` 宣告相容
+
+#### Scenario: CI asserts runtime baseline declarations agree
+- **GIVEN** `web/Dockerfile`、`.nvmrc`、`web/package.json` 的 `engines.node`、
+  `e2e.yml` 的 postgres 版本宣告
+- **WHEN** CI 的一致性檢查 step 執行
+- **THEN** 若任一宣告與其他不相符，該 step SHALL 失敗，阻止漂移進入主分支
+
+#### Scenario: E2E Postgres matches the compose/production version
+- **GIVEN** `docker-compose.yml` 定義的 postgres image 版本
+- **WHEN** `e2e.yml` 啟動其 Postgres service 容器
+- **THEN** 兩者使用相同的 Postgres 主版本，避免 E2E 測試與正式環境行為出現版本落差
 
