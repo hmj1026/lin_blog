@@ -5,6 +5,7 @@ import type { TocItem } from "@/lib/utils/toc";
 import {
   buildRawPostSrcDoc,
   RAW_HTML_FRAME_HEIGHT_MESSAGE as HEIGHT_MESSAGE,
+  RAW_HTML_FRAME_HEIGHT_REQUEST_MESSAGE as HEIGHT_REQUEST_MESSAGE,
   RAW_HTML_FRAME_SCROLL_MESSAGE as SCROLL_MESSAGE,
   RAW_HTML_FRAME_SCROLL_RESULT_MESSAGE as SCROLL_RESULT_MESSAGE,
   RAW_HTML_FRAME_NAVIGATE_MESSAGE as NAVIGATE_MESSAGE,
@@ -50,6 +51,11 @@ export function RawHtmlPostFrame({ html, tocItems, showRawHtmlToc = false }: Raw
       }
     }
     window.addEventListener("message", onMessage);
+    // 握手：iframe 首次載入時 push 的高度訊息可能早於本 listener 附掛而丟失
+    // （SSR 的 iframe 在 hydration 前就開始載入），這裡主動請求 iframe 重報。
+    // 若 iframe 尚未載入完成，此請求會落空，但 iframe 載入後的初始 push
+    // 會抵達已附掛的 listener，兩種順序皆有涵蓋。
+    iframeRef.current?.contentWindow?.postMessage({ type: HEIGHT_REQUEST_MESSAGE }, "*");
     return () => window.removeEventListener("message", onMessage);
   }, []);
 

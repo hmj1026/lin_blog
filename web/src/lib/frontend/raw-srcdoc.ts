@@ -1,4 +1,5 @@
 export const RAW_HTML_FRAME_HEIGHT_MESSAGE = "raw-html-frame:height";
+export const RAW_HTML_FRAME_HEIGHT_REQUEST_MESSAGE = "raw-html-frame:reportHeight";
 export const RAW_HTML_FRAME_SCROLL_MESSAGE = "raw-html-frame:scrollTo";
 export const RAW_HTML_FRAME_SCROLL_RESULT_MESSAGE = "raw-html-frame:scrollResult";
 export const RAW_HTML_FRAME_NAVIGATE_MESSAGE = "raw-html-frame:navigate";
@@ -27,6 +28,7 @@ ${html}
 <script>
 (function () {
   var HEIGHT_MESSAGE = ${JSON.stringify(RAW_HTML_FRAME_HEIGHT_MESSAGE)};
+  var HEIGHT_REQUEST_MESSAGE = ${JSON.stringify(RAW_HTML_FRAME_HEIGHT_REQUEST_MESSAGE)};
   var SCROLL_MESSAGE = ${JSON.stringify(RAW_HTML_FRAME_SCROLL_MESSAGE)};
   var SCROLL_RESULT_MESSAGE = ${JSON.stringify(RAW_HTML_FRAME_SCROLL_RESULT_MESSAGE)};
   var NAVIGATE_MESSAGE = ${JSON.stringify(RAW_HTML_FRAME_NAVIGATE_MESSAGE)};
@@ -40,6 +42,12 @@ ${html}
   window.addEventListener("load", reportHeight);
   window.addEventListener("message", function (e) {
     var d = e.data;
+    if (d && d.type === HEIGHT_REQUEST_MESSAGE) {
+      // 握手：iframe 載入時 push 的初始高度可能早於父頁面 hydration
+      // （listener 尚未附掛）而丟失；父頁面就緒後會補發此請求，這裡重報一次。
+      reportHeight();
+      return;
+    }
     if (d && d.type === SCROLL_MESSAGE && typeof d.id === "string") {
       var el = document.getElementById(d.id);
       if (el) {

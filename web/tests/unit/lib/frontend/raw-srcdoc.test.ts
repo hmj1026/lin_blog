@@ -1,7 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { buildRawPostSrcDoc } from "@/lib/frontend/raw-srcdoc";
+import {
+  buildRawPostSrcDoc,
+  RAW_HTML_FRAME_HEIGHT_REQUEST_MESSAGE,
+} from "@/lib/frontend/raw-srcdoc";
 
 describe("buildRawPostSrcDoc", () => {
+  it("handles the height request message so a late-hydrating parent can pull the height", () => {
+    // 回歸鎖定：iframe 於載入時 push 的高度訊息可能早於 parent listener 附掛
+    // 而丟失，srcdoc script 必須回應 parent 就緒後補發的高度請求（握手）。
+    const srcDoc = buildRawPostSrcDoc("<p>content</p>");
+
+    expect(srcDoc).toContain(JSON.stringify(RAW_HTML_FRAME_HEIGHT_REQUEST_MESSAGE));
+    const script = srcDoc.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
+    expect(script).toMatch(/HEIGHT_REQUEST_MESSAGE[\s\S]*reportHeight\(\)/);
+  });
+
   it("resets html and body margin/padding to zero with no left-right body padding", () => {
     const srcDoc = buildRawPostSrcDoc("<p>content</p>");
 
