@@ -45,8 +45,11 @@ jobs:
       NEXTAUTH_SECRET: test-secret-for-ci-minimum-32-characters
       NEXTAUTH_URL: http://localhost:3000
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
-      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+      # secrets 未設定時以 expression 層 fallback 補預設值：確保 create-user 步驟與
+      # Playwright specs（process.env || "admin" fallback 不會在 CI 觸發）看到同一組
+      # 憑證，且密碼滿足 create-user.js 的至少 6 字元檢核
+      E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL || 'admin@lin.blog' }}
+      E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD || 'e2e-admin-pass' }}
 
     steps:
       - name: Checkout repository
