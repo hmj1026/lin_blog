@@ -73,8 +73,10 @@ test.describe("newsletter-subscribe", () => {
     // input，若在 hydration 完成前用 fill() 寫入 DOM，之後才附掛的 onChange
     // 永遠不會把值同步進 React state，導致送出時誤判為空白輸入
     // （純測試時機問題，非應用程式邏輯錯誤——見 discovery-normal-post.spec.ts
-    // 的 gotoAndWaitHydrated 說明）。
-    await page.waitForLoadState("networkidle");
+    // 的 gotoAndWaitHydrated 說明）。以欄位本身的 toBeEnabled() 作為
+    // hydration gate；`networkidle` 只代表網路請求清空，不保證 React 已接手。
+    await expect(page.getByLabel("姓名")).toBeEnabled();
+    await expect(page.getByLabel("Email")).toBeEnabled();
   });
 
   test("labels 為可見且與輸入欄位程式化關聯", async ({ page }) => {

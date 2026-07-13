@@ -1,5 +1,4 @@
 import { test, expect, type Page } from "@playwright/test";
-import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * E2E：原始 HTML 模式的圖片插入工具（task 3.3/3.4 acceptance, section 6）
@@ -49,7 +48,6 @@ async function uploadAndCropInRawMode(page: Page) {
 
 test.describe("原始 HTML 模式圖片工具", () => {
   test("6.1 上傳圖片後顯示 alt 輸入、預覽與操作按鈕", async ({ page }) => {
-    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
 
     await uploadAndCropInRawMode(page);
@@ -62,7 +60,6 @@ test.describe("原始 HTML 模式圖片工具", () => {
   });
 
   test("6.2 輸入 alt 後插入到游標會寫入 <img> 片段", async ({ page }) => {
-    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
 
     const textarea = page.getByTestId("raw-html-editor");
@@ -80,7 +77,6 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
   test("6.3 複製圖片網址會將相對路徑寫入剪貼簿", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
     await uploadAndCropInRawMode(page);
 
@@ -92,7 +88,6 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
   test("6.4 複製 <img> 標籤會將完整片段寫入剪貼簿", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
     await uploadAndCropInRawMode(page);
 
@@ -104,7 +99,6 @@ test.describe("原始 HTML 模式圖片工具", () => {
   });
 
   test("6.5 上傳失敗顯示錯誤訊息且不影響內容", async ({ page }) => {
-    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
 
     const textarea = page.getByTestId("raw-html-editor");
@@ -133,7 +127,6 @@ test.describe("原始 HTML 模式圖片工具", () => {
   test("6.6 剪貼簿寫入失敗顯示複製失敗訊息", async ({ page, context }) => {
     // 不授予剪貼簿權限，讓 navigator.clipboard.writeText 於瀏覽器內被拒絕/拋錯。
     await context.clearPermissions();
-    await loginAsAdmin(page);
     await openNewPostInRawMode(page);
     await uploadAndCropInRawMode(page);
 
@@ -145,7 +138,6 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
 test.describe("VISUAL 模式圖片插入（TipTap）迴歸檢查", () => {
   test("6.7 VISUAL 模式下圖片上傳流程仍可用，無需第二個上傳端點", async ({ page }) => {
-    await loginAsAdmin(page);
     await page.goto("/admin/posts/new");
     await page.locator("#post-title").fill(`E2E Visual Media ${Date.now()}`);
     await page.locator("#post-slug").fill(`e2e-visual-media-${Date.now()}`);

@@ -1,13 +1,14 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { loginAsAdmin } from "./helpers/auth";
+import { AUTH_FILE } from "./helpers/auth";
 
 let adminContext: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  adminContext = await browser.newContext();
+  // 手動 context 不會自動繼承 project 的 use.storageState，明確帶入
+  // AUTH_FILE 取得管理員身分，不再跑一次 UI 登入（task 1.4）。
+  adminContext = await browser.newContext({ storageState: AUTH_FILE });
   page = await adminContext.newPage();
-  await loginAsAdmin(page);
 });
 
 test.afterAll(async () => {
@@ -133,9 +134,9 @@ test.describe("使用者管理", () => {
 test.describe("角色管理", () => {
   test("角色列表頁可正常載入或需要權限", async () => {
     await page.goto("/admin/roles");
-    
-    // 可能需要 roles:manage 權限，如果沒權限會重導向到 /admin
-    await page.waitForTimeout(1000);
+
+    // 可能需要 roles:manage 權限；重導向由 page.tsx 的 redirect() 在 SSR
+    // 階段完成，goto() resolve 時 URL 已是最終值，不需固定等待。
     const url = page.url();
     const hasAccess = url.includes("/admin/roles");
     

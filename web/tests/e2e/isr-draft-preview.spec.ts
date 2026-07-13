@@ -1,4 +1,4 @@
-// 這些測試需要一個正在執行的 DB（Postgres）與 dev server（見 tests/e2e/auth.setup.ts）。
+// 這些測試需要一個正在執行的 DB（Postgres）與 dev server。
 // 驗證 fix-perf-caching Section 4：/blog/[slug] 改用 ISR（revalidate=60）+ draftMode 後，
 // 已發布文章可正常渲染、草稿僅能透過 /api/preview 的 draft bypass cookie 檢視，
 // 一般訪客無法看到草稿內容（回傳 404）。

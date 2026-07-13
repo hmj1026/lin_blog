@@ -18,7 +18,10 @@
 - **E2E**:
   - File: `*.spec.ts`.
   - DB: Real PostgreSQL (Docker service).
-  - Auth: Uses `e2e/auth.setup.ts` to share session (skips login).
+  - Auth: `global-setup.ts` logs in once per run and writes storageState to
+    `e2e/.auth/user.json` (`AUTH_FILE` in `helpers/auth.ts`); the
+    `chromium-authed` project reuses it, so pure-admin specs don't call
+    `loginAsAdmin()` themselves.
 
 ## COMMANDS
 ```bash
@@ -30,6 +33,22 @@ npx playwright show-report # View E2E report
 ```
 
 ## E2E AUTH FLOW
-- `auth.setup.ts` performs login once and saves state to `.auth/user.json`.
-- Most specs use `test.use({ storageState: '.auth/user.json' })`.
-- To test login specifically, use `test.use({ storageState: { cookies: [], origins: [] } })`.
+- Two mutually exclusive projects cover `tests/e2e/**/*.spec.ts`:
+  - `chromium-authed` — admin-only specs listed in `AUTHED_SPECS`
+    (`playwright.config.ts`); `use.storageState` is `AUTH_FILE`, produced by
+    `global-setup.ts` after its admin warmup login. Test bodies do not call
+    `loginAsAdmin()` again.
+  - `chromium-anon` — everything else (`testIgnore: AUTHED_SPECS`); no
+    storageState. Specs that need an admin session (e.g. editor preview in
+    `isr-draft-preview.spec.ts`) call `loginAsAdmin()`/`login()` explicitly.
+- Mixed-role specs inside `chromium-authed` (e.g. `admin-subscribers.spec.ts`)
+  clear the inherited admin state per-`describe` with
+  `test.use({ storageState: { cookies: [], origins: [] } })`, then log in
+  explicitly with the role under test (or stay anonymous).
+- Manual `browser.newContext()` (in `beforeAll`/`afterAll`, or
+  `admin-management.spec.ts`) does **not** inherit project `use.storageState`.
+  Pass `{ storageState: AUTH_FILE }` explicitly for admin access, or call
+  `loginAsAdmin()` if the context needs its own real login (e.g. to seed data
+  as a distinct user).
+- `helpers/auth.ts` still owns `login()`/`loginAsAdmin()` for the auth
+  exceptions above (login-flow tests, editor preview, mixed-role subgroups).

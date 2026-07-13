@@ -99,8 +99,9 @@ test.describe("admin-subscribers", () => {
   });
 
   test.describe("ADMIN", () => {
+    // 這支 spec 屬於 chromium-authed project，page fixture 已帶共用 admin
+    // storageState，不需要再各自呼叫 loginAsAdmin()。
     test("顯示訂閱者名單，含姓名/Email/建立時間，且沒有匯出/刪除/群發入口", async ({ page }) => {
-      await loginAsAdmin(page);
       await page.goto("/admin/subscribers");
       await expect(page.getByRole("heading", { name: "訂閱者名單" })).toBeVisible();
       await expect(page.getByText(searchableEmail)).toBeVisible({ timeout: 15000 });
@@ -117,7 +118,6 @@ test.describe("admin-subscribers", () => {
     });
 
     test("依姓名/Email 搜尋，結果保留查詢條件", async ({ page }) => {
-      await loginAsAdmin(page);
       await page.goto("/admin/subscribers");
       const searchInput = page.getByLabel("搜尋姓名或 Email");
       await searchInput.fill(searchableEmail);
@@ -128,7 +128,6 @@ test.describe("admin-subscribers", () => {
     });
 
     test("分頁控制項可操作（第一頁上一頁停用）", async ({ page }) => {
-      await loginAsAdmin(page);
       await page.goto("/admin/subscribers");
       await expect(page.getByText(searchableEmail)).toBeVisible({ timeout: 15000 });
       await expect(page.getByRole("button", { name: "上一頁" })).toBeDisabled();
@@ -136,6 +135,10 @@ test.describe("admin-subscribers", () => {
   });
 
   test.describe("EDITOR（缺少 subscribers:view 權限）", () => {
+    // 這支 spec 屬於 chromium-authed project，需明確清空 project 帶入的
+    // admin storageState，再各自用 EDITOR 帳號登入，避免沿用 admin 身分。
+    test.use({ storageState: { cookies: [], origins: [] } });
+
     test("開啟後台訂閱者頁面被導向，畫面不閃現訂閱者資料", async ({ page }) => {
       await login(page, editorEmail, editorPassword);
 
@@ -157,6 +160,10 @@ test.describe("admin-subscribers", () => {
   });
 
   test.describe("匿名（未登入）", () => {
+    // 這支 spec 屬於 chromium-authed project，需明確清空 project 帶入的
+    // admin storageState，才能驗證真正未登入的匿名行為。
+    test.use({ storageState: { cookies: [], origins: [] } });
+
     test("開啟後台訂閱者頁面被導向登入頁", async ({ page }) => {
       await page.goto("/admin/subscribers");
       await page.waitForURL(/\/login/, { timeout: 15000 });

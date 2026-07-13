@@ -1,5 +1,29 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import {
+  observeStableScrollWindow,
+  waitForScrollSettled,
+  type ScrollObservationSource,
+} from "./helpers/scroll-observation";
+
+/**
+ * Adapts a Playwright page to the deterministic scroll-observation algorithm.
+ */
+const pageScrollSource = (page: Page): ScrollObservationSource => ({
+  readScrollY: () => page.evaluate(() => window.scrollY),
+  wait: (milliseconds) => page.waitForTimeout(milliseconds),
+  now: () => Date.now(),
+});
+
+/** Waits for actionability-driven scrolling to stop without requiring new movement. */
+const waitForCurrentScrollToSettle = async (page: Page): Promise<number> => {
+  const source = pageScrollSource(page);
+  const currentY = await source.readScrollY();
+  return waitForScrollSettled(source, {
+    movedFrom: currentY,
+    movementThreshold: 0,
+  });
+};
 
 /**
  * E2E：原始 HTML 模式（allowRawHtml）文章的隔離 iframe 渲染
@@ -76,7 +100,9 @@ test.describe("raw-html-post", () => {
       await dialog.dismiss();
     });
     await page.goto(`/blog/${slug}`);
-    // 給 iframe 充足時間載入其自寫腳本（若使用者腳本殘留，alert 會在此期間觸發）
+    // 負向觀察（design D2 允許的例外）：這裡驗證的是「腳本沒有執行」，沒有
+    // 更強的完成訊號可等待。給 iframe 充足時間載入其自寫腳本，若使用者腳本
+    // 殘留，alert 會在此有界觀察視窗內觸發。
     await page.waitForTimeout(1500);
     expect(dialogFired).toBe(false);
   });
@@ -112,9 +138,7 @@ test.describe("raw-html-post", () => {
     await expect(tocButtons).toHaveCount(2, { timeout: 15000 });
     const before = await page.evaluate(() => window.scrollY);
     await tocButtons.nth(1).click();
-    // 等待平滑捲動穩定
-    await page.waitForTimeout(1200);
-    const after = await page.evaluate(() => window.scrollY);
+    const after = await waitForScrollSettled(pageScrollSource(page), { movedFrom: before });
     expect(after).toBeGreaterThan(before + 100);
   });
 
@@ -134,11 +158,10 @@ test.describe("raw-html-post", () => {
     // click() 的 actionability 檢查會先自動把不在可視範圍的元素捲入視野；
     // 先在此明確捲動並等待穩定，避免這個自動捲動污染下面量測的 before/after 差值。
     await frame.locator("#jump-link").scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
+    await waitForCurrentScrollToSettle(page);
     const before = await page.evaluate(() => window.scrollY);
     await frame.locator("#jump-link").click();
-    // 等待平滑捲動穩定
-    await page.waitForTimeout(1200);
+    const after = await waitForScrollSettled(pageScrollSource(page), { movedFrom: before });
     // srcdoc iframe 無 <base> 時，creator base URL 是外層真實頁面 URL，
     // 而 document.URL 是 about:srcdoc；瀏覽器判斷 fragment-only 連結是否為
     // 「同文件導覽」時比較兩者，不相等 → 判定為跨文件導覽 → iframe 對自己
@@ -146,7 +169,6 @@ test.describe("raw-html-post", () => {
     // 「是否又長出一層巢狀 iframe」，捕捉此自我重載，比之後的座標範圍斷言更
     // 決定性（不受 reload 時序競爭影響）。
     await expect(page.locator("iframe[title='post-content'] iframe")).toHaveCount(0);
-    const after = await page.evaluate(() => window.scrollY);
     expect(after).toBeGreaterThan(before + 100);
     // 目標必須落在外層 sticky header 下方，且與側邊欄 ToC 捲動邏輯
     // （iframeTop + offset - SCROLL_HEADER_OFFSET，SCROLL_HEADER_OFFSET = 80）一致：
@@ -169,13 +191,14 @@ test.describe("raw-html-post", () => {
     await expect(frame.locator("#missing-link")).toBeVisible({ timeout: 15000 });
     // 同 8.4c：先讓 click() 的自動捲動塵埃落定，避免污染 before/after 差值量測。
     await frame.locator("#missing-link").scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
+    await waitForCurrentScrollToSettle(page);
     const before = await page.evaluate(() => window.scrollY);
     await frame.locator("#missing-link").click();
-    await page.waitForTimeout(1200);
+    // 負向觀察：完整觀察 3 秒，期間任何超過容差的延遲捲動都立即失敗；不能
+    // 因前幾次樣本穩定就提早返回，否則會漏掉延遲副作用。
+    const after = await observeStableScrollWindow(pageScrollSource(page), { baseline: before });
     // 同 8.4c：找不到 target 的壞錨點也不應觸發 srcdoc 自我重載。
     await expect(page.locator("iframe[title='post-content'] iframe")).toHaveCount(0);
-    const after = await page.evaluate(() => window.scrollY);
     expect(Math.abs(after - before)).toBeLessThan(50);
   });
 
