@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.6 — 2026-07-13 — E2E sharded 測試優化與 CI 診斷強化
+
+優化 Playwright E2E 套件執行方式並強化 CI 環境的診斷與相依性管理，降低 CI 執行時間並提升失敗時的可觀察性。
+
+### 測試與維運 (test/ci)
+- **e2e**: 將 E2E 套件拆分為 3 個 shard 並平行執行，搭配 Playwright browser binary 快取
+  （以實際安裝版本而非 semver range 作為 cache key）縮短 CI 執行時間
+- **e2e**: 新增 `scroll-observation` helper 並重構多個 spec 以共用捲動觀察邏輯，移除
+  `auth.setup.ts` 改用既有 `helpers/auth` 登入流程
+- **ci**: E2E workflow 改用 Node 24 官方 cache action；限縮 Playwright 系統相依安裝範圍
+  並於安裝前檢查 runner 相依是否齊備，避免每個 shard 重複執行完整安裝
+- **test**: 新增 `optimization-contract` 與 `scroll-observation` 單元測試，鎖定 shard
+  設定與捲動觀察行為的契約
+
 ## 1.4.5 — 2026-07-13 — 修復 reCAPTCHA render 競態與 sitemap 文章頁缺席
 
 修復 2026-07-13 生產稽核證實的兩個缺陷：首頁與文章頁 Newsletter 訂閱表單的 reCAPTCHA
