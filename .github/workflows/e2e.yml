@@ -1,15 +1,17 @@
 name: E2E Tests
 
 on:
-  push:
-    branches: [main]
+  # E2E 收斂為兩個 PR 閘門：PR→develop（功能閘門）與 PR→main（release 閘門）。
+  # 已移除 push:[main]——release PR 的 E2E 已驗證與 merge 後 main HEAD 幾乎相同的內容，
+  # push→main 重跑屬冗餘（design D1）。post-merge 對 main 的把關由 docker-build.yml 的
+  # reusable CI 提供（無 E2E，與 tag build 路徑一致）。
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
   # e2e 無真正共享的外部資源（Postgres 為每次 run 全新隔離的 service 容器），
-  # 同一 ref 的重複 run 不互相取消，避免取消中的驗證造成誤判。
+  # 同一 ref（PR 的 refs/pull/N/merge）的重複 run 不互相取消，避免取消中的驗證造成誤判。
   group: e2e-${{ github.ref }}
   cancel-in-progress: false
 

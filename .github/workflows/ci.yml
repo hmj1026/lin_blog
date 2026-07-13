@@ -29,19 +29,12 @@ jobs:
 
       - name: Determine Node version matrix
         id: set-matrix
-        # PR → develop（無 branch protection）縮減為單一版本（22，對齊 production 基準）；
-        # PR → main / push / workflow_call 維持雙版本 [20, 22]，以產生 branch protection
-        # 綁定的 Build (Node 20) / Build (Node 22) 兩個必要 context。
-        # 以 env 傳入並加引號，避免 context 值被直接內插進 shell（injection 防護）。
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
+        # 所有觸發情境（PR→main / PR→develop / workflow_call）一律單一 Node 22
+        # （Jod，支援至 2027-04-30，對齊 production 基準）。Node 20 已於 2026-04-30 EOL
+        # 且 engines.node（">=22 <25"）已排除其使用，故自矩陣移除（design D2）。
+        # 保留 detect job 與單點矩陣輸出，未來新增版本（如 Node 24）只需改此處。
         run: |
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$BASE_REF" = "develop" ]; then
-            echo 'versions=["22"]' >> "$GITHUB_OUTPUT"
-          else
-            echo 'versions=["20","22"]' >> "$GITHUB_OUTPUT"
-          fi
+          echo 'versions=["22"]' >> "$GITHUB_OUTPUT"
 
       - name: Assert runtime baseline consistency
         # runtime 基準契約（task 7.5）：Node 主版本在 web/.nvmrc、web/Dockerfile、
