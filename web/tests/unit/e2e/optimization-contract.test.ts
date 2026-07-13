@@ -21,6 +21,15 @@ describe("optimized E2E execution contract", () => {
     expect(workflow).not.toContain("uses: actions/cache@v4");
   });
 
+  it("bounds and retries Chromium OS dependency installation", () => {
+    const workflow = readRepoFile(".github/workflows/e2e.yml");
+
+    expect(workflow).toContain("for attempt in 1 2");
+    expect(workflow).toContain(
+      "timeout --kill-after=10s 180s npx playwright install-deps chromium",
+    );
+  });
+
   it("ignores generated Playwright blob reports", () => {
     const gitignore = readWebFile(".gitignore");
 

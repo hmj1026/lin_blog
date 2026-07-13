@@ -95,8 +95,20 @@ jobs:
 
       - name: Install Chromium OS dependencies
         # 每片都要準備，即使 browser binary cache hit 也不能省略，否則會有
-        # binary 但缺系統套件（design D4 風險）。
-        run: npx playwright install-deps chromium
+        # binary 但缺系統套件（design D4 風險）。hosted runner 的 apt 偶爾會
+        # 無輸出卡住；限制單次 180 秒並重試一次，避免耗盡整個 job timeout。
+        run: |
+          for attempt in 1 2; do
+            if timeout --kill-after=10s 180s npx playwright install-deps chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 2 ]; then
+              echo "::error::Chromium OS dependencies installation failed after 2 attempts"
+              exit 1
+            fi
+            echo "::warning::Chromium OS dependencies installation timed out; retrying once"
+            sleep 5
+          done
         working-directory: ./web
 
       - name: Install Chromium browser binary
