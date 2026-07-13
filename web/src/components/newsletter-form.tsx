@@ -40,6 +40,11 @@ type Grecaptcha = {
     }
   ) => number;
   reset: (widgetId?: number) => void;
+  /**
+   * api.js loader stub 提供的就緒佇列：release script 載完後 flush。
+   * 兩段式載入下 `grecaptcha` 物件可能先於 `render` 出現，故此為 optional。
+   */
+  ready?: (callback: () => void) => void;
 };
 
 declare global {
@@ -48,46 +53,47 @@ declare global {
   }
 }
 
-/** reCAPTCHA script 載入逾時（毫秒）：逾時仍無 grecaptcha 即視為載入失敗。 */
+/**
+ * render readiness 逾時（毫秒）：自初始化起，若 `grecaptcha.render` 在此期限內
+ * 仍不是可呼叫的 function（含 script 被封鎖、release script 永不載入等情境），
+ * 視為失敗並走可恢復的重新載入 UI。此 deadline 由 `initCaptcha` 擁有，script `load`
+ * 事件不得清除它（api.js 為兩段式載入，load 不代表 render 已就緒）。
+ */
 const RECAPTCHA_LOAD_TIMEOUT_MS = 10000;
 
+/** 等待 `grecaptcha.render` 可呼叫的輪詢間隔（毫秒），作為 `ready()` 佇列的備援。 */
+const RECAPTCHA_READY_POLL_INTERVAL_MS = 200;
+
 type LoadRecaptchaHandlers = {
+  /** script 標籤 `load`（或 grecaptcha 物件已存在）時呼叫，觸發一次 render readiness 檢查。 */
   onReady: () => void;
-  /** script 載入失敗或逾時（例如被廣告攔截器／網路封鎖）時呼叫，供 UI 呈現可恢復入口。 */
+  /** script 載入失敗（例如被廣告攔截器／網路封鎖）時呼叫，供 UI 呈現可恢復入口。 */
   onError: () => void;
 };
 
 /**
- * 懶載入 Google reCAPTCHA script。除了 `load` 事件外，另監聽 `error` 事件並設定
- * 逾時：任一失敗路徑都會呼叫 `onError`，讓表單能顯示重新載入控制項，而非留下空白
- * widget。回傳一個 cleanup 函式以移除監聽器與計時器（供 effect 卸載或重試時呼叫）。
+ * 懶載入 Google reCAPTCHA script。本函式只負責注入（或重用）script 標籤並回報
+ * 「script 標籤本身」的 `load` / `error`；`grecaptcha.render` 是否可呼叫由
+ * `initCaptcha` 的 readiness 輪詢/deadline 判斷（api.js 兩段式載入，script load
+ * 不代表 render 已就緒）。回傳 cleanup 以移除監聽器。
  */
 function loadRecaptchaScript({ onReady, onError }: LoadRecaptchaHandlers): () => void {
   if (typeof document === "undefined") return () => {};
   if (window.grecaptcha) {
+    // grecaptcha 物件已存在（script 進行中或已完成）→ 直接進入 readiness 檢查。
     onReady();
     return () => {};
   }
 
   let settled = false;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  const clearTimer = () => {
-    if (timer !== null) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
   const handleLoad = () => {
     if (settled) return;
     settled = true;
-    clearTimer();
     onReady();
   };
   const handleError = () => {
     if (settled) return;
     settled = true;
-    clearTimer();
     onError();
   };
 
@@ -102,16 +108,9 @@ function loadRecaptchaScript({ onReady, onError }: LoadRecaptchaHandlers): () =>
   script.addEventListener("error", handleError, { once: true });
   if (!existing) document.head.appendChild(script);
 
-  // 逾時 backstop：涵蓋 script 標籤已存在卻永遠不觸發 load/error 的被封鎖情境。
-  timer = setTimeout(() => {
-    if (window.grecaptcha) handleLoad();
-    else handleError();
-  }, RECAPTCHA_LOAD_TIMEOUT_MS);
-
   return () => {
     script.removeEventListener("load", handleLoad);
     script.removeEventListener("error", handleError);
-    clearTimer();
   };
 }
 
@@ -148,7 +147,10 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
   const retryCaptchaButtonRef = useRef<HTMLButtonElement>(null);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<number | null>(null);
-  const loadCleanupRef = useRef<(() => void) | null>(null);
+  // 每次初始化的世代序號：retry/unmount 時遞增，使殘留的 ready/polling callback 失效。
+  const initGenerationRef = useRef(0);
+  // 目前初始化的 readiness cleanup（清 timer/interval 與 script 監聽器）。
+  const readinessCleanupRef = useRef<(() => void) | null>(null);
 
   const siteKey = publicEnv.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   const captchaUnavailable = !siteKey;
@@ -157,34 +159,94 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
 
   const initCaptcha = useCallback(() => {
     if (captchaUnavailable || isCaptchaTestDouble) return;
+
+    // 讓上一輪（前次 init / retry）的 stale callback 失效並清掉其 timer/監聽器，
+    // 再取得本輪世代序號；任何舊 closure 皆以 isCurrent() 判斷是否已被取代。
+    readinessCleanupRef.current?.();
+    const generation = (initGenerationRef.current += 1);
+    const isCurrent = () => generation === initGenerationRef.current;
+
     setCaptchaLoadFailed(false);
 
-    function tryRender() {
-      if (widgetIdRef.current !== null) return;
-      if (!window.grecaptcha || !widgetContainerRef.current) return;
-      widgetIdRef.current = window.grecaptcha.render(widgetContainerRef.current, {
-        sitekey: siteKey as string,
-        callback: (token: string) => {
-          setCaptchaToken(token);
-          setCaptchaExpired(false);
-        },
-        "expired-callback": () => {
-          setCaptchaToken(null);
-          setCaptchaExpired(true);
-        },
-        "error-callback": () => {
-          setCaptchaToken(null);
-          setCaptchaExpired(true);
-        },
-      });
-    }
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
+    let scriptCleanup: (() => void) | null = null;
+    let readyRequested = false;
 
-    tryRender();
-    loadCleanupRef.current?.();
-    loadCleanupRef.current = loadRecaptchaScript({
-      onReady: tryRender,
-      onError: () => setCaptchaLoadFailed(true),
-    });
+    const stopReadiness = () => {
+      if (pollTimer !== null) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (deadlineTimer !== null) {
+        clearTimeout(deadlineTimer);
+        deadlineTimer = null;
+      }
+      scriptCleanup?.();
+      scriptCleanup = null;
+      if (readinessCleanupRef.current === stopReadiness) readinessCleanupRef.current = null;
+    };
+
+    const fail = () => {
+      if (!isCurrent()) return;
+      stopReadiness();
+      setCaptchaLoadFailed(true);
+    };
+
+    // 回傳 true 代表 readiness 流程結束（成功渲染或 render 拋錯）；false 代表尚需等待。
+    const tryRender = (): boolean => {
+      if (!isCurrent()) return true;
+      if (widgetIdRef.current !== null) return true;
+      const container = widgetContainerRef.current;
+      if (!container) return false;
+      if (typeof window.grecaptcha?.render !== "function") return false;
+      try {
+        widgetIdRef.current = window.grecaptcha.render(container, {
+          sitekey: siteKey as string,
+          callback: (token: string) => {
+            setCaptchaToken(token);
+            setCaptchaExpired(false);
+          },
+          "expired-callback": () => {
+            setCaptchaToken(null);
+            setCaptchaExpired(true);
+          },
+          "error-callback": () => {
+            setCaptchaToken(null);
+            setCaptchaExpired(true);
+          },
+        });
+        stopReadiness();
+        return true;
+      } catch {
+        // 渲染失敗導入既有降級流程；widgetIdRef 保持 null 以允許重試路徑重新 render。
+        widgetIdRef.current = null;
+        fail();
+        return true;
+      }
+    };
+
+    const pump = () => {
+      if (tryRender()) return;
+      // grecaptcha 物件已存在但 render 尚未就緒：優先用官方 ready() 佇列（release
+      // script 載完後 flush），但 ready 不得成為唯一路徑——輪詢仍持續作為備援。
+      if (!readyRequested && typeof window.grecaptcha?.ready === "function") {
+        readyRequested = true;
+        window.grecaptcha.ready(() => pump());
+      }
+    };
+
+    readinessCleanupRef.current = stopReadiness;
+
+    pump();
+    // pump 同步完成（成功渲染或已失敗，stopReadiness 會把 ref 置回 null）或本輪已被
+    // 取代時，不再設定輪詢/deadline，避免重複 render 或 stale 計時器。
+    if (readinessCleanupRef.current !== stopReadiness || !isCurrent()) return;
+
+    // 有界輪詢 + deadline 是唯一的 readiness 保證，獨立於 script load 事件之外。
+    pollTimer = setInterval(pump, RECAPTCHA_READY_POLL_INTERVAL_MS);
+    deadlineTimer = setTimeout(fail, RECAPTCHA_LOAD_TIMEOUT_MS);
+    scriptCleanup = loadRecaptchaScript({ onReady: pump, onError: fail });
   }, [captchaUnavailable, isCaptchaTestDouble, siteKey]);
 
   useEffect(() => {
@@ -193,8 +255,11 @@ export function NewsletterForm({ compact = false }: NewsletterFormProps) {
     // 時才初始化，避免同頁載入兩個 widget、effects 與第三方 iframe。
     // 無 IntersectionObserver（舊瀏覽器／jsdom）時退回立即初始化。
     const cleanupLoad = () => {
-      loadCleanupRef.current?.();
-      loadCleanupRef.current = null;
+      // 遞增世代序號：任何殘留的 ready/polling callback 之後執行時 isCurrent() 為
+      // false，不會 render 或改寫已卸載元件的狀態。再清掉 timer/監聽器。
+      initGenerationRef.current += 1;
+      readinessCleanupRef.current?.();
+      readinessCleanupRef.current = null;
     };
 
     const target = widgetContainerRef.current;
