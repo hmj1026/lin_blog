@@ -24,6 +24,7 @@ describe("optimized E2E execution contract", () => {
   it("bounds and retries Chromium OS dependency installation", () => {
     const workflow = readRepoFile(".github/workflows/e2e.yml");
 
+    expect(workflow).toContain("npx playwright install-deps --dry-run chromium");
     expect(workflow).toContain("for attempt in 1 2");
     expect(workflow).toContain(
       "timeout --kill-after=10s 180s npx playwright install-deps chromium",
