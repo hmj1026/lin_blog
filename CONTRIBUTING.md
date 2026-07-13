@@ -74,18 +74,23 @@ npx playwright test -g "測試名稱"
 
 ## 3. 分支與 PR 規範
 
-本專案採 Git Flow 風格：
+本專案採用 PR 驅動的 Git Flow，完整的開發到發布流程見 [release.md](release.md)：
 
-- `main`：正式環境分支，受保護，不可直接推送，僅能透過已通過 CI 的 PR 合併。
-- `develop`：整合分支，功能分支的合併目標。
-- `feature/*`：新功能／變更分支，從 `develop` 切出，完成後發 PR 合併回 `develop`。
-- `release/*`：發版分支，從 `develop` 切出，準備並驗證版本後合併至 `main`（並回併 `develop`）。
+- `main`：正式環境分支，受保護，不可直接推送，只能透過通過 CI、E2E 與 Code Review 的 PR 合併。
+- `develop`：永久整合分支，功能分支的合併目標；功能不可直接提交到此分支。
+- `feature/*`：新功能或一般變更，從 `develop` 切出，完成後發 PR 合併回 `develop`。
+- `fix/*`：一般錯誤修正，從 `develop` 切出，完成後發 PR 合併回 `develop`。
+- `release/vX.Y.Z`：發版分支，從 `develop` 切出，準備版本與 CHANGELOG 後發 PR 合併至 `main`。
+- `hotfix/*`：production 緊急修正，從 `main` 切出，合併至 `main` 後必須再同步回 `develop`。
+
+本專案採 Git Flow 分支模型，但不以本機 `git flow release finish` 取代 PR；`main` 的 branch protection 與 GitHub checks 必須保留。
 
 提交 PR 前請確認：
 
 - 已依第 2 節在本地執行過 `npm run check`、`npm run test`（必要時含 `npm run test:e2e`）。
 - 對照 [AGENTS.md](AGENTS.md) 的 Commit Checklist 完成自我審查（self-review）。
 - PR 說明清楚描述變更目的與影響範圍；若對應 `openspec/` 中的提案，請於說明中標註對應的 change（見 [openspec/](openspec/)）。
+- `feature/*`／`fix/*` PR 的目標為 `develop`；`release/*`／`hotfix/*` PR 的目標為 `main`。
 - CI（`.github/workflows/ci.yml`：ESLint、typecheck、Vitest、build）必須全部通過，才可合併。
 - 避免使用 `--no-verify` 跳過檢查，或停用測試來讓 CI 通過。
 
@@ -119,6 +124,7 @@ npx playwright test -g "測試名稱"
 - [AGENTS.md](AGENTS.md) — 開發哲學、TDD 流程、程式碼規範與 Commit Checklist 完整說明
 - [CLAUDE.md](CLAUDE.md) — 架構邊界（Clean Architecture / DDD）、常用指令與模組慣例
 - [README.md](README.md) — 專案簡介、功能特色與快速開始
+- [release.md](release.md) — Git Flow、版本發布、部署與回滾主規範
 - [本地開發指南](docs/development.md) — 環境設定、常用指令
 - [API 文件](docs/api.md) — API 端點說明
 - [openspec/](openspec/) — 規格與變更提案（RFC）系統

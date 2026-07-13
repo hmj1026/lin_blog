@@ -92,10 +92,11 @@ docker compose exec blog node scripts/init-admin.js                             
 
 ### CI / CD
 
-- **CI**（`.github/workflows/ci.yml`）：每個對 `main` 的 PR 與 push 會在 Node 20／22（受支援的 LTS）上執行 ESLint、TypeScript 型別檢查、Vitest 單元測試與 Next.js build。
-- **映像建置**（`.github/workflows/docker-build.yml`）：push 到 `main` 時，於 CI 通過後由 `./web` 建置並推送映像至 GHCR（`ghcr.io/<repo>`）。
-- **CD**（`.github/workflows/cd.yml`，選配）：push 到 `develop` 自動部署至 Staging，Production 透過手動觸發（workflow_dispatch）部署。
-- **Branch protection（建議）**：`main` 應啟用保護規則——要求上述 CI 通過並取得 Code Review 核准後方可合併。此為 GitHub 儲存庫設定，需由具 admin 權限者於 repo Settings → Branches 手動啟用。
+- **CI**（`.github/workflows/ci.yml`）：對 `main`／`develop` 的 PR 執行品質閘門（單一 Node 22 矩陣）；`main` 的合併後驗證由 `docker-build.yml` 透過 `workflow_call` 重用 CI。
+- **E2E**（`.github/workflows/e2e.yml`）：僅對 `main`／`develop` 的 PR 與手動觸發（`workflow_dispatch`）執行 Playwright 端對端測試（PR→develop 功能閘門、PR→main release 閘門）；已移除 push 到 `main` 的冗餘重跑。
+- **映像建置**（`.github/workflows/docker-build.yml`）：符合 paths 的 push 到 `main` 或 `vX.Y.Z` tag 時，在 CI（單一 Node 22）通過後建置並推送映像至 GHCR（`ghcr.io/<repo>`）；tag push 不受 paths 過濾。
+- **CD**（`.github/workflows/cd.yml`）：目前停用；正式環境依 [release 流程](release.md) 使用 immutable tag 或 SHA 人工部署。
+- **Branch protection**：`main` 必須要求已配置的 CI checks 與 Code Review；E2E 是 release gate，實際 required status context 需與 GitHub Actions 目前 job 名稱同步（CI 矩陣為單一 Node 22 時為 4 個 `(Node 22)` checks）。分支慣例：`feature/*`、`fix/*` 從 `develop` 切出；`hotfix/*` 從 `main` 切出、PR→`main`、release 後 sync 回 `develop`。
 
 ---
 
@@ -108,6 +109,7 @@ docker compose exec blog node scripts/init-admin.js                             
 | [資料庫管理](docs/database.md) | Migration 流程、Schema 說明 |
 | [ADR](docs/adr/README.md) | 架構決策記錄 |
 | [API 文件](docs/api.md) | API 端點說明 |
+| [Release 流程](release.md) | Git Flow、版本發布、部署與回滾規範 |
 
 ---
 
