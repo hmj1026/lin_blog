@@ -11,7 +11,7 @@
 3. [開發階段](#開發階段)
 4. [提交與推送](#提交與推送)
 5. [Pull Request 與 CI 測試](#pull-request-與-ci-測試)
-6. [合併到主分支](#合併到主分支)
+6. [Release 與合併到主分支](#release-與合併到主分支)
 7. [部署到正式伺服器](#部署到正式伺服器)
 8. [驗證與監控](#驗證與監控)
 9. [常見問題排解](#常見問題排解)
@@ -22,27 +22,31 @@
 
 ```mermaid
 graph LR
-    A[本地開發] --> B[推送到 develop]
-    B --> C[建立 PR]
-    C --> D[CI 自動測試]
-    D --> E{測試通過?}
-    E -->|是| F[合併到 main]
-    E -->|否| G[修復問題]
-    G --> B
-    F --> H[自動建置 Docker Image]
-    H --> I[SSH 到伺服器]
-    I --> J[執行 deploy.sh]
-    J --> K[驗證網站]
+    A[從 develop 建立 feature/fix] --> B[PR 合併到 develop]
+    B --> C[建立 release/vX.Y.Z]
+    C --> D[版本與 CHANGELOG]
+    D --> E[PR 合併到 main]
+    E --> F[建立 vX.Y.Z tag]
+    F --> G[CI 建置 GHCR image]
+    G --> H[人工部署 immutable image]
+    H --> I[PR main → develop]
+    B --> J{CI 或 E2E 失敗?}
+    J -->|是| K[在工作分支修復]
+    K --> B
 ```
 
 ### 分支策略
 
 | 分支 | 用途 | 保護規則 |
 |------|------|----------|
-| `main` | 正式版本，僅透過 PR 合併 | ✅ 需通過 CI 測試 |
-| `develop` | 開發分支，日常開發使用 | ❌ 無保護 |
-| `feature/*` | 功能分支（可選） | ❌ 無保護 |
-| `release/vX.Y.Z` | 版本發布用（版號 + CHANGELOG），直接從 `main` 切出、PR 回 `main` | ❌ 無保護（合併目標 `main` 有保護），完整流程見 [部署指南 §發布版本](deployment.md#-發布版本release與版本化-image) |
+| `main` | 正式版本，僅透過 PR 合併 | ✅ 需通過 CI、E2E 與 Code Review |
+| `develop` | 永久整合分支，功能 PR 的合併目標 | ❌ GitHub 目前未啟用保護，但流程仍要求走 PR |
+| `feature/*` | 從 `develop` 建立的新功能或一般變更 | ❌ 無保護 |
+| `fix/*` | 從 `develop` 建立的一般錯誤修正 | ❌ 無保護 |
+| `release/vX.Y.Z` | 從 `develop` 建立的版本發布分支，準備版號與 CHANGELOG 後 PR 到 `main` | ❌ 無保護（合併目標 `main` 有保護） |
+| `hotfix/*` | 從 `main` 建立的 production 緊急修正，完成後同步回 `develop` | ❌ 無保護 |
+
+完整分支方向、版本、tag、部署與回滾規範見 [release.md](../release.md)。
 
 ---
 
@@ -104,12 +108,16 @@ npm run dev
 
 ## 開發階段
 
-### 1. 切換到 develop 分支
+### 1. 從 develop 建立工作分支
 
 ```bash
-git checkout develop
-git pull origin develop
+git fetch origin --prune
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/<name>
 ```
+
+一般錯誤修正使用 `fix/<name>`。production 緊急修正才使用 `hotfix/<name>`，並從 `main` 建立。
 
 ### 2. 開發新功能
 
@@ -193,7 +201,7 @@ git commit -m "ci: 修正 GitHub Actions 環境變數"
 ### 4. 推送到 GitHub
 
 ```bash
-git push origin develop
+git push -u origin feature/<name>
 ```
 
 ---
@@ -202,7 +210,7 @@ git push origin develop
 
 ### 1. 建立 Pull Request
 
-1. 前往 https://github.com/hmj1026/lin_blog/compare/main...develop
+1. 以 `feature/*`／`fix/*` 為來源、`develop` 為目標建立 PR。
 2. 點擊 **Create pull request**
 3. 填寫 PR 標題和描述
 
@@ -215,7 +223,9 @@ PR 建立後，GitHub Actions 會自動執行以下檢查：
 | **Lint** | ESLint 程式碼風格檢查 | ✅ |
 | **Type Check** | TypeScript 類型檢查 | ✅ |
 | **Unit Tests** | Vitest 單元測試 | ✅ |
+| **Integration Tests** | PostgreSQL 整合測試 | ✅ |
 | **Build** | Next.js 建置測試 | ✅ |
+| **E2E** | Playwright 端對端測試 | ✅ |
 
 ### 3. 查看 CI 狀態
 
@@ -228,34 +238,38 @@ PR 建立後，GitHub Actions 會自動執行以下檢查：
 
 1. 點擊失敗的 Check 查看錯誤訊息
 2. 在本地修復問題
-3. 推送新 commit 到 develop
+3. 推送新 commit 到原本的 feature/fix 分支
 4. CI 會自動重新執行
 
 ```bash
 # 本地修復後
 git add -A
 git commit -m "fix: 修正 CI 錯誤"
-git push origin develop
+git push origin feature/<name>
 ```
 
 ---
 
-## 合併到主分支
+## Release 與合併到主分支
 
 ### 前提條件
 
-- ✅ 所有 CI 檢查通過
-- ✅ （可選）Code Review 完成
+- ✅ 要發布的 feature/fix 已先合併到 `develop`
+- ✅ release branch 從 `develop` 建立
+- ✅ 所有 CI、integration test、build 與 E2E 檢查通過
+- ✅ Code Review 完成
 
 ### 合併步驟
 
-1. 在 PR 頁面點擊 **Merge pull request**
-2. 選擇合併方式（建議使用 **Squash and merge**）
-3. 點擊 **Confirm merge**
+1. 建立 `release/vX.Y.Z`，同步 `web/package.json`、`web/package-lock.json` 與 `CHANGELOG.md`。
+2. 以 release branch 建立目標為 `main` 的 PR。
+3. 在 PR 頁面確認 CI、E2E、Code Review 與 branch protection 全部通過。
+4. 合併 PR 後建立 `vX.Y.Z` annotated tag，等待 Docker image 建置完成。
+5. 依 [release.md](../release.md) 完成 GitHub Release、immutable image 部署及 `main → develop` 同步。
 
 ### 合併後自動執行
 
-合併到 `main` 後，會自動觸發 `docker-build.yml`：
+合併到 `main` 或推送版本 tag 後，會依 workflow 觸發 `docker-build.yml`：
 
 1. 重新執行 CI 測試
 2. 建置 Docker Image
@@ -287,10 +301,10 @@ ssh user@your-ip
 sudo -i
 
 # 3. 進入專案目錄
-cd /var/www/products 
+cd /var/www/products
 
 # 4. 執行部署腳本
-./deploy.sh
+BLOG_IMAGE_TAG=vX.Y.Z ./deploy.sh
 ```
 
 #### 方法二：手動部署
@@ -314,28 +328,15 @@ docker-compose up -d
 docker exec blog_app npx prisma migrate deploy
 ```
 
-### deploy.sh 腳本內容參考
+### deploy.sh 腳本
+
+正式腳本以版控中的 [`scripts/deploy.sh`](../scripts/deploy.sh) 為唯一來源，部署時必須指定版本或 commit SHA：
 
 ```bash
-#!/bin/bash
-echo "🚀 開始部署..."
-echo "$(date '+%Y-%m-%d %H:%M:%S')"
-
-# 拉取指定 immutable Docker Image
-docker-compose pull
-
-# 重啟服務
-docker-compose down
-docker-compose up -d
-
-# 等待服務 healthcheck 通過
-docker-compose ps
-
-# 執行資料庫遷移
-docker exec blog_app npx prisma migrate deploy
-
-echo "✅ 部署完成！"
+BLOG_IMAGE_TAG=vX.Y.Z /var/www/products/deploy.sh
 ```
+
+腳本會拉取指定 image、更新容器、等待 PostgreSQL readiness、執行 migration、等待 application healthcheck，並檢查 HTTP endpoint。不要在本文件另行複製腳本內容，以免操作說明與實作漂移。
 
 ---
 
