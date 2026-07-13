@@ -9,8 +9,10 @@
 # testing
 /coverage
 /playwright-report
+/blob-report
 /test-results
 /playwright/.cache
+/tests/e2e/.auth
 
 # test output files
 coverage*.txt

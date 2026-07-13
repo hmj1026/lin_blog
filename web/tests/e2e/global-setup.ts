@@ -1,10 +1,13 @@
 import { chromium, type FullConfig } from "@playwright/test";
-import { loginAsAdmin } from "./helpers/auth";
+import fs from "fs";
+import path from "path";
+import { loginAsAdmin, AUTH_FILE } from "./helpers/auth";
 
 const WARMUP_TIMEOUT_MS = 90_000;
 
 /**
- * Playwright globalSetup：暖機 Next.js dev server 的熱門路由。
+ * Playwright globalSetup：暖機 Next.js dev server 的熱門路由，並產生共用
+ * admin storageState。
  *
  * dev server 對每個路由的第一次請求會即時編譯（cold compile），在 CI 較慢的
  * runner 上單一路由可能耗費超過各 spec 檔案 beforeAll 內登入流程的
@@ -15,8 +18,11 @@ const WARMUP_TIMEOUT_MS = 90_000;
  * app 邏輯錯誤）。
  *
  * 這裡在任何 spec 開始前，用一個獨立、用完即丟的 context 依序造訪熱門路由，
- * 讓對應的 webpack chunk 在測試開始前就編譯完成。刻意不呼叫
- * `context.storageState()`，登入狀態不會外洩進實際測試——各 spec 仍各自登入。
+ * 讓對應的 webpack chunk 在測試開始前就編譯完成。admin 暖機登入完成、熱門
+ * 路由都造訪過後，把該 context 的 storageState 寫到 `AUTH_FILE`，供
+ * `chromium-authed` project 與需要手動 context 的 spec 重用，純 admin spec
+ * 不需要再各自跑一次 UI 登入。每個 CI shard 有自己的 DB 與 dev server，因此
+ * 每片都會各自產生一次 state，不跨 runner 共用。
  */
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use?.baseURL ?? "http://localhost:3000";
@@ -42,6 +48,9 @@ export default async function globalSetup(config: FullConfig) {
       for (const route of hotAdminRoutes) {
         await adminPage.goto(route);
       }
+
+      fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
+      await adminContext.storageState({ path: AUTH_FILE });
     } finally {
       await adminContext.close();
     }

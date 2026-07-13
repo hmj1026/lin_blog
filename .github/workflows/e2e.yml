@@ -23,9 +23,17 @@ env:
 
 jobs:
   e2e:
-    name: Playwright E2E Tests
+    name: Playwright E2E Tests (shard ${{ matrix.shard }}/${{ matrix.shardTotal }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      # 固定 3 片（optimize-e2e-test-suite design D3/D0）；shard 與
+      # shardTotal 需一起改，四片只在三片實測未達 critical-path 門檻時才評估。
+      matrix:
+        shard: [1, 2, 3]
+        shardTotal: [3]
 
     services:
       postgres:
@@ -69,6 +77,33 @@ jobs:
         run: npm ci
         working-directory: ./web
 
+      - name: Resolve installed Playwright version
+        id: playwright-version
+        # 用實際安裝到 node_modules 的版本（而非 package.json 裡的 range）建立
+        # cache key，避免 semver range 命中錯誤版本的快取（design D4）。
+        run: |
+          version=$(node -e "console.log(require('./node_modules/@playwright/test/package.json').version)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+        working-directory: ./web
+
+      - name: Cache Playwright browser binaries
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Chromium OS dependencies
+        # 每片都要準備，即使 browser binary cache hit 也不能省略，否則會有
+        # binary 但缺系統套件（design D4 風險）。
+        run: npx playwright install-deps chromium
+        working-directory: ./web
+
+      - name: Install Chromium browser binary
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+        working-directory: ./web
+
       - name: Generate Prisma Client
         run: npx prisma generate
         working-directory: ./web
@@ -84,32 +119,78 @@ jobs:
           ADMIN_EMAIL: ${{ env.E2E_ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ env.E2E_ADMIN_PASSWORD }}
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-        working-directory: ./web
-
-      - name: Build Next.js
-        run: npm run build
-        working-directory: ./web
+      # 不執行 `npm run build`：E2E 直接對 `next dev` 測試（`npm run dev`
+      # 不需要 `.next` production 產物），PR 的 production build 由 ci.yml
+      # 的 build job 覆蓋，兩者責任不重疊（design D4）。
 
       - name: Run Playwright tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/${{ matrix.shardTotal }}
         working-directory: ./web
         env:
           CI: true
 
-      - name: Upload Playwright report
+      - name: Upload blob report
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: web/blob-report/
+          retention-days: 7
+
+      - name: Upload failure diagnostics (trace/screenshots)
         uses: actions/upload-artifact@v7
         if: failure()
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: web/test-results/
+          retention-days: 7
+
+  merge-reports:
+    name: Merge Playwright reports
+    needs: [e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./web
+
+      - name: Download all blob reports
+        uses: actions/download-artifact@v7
+        with:
+          pattern: blob-report-*
+          path: web/all-blob-reports
+          merge-multiple: true
+
+      - name: Merge into a single HTML report
+        run: npx playwright merge-reports --reporter=html ./all-blob-reports
+        working-directory: ./web
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+
+      - name: Upload merged HTML report
+        uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: playwright-report
           path: web/playwright-report/
           retention-days: 7
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: test-results
-          path: web/test-results/
-          retention-days: 7
+      - name: Fail workflow if any E2E shard failed
+        # merge job 本身永遠 if: always() 執行以確保報告可產出，但不能把
+        # e2e matrix 的失敗吞成 workflow success（design D5 / spec scenario）。
+        if: needs.e2e.result != 'success'
+        run: |
+          echo "::error::至少一個 E2E shard 失敗（needs.e2e.result=${{ needs.e2e.result }}）"
+          exit 1
