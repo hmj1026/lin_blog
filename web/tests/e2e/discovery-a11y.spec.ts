@@ -20,17 +20,20 @@ import { loginAsAdmin } from "./helpers/auth";
 
 /**
  * 導向頁面並等待 client-side hydration 相關控制項啟用再互動。`networkidle`
- * 只代表網路請求暫時清空，不代表 React 已完成 hydration；對 hydration gate
- * 控制的欄位必須以 `toBeEnabled()` 等待，避免 `.focus()` 落到 disabled 的 SSR DOM。
+ * 只代表網路請求暫時清空，不代表 React 已完成 hydration；一律以實際受
+ * hydration gate 控制的欄位 `toBeEnabled()` 等待，避免 `.focus()` 落到
+ * disabled 的 SSR DOM。後台搜尋框在 SSR 階段本來就 enabled，因此改等待
+ * client fetch 完成後才會渲染的分頁摘要。
  */
 async function gotoAndWaitHydrated(page: Page, path: string) {
   await page.goto(path);
-  await page.waitForLoadState("networkidle");
 
   if (path.startsWith("/blog/")) {
     for (const label of ["站內搜尋", "姓名", "Email"]) {
       await expect(page.getByLabel(label)).toBeEnabled();
     }
+  } else if (path.startsWith("/admin/subscribers")) {
+    await expect(page.getByText(/共 \d+ 位訂閱者/)).toBeVisible({ timeout: 15000 });
   }
 }
 

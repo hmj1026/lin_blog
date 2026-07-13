@@ -51,8 +51,9 @@ test.describe("Admin Panel - 未登入", () => {
     await page.fill("input[type='password']", "wrongpassword");
     await page.click("button[type='submit']");
 
-    // 等待錯誤訊息或保持在登入頁
-    await page.waitForTimeout(1000);
+    // 等待實際渲染的錯誤訊息（web/src/app/login/page.tsx），而非固定等待後
+    // 才檢查是否仍留在登入頁。
+    await expect(page.getByText("帳號或密碼錯誤")).toBeVisible();
     expect(page.url()).toContain("/login");
   });
 });

@@ -27,12 +27,17 @@ type Box = { x: number; y: number; width: number; height: number };
  * 被觸發，React 的 `query` state 會停留在 SSR 初始值（空字串），導致送出時
  * 讀到「空查詢」而非實際填入的文字——這不是應用程式的 bug，而是純粹的
  * 測試時機問題（診斷順序見 e2e-runner trap sheet：先排除測試工具本身的
- * 時機效應，而非誤判為 app 邏輯錯誤）。`networkidle` 是實務上足夠可靠、
- * 且不需要修改產品程式碼新增 hydration 標記的代理指標。
+ * 時機效應，而非誤判為 app 邏輯錯誤）。`networkidle` 只代表網路請求暫時
+ * 清空，不保證 React 已完成 hydration；改以該欄位本身的 `toBeEnabled()`
+ * 作為 hydration gate（頁面上桌面／手機版各有一份，兩份都需就緒）。
  */
 async function gotoAndWaitHydrated(page: Page, path: string) {
   await page.goto(path);
-  await page.waitForLoadState("networkidle");
+  const searchInputs = page.getByLabel("站內搜尋");
+  await expect(searchInputs).toHaveCount(2);
+  for (let i = 0; i < 2; i += 1) {
+    await expect(searchInputs.nth(i)).toBeEnabled();
+  }
 }
 
 async function createPublishedPost(page: Page, params: { slug: string; title: string }) {

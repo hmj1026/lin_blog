@@ -1,7 +1,15 @@
 import { expect, type Page } from "@playwright/test";
+import path from "path";
 
 export const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@lin.blog";
 export const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin";
+
+/**
+ * 共用 admin storageState 的絕對路徑。由 global-setup.ts 寫入，
+ * playwright.config.ts 的 chromium-authed project 與需要手動 context 的
+ * spec（如 admin-management.spec.ts）共用同一份檔案。
+ */
+export const AUTH_FILE = path.resolve(__dirname, "../.auth/user.json");
 
 const LOGIN_TIMEOUT_MS = 15_000;
 
