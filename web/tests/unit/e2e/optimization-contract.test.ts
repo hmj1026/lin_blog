@@ -3,12 +3,24 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const WEB_ROOT = path.resolve(__dirname, "../../..");
+const REPO_ROOT = path.resolve(WEB_ROOT, "..");
 
 /** Reads a web-root-relative source file used by the E2E execution contract. */
 const readWebFile = (relativePath: string) =>
   readFileSync(path.join(WEB_ROOT, relativePath), "utf8");
 
+/** Reads a repository-root-relative source file used by the CI contract. */
+const readRepoFile = (relativePath: string) =>
+  readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
+
 describe("optimized E2E execution contract", () => {
+  it("uses the Node.js 24 Playwright cache action", () => {
+    const workflow = readRepoFile(".github/workflows/e2e.yml");
+
+    expect(workflow).toContain("uses: actions/cache@v5");
+    expect(workflow).not.toContain("uses: actions/cache@v4");
+  });
+
   it("ignores generated Playwright blob reports", () => {
     const gitignore = readWebFile(".gitignore");
 
