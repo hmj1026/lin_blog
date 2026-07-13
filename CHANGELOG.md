@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.5 — 2026-07-13 — 修復 reCAPTCHA render 競態與 sitemap 文章頁缺席
+
+修復 2026-07-13 生產稽核證實的兩個缺陷：首頁與文章頁 Newsletter 訂閱表單的 reCAPTCHA
+widget 因 Google `api.js` 兩段式載入競態而保持空白（訪客無法完成訂閱，P0）；`/sitemap.xml`
+因 build 時靜態化加上靜默錯誤回退，永久只含 2 條 URL、所有文章頁缺席（傷害 SEO 收錄）。
+
+### 問題修復 (fix)
+- **recaptcha**: widget 僅在 `grecaptcha.render` 確實可呼叫後才渲染（`grecaptcha.ready()`
+  佇列 + 有界輪詢備援 + 元件自持的 readiness deadline；script `load` 不再清除唯一的
+  readiness timer）；render 呼叫失敗改走可恢復的「重新載入驗證」UI，消除空白 widget 的靜默失敗
+- **recaptcha**: 以世代序號與 cleanup ref 使 retry/unmount 後的 stale ready/polling
+  callback 失效，避免重複 render、卸載後改寫狀態或跨 instance 清除他人已成功的 widget
+- **sitemap**: 加入 `force-dynamic`，改為請求時產生並收錄已發佈、未刪除、已到發佈時間的
+  文章 URL（含 `lastModified`）；DB 不可用時回退基本頁面（HTTP 200）並記錄穩定事件碼，不輸出
+  raw error/stack/DSN/secret，production canonical URL 不再落到 `example.com` placeholder
+
+### 測試與維運 (test/docs)
+- **test**: 新增 reCAPTCHA 兩段式載入、render 逾時、render 拋錯、retry/unmount stale
+  callback 等韌性單元測試，以及 sitemap 收錄/可見性契約/DB 失敗安全回退/canonical host 測試
+- **docs**: 新增 `docs/runbooks/sitemap-operability.md`（sitemap 收錄範圍界線與可運維性）
+
 ## 1.4.4 — 2026-07-12 — 修復首頁訂閱表單不可用（reCAPTCHA site key 供應鏈）
 
 v1.4.3 production 首頁「訂閱電子報」區塊顯示「目前無法使用訂閱功能，請稍後再試」。
