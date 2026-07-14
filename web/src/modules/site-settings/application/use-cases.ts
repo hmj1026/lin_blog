@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { siteSettingSchema } from "@/lib/validations/site-setting.schema";
+import { siteSettingSchema, aboutContentSchema } from "@/lib/validations/site-setting.schema";
+import { sanitizePostHtml, sanitizeRawPostHtml } from "@/lib/utils/sanitize";
 import { DEFAULT_SITE_SETTING_KEY } from "../domain";
 import type { SiteSettingRecord, SiteSettingsRepository } from "./ports";
 
@@ -60,6 +61,11 @@ const defaultRecord: SiteSettingRecord = {
   threadsUrl: null,
   showLine: false,
   lineUrl: null,
+  showAbout: false,
+  aboutTitle: null,
+  aboutContent: null,
+  aboutAllowRawHtml: false,
+  aboutShowRawHtmlToc: false,
 };
 
 export function createSiteSettingsUseCases(deps: { repo: SiteSettingsRepository }) {
@@ -95,6 +101,35 @@ export function createSiteSettingsUseCases(deps: { repo: SiteSettingsRepository 
         key: DEFAULT_SITE_SETTING_KEY,
         create: { ...defaultRecord, ...data },
         update: data,
+      });
+      return updated;
+    },
+
+    /**
+     * 更新 About 內容（僅寫入內容四欄，與主設定表單分離避免互相覆寫）。
+     * 依 aboutAllowRawHtml 用對應 sanitizer 做 server 端淨化。
+     */
+    async updateAboutContent(
+      payload: z.infer<typeof aboutContentSchema>
+    ): Promise<SiteSettingRecord> {
+      const data = aboutContentSchema.parse(payload);
+      const rawContent = data.aboutContent ?? null;
+      const sanitizedContent =
+        rawContent == null
+          ? null
+          : data.aboutAllowRawHtml
+            ? sanitizeRawPostHtml(rawContent)
+            : sanitizePostHtml(rawContent);
+      const contentFields = {
+        aboutTitle: data.aboutTitle ?? null,
+        aboutContent: sanitizedContent,
+        aboutAllowRawHtml: data.aboutAllowRawHtml,
+        aboutShowRawHtmlToc: data.aboutShowRawHtmlToc,
+      };
+      const updated = await deps.repo.upsert({
+        key: DEFAULT_SITE_SETTING_KEY,
+        create: { ...defaultRecord, ...contentFields },
+        update: contentFields,
       });
       return updated;
     },

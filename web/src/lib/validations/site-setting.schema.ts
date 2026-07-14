@@ -46,6 +46,16 @@ export const siteSettingSchema = z.object({
   threadsUrl: z.string().url().nullish().or(z.literal("")),
   showLine: z.boolean().optional(),
   lineUrl: z.string().url().nullish().or(z.literal("")),
+  showAbout: z.boolean().optional(),
 });
 
 export type SiteSettingInput = z.infer<typeof siteSettingSchema>;
+
+export const aboutContentSchema = z.object({
+  aboutTitle: z.string().nullish(),
+  aboutContent: z.string().nullish(),
+  aboutAllowRawHtml: z.boolean(),
+  aboutShowRawHtmlToc: z.boolean(),
+});
+
+export type AboutContentInput = z.infer<typeof aboutContentSchema>;

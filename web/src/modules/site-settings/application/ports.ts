@@ -47,6 +47,12 @@ export type SiteSettingRecord = {
   threadsUrl: string | null;
   showLine: boolean;
   lineUrl: string | null;
+  // About Me
+  showAbout: boolean;
+  aboutTitle: string | null;
+  aboutContent: string | null;
+  aboutAllowRawHtml: boolean;
+  aboutShowRawHtmlToc: boolean;
 };
 
 /**
