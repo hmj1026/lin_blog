@@ -164,3 +164,79 @@ E2E workflow 使用的 Postgres service image 版本 SHALL 與 `docker-compose.y
 - **WHEN** `e2e.yml` 啟動其 Postgres service 容器
 - **THEN** 兩者使用相同的 Postgres 主版本，避免 E2E 測試與正式環境行為出現版本落差
 
+### Requirement: E2E Cross-Machine Sharding
+
+E2E workflow（`e2e.yml`）SHALL 以 `strategy.matrix` 預設分為 3 片，使用
+Playwright `--shard=<i>/3` 跨 runner 並行執行。每片 SHALL 維持 `workers: 1`、
+`fail-fast: false`，並具備獨立的 Postgres service、migration、seed 與 dev
+server。分片數只有在效能量測未達門檻時才 MAY 提高至 4，且不得省略基線與
+runner-minutes 比較。
+
+#### Scenario: 測試跨三片並行且每個測試只執行一次
+
+- **GIVEN** 一個對 `main` 或 `develop` 的 Pull Request
+- **WHEN** E2E workflow 觸發
+- **THEN** matrix 啟動 3 個 runner，每片以正確的 `--shard` 執行，Playwright list 結果顯示每個測試恰好被一個 project／shard 選取，片內維持單一 worker
+
+#### Scenario: 單片失敗不取消其他分片但 workflow 仍失敗
+
+- **WHEN** 某一分片測試失敗
+- **THEN** 其餘分片仍執行完成，且 workflow 最終結果反映 e2e matrix 有失敗
+
+### Requirement: E2E Browser Cache and Redundant Build Removal
+
+E2E workflow SHALL 以 lockfile 中實際解析的 Playwright 版本建立 browser binary
+cache key。每個 runner SHALL 準備 Chromium 所需的 OS dependencies；cache miss
+時才下載 Chromium binary。確認 `npm run build` 不為 E2E 的 migration、seed 或
+`next dev` 提供必要產物後，E2E job SHALL NOT 保留該步驟；production build
+驗證由 `ci.yml` 的 build job 提供。
+
+#### Scenario: 瀏覽器快取命中時略過 binary 下載
+
+- **GIVEN** 先前 run 已快取相同 Playwright 版本的 Chromium binary
+- **WHEN** E2E job 執行 browser install steps
+- **THEN** OS dependencies 仍具備，且不重新下載 Chromium binary
+
+#### Scenario: E2E job 不重複建置
+
+- **WHEN** E2E job 執行
+- **THEN** 不執行 `npm run build`；E2E 直接對 `next dev` 測試，PR 的 production build 由 `ci.yml` 覆蓋
+
+### Requirement: E2E Sharded Report Merging
+
+E2E workflow SHALL 在 CI 使用 blob + list reporter。每個分片 SHALL 以
+`if: always()` 上傳名稱含 shard index 的 blob artifact；trace 與 screenshot
+SHALL 僅在分片失敗時上傳。合併 job SHALL `needs` 所有分片並以 `if: always()`
+下載所有可得 blob，使用 `playwright merge-reports` 產生單一 HTML artifact。
+合併 job 不得把 e2e matrix 的失敗轉為 workflow success。
+
+#### Scenario: 分片報告合併為單一 HTML
+
+- **GIVEN** 所有 E2E 分片皆已完成並上傳各自的 blob 報告
+- **WHEN** 合併 job 執行
+- **THEN** 下載全部 blob 並產生單一合併 HTML 報告 artifact
+
+#### Scenario: 失敗分片仍可產出報告
+
+- **WHEN** 某一分片測試失敗
+- **THEN** 該分片仍上傳 blob 與 trace／screenshot，merge job 仍執行並可產出部分 HTML，且 workflow 最終判定失敗
+
+### Requirement: E2E Runtime Improvement Measurement
+
+E2E workflow 變更 SHALL 以至少三次成功的改造前與改造後 run 比較
+critical-path wall-clock 與總 runner-minutes。critical path SHALL 從 E2E matrix
+開始計算至 merge HTML artifact 上傳完成；成功門檻 SHALL 為改造後 P50 critical
+path 不高於基線 P50 的 70%，且總 runner-minutes 不超過基線的 1.5 倍。未達
+門檻時 SHALL NOT 將 change 標記為完成。
+
+#### Scenario: 效能改善達標
+
+- **GIVEN** 三次以上成功的 baseline 與 after run 數據
+- **WHEN** 綜合計算 P50 critical path 與 runner-minutes
+- **THEN** after critical path ≤ baseline 的 70%，runner-minutes ≤ baseline 的 1.5 倍，並記錄每片 duration
+
+#### Scenario: 效能未達標時不得誤報完成
+
+- **WHEN** after run 未達任一門檻
+- **THEN** 保留變更為未完成，並調整 shard／warmup 成本或回退低收益工作，不以測試全綠取代效能驗收
+

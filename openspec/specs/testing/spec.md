@@ -177,3 +177,82 @@ The system SHALL have working E2E tests for critical user flows.
 - **WHEN** a visitor navigates to a published blog post
 - **THEN** the post content and metadata are displayed correctly
 
+### Requirement: E2E Shared Authentication Session
+
+E2E 測試 SHALL 透過 `global-setup.ts` 既有的 admin 登入產生共用
+storageState，並持久化至每次 run 產生的絕對路徑 `.auth/user.json`。產生 state
+不得新增第二次 setup project 登入；寫檔前 SHALL 建立目錄，且 state 檔不得被
+Git 追蹤。
+
+只需 admin 權限且沒有公開／其他角色語意的 spec SHALL 由
+`chromium-authed` project 執行，且其測試本體 SHALL NOT 重複呼叫
+`loginAsAdmin()`。需要匿名、登入流程或非 ADMIN 角色的 spec SHALL 由
+`chromium-anon` project 或明確的空 state 執行。
+
+#### Scenario: 純 admin spec 重用共用登入狀態
+
+- **GIVEN** 一支純 admin 權限的 admin CRUD spec
+- **WHEN** 該 spec 執行
+- **THEN** 它透過 `chromium-authed` 的 storageState 取得 session，不執行 `/login` UI 登入流程
+
+#### Scenario: 混合角色 spec 不被 admin state 污染
+
+- **GIVEN** `admin-subscribers` 同時包含 ADMIN、EDITOR 與匿名測試
+- **WHEN** EDITOR 或匿名子群組執行
+- **THEN** 該子群組使用 `{ cookies: [], origins: [] }` 或以 `login()` 建立明確身分，不能沿用 admin storageState；ADMIN 子群組才可使用共用 state
+
+#### Scenario: 手動 context 明確處理認證
+
+- **GIVEN** beforeAll／afterAll 以 `browser.newContext()` 建立資料或清理使用者
+- **WHEN** 該 context 需要 admin API 權限
+- **THEN** 測試明確傳入 storageState 或呼叫 `loginAsAdmin()`，不得假設 project `use.storageState` 會自動套用
+
+#### Scenario: 登入流程與編輯者預覽維持顯式登入
+
+- **WHEN** 測試對象為錯誤密碼、登出、正確登入流程或 `isr-draft-preview` 的編輯者預覽
+- **THEN** 該測試以顯式 `login()`／`loginAsAdmin()` 建立身分，不吃共用 admin state 掩蓋認證流程
+
+### Requirement: E2E Project Coverage Is Exact
+
+兩個 Playwright project 的 `testMatch`／`testIgnore` SHALL 互斥且完整覆蓋
+`tests/e2e/**/*.spec.ts`。每個收集到的測試 SHALL 恰好出現在一個 project；
+未匹配或重複匹配 SHALL 使驗證失敗。當 spec 含多個角色時，角色隔離 SHALL
+使用檔案內局部 `test.use` 或顯式登入完成，不得複製整支 spec 到另一 project。
+
+#### Scenario: 測試清單無漏測與重複
+
+- **WHEN** 執行 `npx playwright test --list`
+- **THEN** 所有 active 測試各列出一次，且輸出包含正確的 project 名稱；`--shard=1/3` 至 `3/3` 的合計仍涵蓋完整清單
+- **AND** 改造後清單為 109 個 active tests、0 skipped；改造前 110 collected 的差額只來自移除一個已有等價 coverage 的永久 skip 空殼
+
+### Requirement: E2E Deterministic Synchronization
+
+E2E 測試 SHALL 以待測行為的確定性條件同步。跳轉、錯誤訊息與 hydration
+控制項 SHALL 使用 `toHaveURL`、`toBeVisible`、`toBeEnabled` 等自動等待；
+`networkidle` SHALL NOT 被用作 hydration proxy。
+
+固定 `page.waitForTimeout(...)` 不得用來等待跳轉、錯誤訊息或一般 UI 完成。
+平滑捲動正向結果 SHALL 以 polling 驗證已移動且連續取樣穩定；「腳本沒有
+執行」或「錯誤錨點沒有副作用」等負向斷言 MAY 保留有界觀察視窗，但每處
+SHALL 註明觀察目的與上限，不得把固定睡眠當作一般同步工具。
+
+#### Scenario: 跳轉／錯誤以自動等待斷言
+
+- **WHEN** 測試需確認頁面跳轉或錯誤訊息出現
+- **THEN** 使用 `expect(page).toHaveURL(...)` 或 `expect(locator).toBeVisible()` 自動重試，不使用固定等待
+
+#### Scenario: hydration 以互動性 gate 等待
+
+- **WHEN** 測試需在 hydration 完成後與受控輸入或按鈕互動
+- **THEN** 等待該控制項 `toBeEnabled()`／`toBeVisible()`，而非 `waitForLoadState("networkidle")`
+
+#### Scenario: 平滑捲動以條件式 polling 等待
+
+- **WHEN** 測試需驗證平滑捲動完成
+- **THEN** 以移動門檻與連續取樣穩定條件判定，不能用一次 `scrollY` 讀值或固定 1200ms 代表完成
+
+#### Scenario: 否定式斷言允許有界觀察
+
+- **WHEN** 測試需斷言某腳本／錯誤錨點在觀察視窗內沒有副作用
+- **THEN** 可保留附註解的有界觀察視窗，且該例外不被誤算為一般 UI 同步
+

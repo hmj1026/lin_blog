@@ -94,6 +94,16 @@ describe("newsletter use cases: subscribe()", () => {
     expect(writeRepo.create).not.toHaveBeenCalled();
   });
 
+  it("propagates the specific captcha failure reason for diagnosability, without changing the generic client-facing status", async () => {
+    captchaVerifier.verify.mockResolvedValue({ ok: false, reason: "hostname-mismatch" });
+
+    const result = await useCases.subscribe(validInput);
+
+    expect(result.status).toBe("captcha-failed");
+    if (result.status !== "captcha-failed") throw new Error("expected captcha-failed result");
+    expect(result.reason).toBe("hostname-mismatch");
+  });
+
   it("returns the same generic success result for a duplicate email without updating the existing name, via a single create() call mapping the conflict outcome", async () => {
     writeRepo.create.mockResolvedValue({ outcome: "conflict" });
 

@@ -1,5 +1,6 @@
 import { validateSubscriberInput, type SubscriberFieldErrors } from "../domain";
 import type {
+  CaptchaFailureReason,
   CaptchaVerifier,
   NewsletterRateLimiter,
   SubscriberListItem,
@@ -20,12 +21,16 @@ export const MAX_SUBSCRIBER_PAGE_SIZE = 50;
  */
 export const MAX_SUBSCRIBER_PAGE = 10000;
 
-/** 訂閱結果：對外一律使用泛化狀態，不得洩漏 Email 是否已存在 */
+/**
+ * 訂閱結果：對外一律使用泛化狀態，不得洩漏 Email 是否已存在。
+ * `captcha-failed` 的 `reason` 僅供伺服器端日誌診斷用，路由層絕不得將其
+ * 原樣回傳給用戶端（用戶端一律看到同一則泛化訊息，見 route.ts）。
+ */
 export type SubscribeResult =
   | { status: "subscribed" }
   | { status: "invalid"; errors: SubscriberFieldErrors }
   | { status: "rate-limited"; retryAfterSeconds: number }
-  | { status: "captcha-failed" };
+  | { status: "captcha-failed"; reason: CaptchaFailureReason };
 
 /**
  * 泛化成功結果 —— 首次成功與重複 Email 一律回傳此同一物件，
@@ -91,7 +96,7 @@ export function createNewsletterUseCases(deps: {
 
       const captchaResult = await deps.captchaVerifier.verify(input.captchaToken, { hostname: input.hostname });
       if (!captchaResult.ok) {
-        return { status: "captcha-failed" };
+        return { status: "captcha-failed", reason: captchaResult.reason };
       }
 
       // 唯一約束是最終的併發安全邊界；conflict 與 created 皆回傳相同泛化成功結果
