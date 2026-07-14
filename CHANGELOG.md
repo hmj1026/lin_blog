@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.4.7 — 2026-07-14 — Newsletter CAPTCHA 失敗原因記錄
+
+生產環境回報 newsletter 訂閱表單以有效輸入送出仍收到泛化 400 錯誤。診斷過程中發現
+CAPTCHA 驗證失敗的具體原因（`not-configured`／`missing-token`／`provider-error`／
+`invalid-token`／`hostname-mismatch`）從未被記錄，即使有完整 production log 存取權也
+無法判斷根因。本版本補上該診斷缺口，不改變任何對外可見行為。
+
+### 問題修復 (fix)
+- **newsletter**: `subscribe()` 的 `SubscribeResult` 於 `captcha-failed` 狀態下攜帶具體
+  `reason`；伺服器端日誌（`logSubscribeResult`）記錄該原因供診斷，用戶端回應仍維持同一則
+  泛化 400 訊息不變，不對外洩漏設定細節
+
+### 測試與維運 (test)
+- **test**: 新增／更新 use-case、route observability 與 integration 測試，鎖定 `reason`
+  正確傳遞且敏感欄位（token／email／IP）仍不進入日誌
+
 ## 1.4.6 — 2026-07-13 — E2E sharded 測試優化與 CI 診斷強化
 
 優化 Playwright E2E 套件執行方式並強化 CI 環境的診斷與相依性管理，降低 CI 執行時間並提升失敗時的可觀察性。
