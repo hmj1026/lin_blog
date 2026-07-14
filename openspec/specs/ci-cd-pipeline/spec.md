@@ -240,3 +240,25 @@ path 不高於基線 P50 的 70%，且總 runner-minutes 不超過基線的 1.5 
 - **WHEN** after run 未達任一門檻
 - **THEN** 保留變更為未完成，並調整 shard／warmup 成本或回退低收益工作，不以測試全綠取代效能驗收
 
+### Requirement: Production Release Readiness Verification
+正式對外 release 前，系統 SHALL 完成一次於 production 主機以 immutable image tag（版本號或 commit SHA，禁止 `latest`）執行的實機部署驗證，涵蓋 registry 認證、runtime secrets 齊備檢核、資料庫 migration 與 health check；且 release HEAD SHALL 具備可追溯的 GitHub CI 與 E2E workflow run 證據。當 branch protection 設定無法以 GitHub API 驗證（如 plan 限制回應 403）時，維運者 SHALL 以替代方式（UI 檢視、`gh api` rulesets endpoint 或 ruleset export）驗證並將程序與結果留存於部署文件。
+
+#### Scenario: First production deploy verified with immutable tag
+- **GIVEN** production 主機已完成 `docker login ghcr.io`（classic PAT，`read:packages`）且 runtime secrets/env（含 fail-closed 變數）齊備
+- **WHEN** 維運者以 immutable `BLOG_IMAGE_TAG` 執行 `deploy.sh`
+- **THEN** 部署流程依序完成 image pull、資料庫 readiness、`prisma migrate deploy` 與 `localhost:3100` health check，且結果記錄於部署驗證紀錄
+
+#### Scenario: Deploy rejected without immutable tag
+- **WHEN** `BLOG_IMAGE_TAG` 未設定或為可變 tag（如 `latest`）
+- **THEN** 部署腳本拒絕執行並回報錯誤
+
+#### Scenario: Release HEAD has CI and E2E run evidence
+- **GIVEN** 一個 develop→main 的 release PR
+- **WHEN** 該 PR 觸發 CI 與 E2E workflows
+- **THEN** release HEAD 具備 branch protection 綁定的全部 required status contexts（`Lint`/`Type Check`/`Unit Tests`/`Build`，涵蓋當時 CI 矩陣的所有 Node 版本）與 E2E run 的可追溯紀錄
+
+#### Scenario: Branch protection verified via alternative when API returns 403
+- **GIVEN** `gh api` 查詢 branch protection 因 GitHub plan 限制回應 403
+- **WHEN** 維運者改以 UI 檢視、rulesets endpoint 或 ruleset export 驗證 `main` 的保護設定
+- **THEN** 驗證程序與結果被記入 `docs/deployment.md`，且不阻擋 release 流程
+
