@@ -90,12 +90,15 @@ feature/fix → PR develop → release/vX.Y.Z → PR main → vX.Y.Z tag → CI/
 > **踩雷重點：必要 status checks 的名稱必須與 CI 實際跑出來的一致。**
 > CI 矩陣已收斂為單一 Node 22，實際 check 名為 4 個：`Lint (Node 22)`、
 > `Type Check (Node 22)`、`Unit Tests (Node 22)`、`Build (Node 22)`。
-> 若 ruleset/branch protection 裡仍填舊的 4 個 `(Node 20)` 名稱（或無 `(Node XX)` 後綴的舊名），
+> 若 ruleset 裡仍填舊的 4 個 `(Node 20)` 名稱（或無 `(Node XX)` 後綴的舊名），
 > GitHub 會永遠等這些不再產生的 check → PR 卡在
 > `"required status checks are expected"`、`mergeStateStatus: BLOCKED`，看起來像「一直在檢查」。
-> **時序**：CI 矩陣變更 merge 進 develop 後、**下一個 release PR 建立之前**，必須把所有實際生效
-> 設定（Ruleset 與 classic Branch Protection 可能同時存在，兩者都要查）的必要 check 由 8 個
-> （含 4 個 Node 20）更新為 4 個 Node 22。原則：required checks 恆與 CI 矩陣同步。
+> **時序**：CI 矩陣變更 merge 進 develop 後、**下一個 release PR 建立之前**，必須把 Ruleset 的
+> 必要 check 由 8 個（含 4 個 Node 20）更新為 4 個 Node 22。原則：required checks 恆與 CI
+> 矩陣同步。**2026-07-14 事後補記**：這次時序實際上沒守住——`streamline-ci-workflow-stages`
+> 的 workflow 變更早已生效，但 ruleset 因 `gh api` 對 private repo 回 403 而一直無法查驗/更新，
+> 直到 v1.4.5～v1.4.7 三次 release PR 都靠 `gh pr merge --admin` 繞過卡住的 Node 20 checks
+> 合併，repo 轉 public 後才補修正。
 
 檢查 / 修正 ruleset 必要 check（需 admin）：
 
@@ -109,11 +112,19 @@ gh api repos/hmj1026/lin_blog/rulesets/<id> \
 
 ### API 回應 403 時的替代驗證程序
 
+> [!NOTE]
+> repo 已於 2026-07-14 改為 public，目前 `gh api` 對 rulesets/branches endpoint 皆可直接查詢，
+> 不會遇到本節描述的 403。本節保留作為「repo 若之後改回 private」時的備援程序。
+
 若 `gh api repos/{owner}/{repo}/branches/main/protection` 因 GitHub 方案限制回傳 403
 （classic branch protection API 在部分方案下不可讀），依序嘗試：
 
 1. **改打 rulesets endpoint**：`gh api repos/{owner}/{repo}/rulesets`（該端點的方案限制與
    classic protection endpoint 不同，403 時未必也會擋 rulesets）。
+   > [!NOTE]
+   > 這個「未必」假設在 2026-07-14 實際發生過一次反例：private 狀態下兩個 endpoint **一起**
+   > 403（見上方「事後補記」與 `streamline-ci-workflow-stages` change 4.1／4.2 紀錄），不能預期
+   > rulesets endpoint 一定能繞開。此步驟仍值得先試，但失敗時不要停留，直接進第 2 步。
 2. **GitHub UI 檢視**：至 Settings → Branches / Rules 人工檢視現有規則，並留下書面紀錄
    （或截圖）存證。
 3. **匯出 ruleset JSON**：於 UI 匯出 ruleset 設定為 JSON，作為可比對、可留存的紀錄。
@@ -132,6 +143,17 @@ gh api repos/hmj1026/lin_blog/rulesets/<id> \
 ```bash
 BLOG_IMAGE_TAG=vX.Y.Z /var/www/products/deploy.sh
 ```
+
+> [!WARNING]
+> `deploy.sh` 只會 `docker pull` **image**，不會更新伺服器上 `/var/www/products/lin_blog`
+> 的 `docker-compose.yml` 本身。若這次發布有新增/修改 `docker-compose.yml` 的
+> `environment:` 區塊（例如新的必要環境變數），部署前必須先在該目錄 `git pull`，
+> 否則新變數不會傳進容器——`.env` 裡就算有值也沒用，因為 compose 檔根本沒有引用它的那行。
+> 判斷方式：先 `git fetch`，再比對 `git log -1 --oneline docker-compose.yml`（本地最後
+> 變更的 commit）與 `git log -1 --oneline origin/main -- docker-compose.yml`（遠端最後
+> 變更的 commit）是否一致；不一致就代表本地落後，需 `git pull` 後才能部署。
+> 下方「完整部署步驟 → 方式一」的 `deploy.sh` 一鍵指令也有此限制，操作前請一併檢查。
+> 實際案例見下方「疑難排解」的 reCAPTCHA `not-configured` 事故。
 
 部署前必須明確指定 immutable image tag（版本或 commit SHA），腳本會拒絕未設定及
 `latest` 等 mutable tag：
@@ -216,6 +238,12 @@ ssh paul@your-server-ip
 BLOG_IMAGE_TAG=vX.Y.Z /var/www/products/deploy.sh
 ```
 
+> [!WARNING]
+> `deploy.sh` 只 `docker pull` image，不會更新 `/var/www/products/lin_blog` 的
+> `docker-compose.yml`。若這次發布變更了 compose 檔的 `environment:` 區塊，執行前
+> 先 `cd /var/www/products/lin_blog && git pull origin main`，詳見上方「⚡ 快速更新」
+> 的同一則警告與下方「疑難排解」的 reCAPTCHA `not-configured` 事故。
+
 #### 方式二：手動執行
 
 ```bash
@@ -228,6 +256,9 @@ docker pull "ghcr.io/hmj1026/lin_blog:${BLOG_IMAGE_TAG}"
 
 # 進入專案目錄（實際部署路徑）
 cd /var/www/products/lin_blog
+
+# 若 docker-compose.yml 有變更（如新增 environment 變數），先同步：
+git pull origin main
 
 # 重啟容器（主機僅安裝 docker-compose v1）
 docker-compose down
@@ -641,6 +672,28 @@ docker-compose up -d --remove-orphans    # paul 在 docker group，docker 指令
 docker exec blog_app node node_modules/prisma/build/index.js migrate deploy
 ```
 之後容器由 compose 建立、帶正確標籤，後續 `deploy.sh` 不再發生。
+
+### Newsletter 訂閱回 400、log 顯示 `"reason":"not-configured"`（2026-07-14）
+發布 v1.4.7 並重新觸發訂閱仍失敗。`docker exec blog_app printenv | grep RECAPTCHA`
+**完全沒有輸出**（不是空字串，是整個 key 都不存在）——代表容器啟動時這幾個變數
+根本沒被 compose 傳進去。根因：伺服器上 `/var/www/products/lin_blog/docker-compose.yml`
+是舊版，還沒 `git pull` 到把 `RECAPTCHA_SECRET_KEY` / `RECAPTCHA_ALLOWED_HOSTNAMES` /
+`NEXT_PUBLIC_RECAPTCHA_SITE_KEY` 加進 `environment:` 區塊的那次 commit（`c26e32e`）。
+`deploy.sh` 只 pull image、不會更新這份 compose 檔，所以光是「部署新版本」不會自動修正。
+
+排查與修復：
+```bash
+cd /var/www/products/lin_blog
+git log -1 --oneline docker-compose.yml              # 本地最後變更的 commit（僅供留存記錄，供事後比對）
+git pull origin main                                 # 同步 compose 檔（不確定是否落後就直接拉，見上方 [!WARNING]）
+grep -E '^(RECAPTCHA_SECRET_KEY|RECAPTCHA_ALLOWED_HOSTNAMES|NEXT_PUBLIC_RECAPTCHA_SITE_KEY)=' .env
+BLOG_IMAGE_TAG=v1.4.7 /var/www/products/deploy.sh    # 重新部署讓新 compose 生效
+docker exec blog_app printenv | grep RECAPTCHA        # 應看到三行皆非空
+```
+延伸：`NEXT_PUBLIC_RECAPTCHA_SITE_KEY` 屬 build-time 內嵌值，就算 `.env` 補上也不會
+改變**現有 image**裡前端已編譯的值（見上方「Newsletter 訂閱功能先決條件」的
+`[!IMPORTANT]` 說明）；只有伺服器端的 `RECAPTCHA_SECRET_KEY` / `RECAPTCHA_ALLOWED_HOSTNAMES`
+能靠「補 `.env` + 重啟容器」解決，前提是 compose 檔本身要先同步到位。
 
 ### DB 備份/還原報 `role "blog_user" does not exist`
 本部署的實際 PostgreSQL 角色是 **`develop`**（非 `.env.example` 預設的 `blog_user`），
