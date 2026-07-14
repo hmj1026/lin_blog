@@ -82,12 +82,14 @@ describe("POST /api/newsletter/subscribe — observability", () => {
     expect(serialized).not.toContain(CAPTCHA_TOKEN);
   });
 
-  it("logs a provider/captcha-error result without sensitive fields", async () => {
-    (newsletterUseCases.subscribe as any).mockResolvedValue({ status: "captcha-failed" });
+  it("logs a provider/captcha-error result including the specific failure reason, without sensitive fields", async () => {
+    (newsletterUseCases.subscribe as any).mockResolvedValue({ status: "captcha-failed", reason: "hostname-mismatch" });
 
     await POST(makeRequest());
 
+    expect(logger.warn).toHaveBeenCalled();
     const serialized = allLoggedContexts().join("\n");
+    expect(serialized).toMatch(/hostname-mismatch/);
     expect(serialized).not.toContain(FULL_EMAIL);
     expect(serialized).not.toContain(CAPTCHA_TOKEN);
     expect(serialized).not.toContain(RAW_IP);

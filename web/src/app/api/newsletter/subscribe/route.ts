@@ -84,12 +84,18 @@ function rateLimitedResponse(retryAfterSeconds: number) {
 /**
  * 記錄訂閱結果的可觀測性事件。
  *
- * 僅記錄 request id、結果類型與遮罩後的 Email 識別碼；絕不記錄 CAPTCHA token、
- * secret、完整姓名、完整 Email、原始 IP 或 request body。
+ * 僅記錄 request id、結果類型、遮罩後的 Email 識別碼，以及（僅 `captcha-failed`
+ * 時）固定列舉值 `reason`；絕不記錄 CAPTCHA token、secret、完整姓名、完整
+ * Email、原始 IP 或 request body。`reason` 只是 `CaptchaFailureReason`
+ * 五選一的列舉字串，不含任何使用者輸入或機密內容，記錄它不違反上述限制。
  */
 function logSubscribeResult(requestId: string, emailHash: string, result: SubscribeResult): void {
+  if (result.status === "captcha-failed") {
+    logger.warn("newsletter.subscribe.result", { requestId, emailHash, result: result.status, reason: result.reason });
+    return;
+  }
   const context = { requestId, emailHash, result: result.status };
-  if (result.status === "rate-limited" || result.status === "captcha-failed") {
+  if (result.status === "rate-limited") {
     logger.warn("newsletter.subscribe.result", context);
     return;
   }
@@ -111,9 +117,11 @@ function logUnexpectedError(requestId: string): void {
  * `newsletterUseCases.subscribe`、把 typed 結果映射為 HTTP 狀態碼。所有驗證
  * 順序（輸入 → 限流 → CAPTCHA → 寫入）與泛化成功語意均由 use case 負責。
  *
- * 已知限制：`SubscribeResult` 的 `captcha-failed` 狀態未區分「token 無效」與
- * 「provider/設定錯誤」，故兩者目前一律回傳 400；若日後需要對外區分為
- * 502（provider/設定錯誤），須先擴充 use case 回傳的 `reason`。
+ * `SubscribeResult` 的 `captcha-failed` 狀態現在攜帶 `reason`（見
+ * {@link logSubscribeResult}），但這僅供伺服器端日誌診斷；對外 HTTP 回應
+ * 仍刻意不區分「token 無效」與「provider/設定錯誤」，一律回傳同一則泛化 400，
+ * 避免讓外部呼叫端探測出設定細節。若日後需要對外區分為 502（provider/設定
+ * 錯誤），才需要在此新增依 `reason` 分流的邏輯。
  */
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID();

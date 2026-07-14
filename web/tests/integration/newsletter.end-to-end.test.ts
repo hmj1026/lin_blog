@@ -184,7 +184,7 @@ describe("newsletter end-to-end (real Prisma stack)", () => {
         sourceKey: "e2e-source-captcha-failure",
       });
 
-      expect(result).toEqual({ status: "captcha-failed" });
+      expect(result).toEqual({ status: "captcha-failed", reason: "provider-error" });
 
       const count = await prisma.subscriber.count({
         where: { email: "captcha-failure@newsletter-e2e.test" },
