@@ -77,9 +77,14 @@ feature/fix → PR develop → release/vX.Y.Z → PR main → vX.Y.Z tag → CI/
 
 ## 🔒 Branch Protection / Ruleset 設定
 
-`main` 同時受 **classic Branch Protection**（需 1 個 approving review、對話全解決）與一個
-**Ruleset「main」**（`deletion` / `non_fast_forward` / `required_status_checks`）保護，**禁止直接
-`git push origin main`**，一律走 PR。
+`main` 受一個 **Ruleset「main」**（id `11401094`；`deletion` / `non_fast_forward` /
+`required_status_checks` 三條規則）保護。**本 repo 沒有另外設定 classic Branch Protection**
+（`gh api repos/{owner}/{repo}/branches/main/protection` 回 404 "Branch not protected"，
+2026-07-14 以 repo 轉 public 後直接用 API 確認過，先前文件寫「同時受兩者保護」是誤判）——約束
+一律只看這個 Ruleset，不必再另查 classic Branch Protection。目前規則不含 `pull_request`
+類型，故「是否強制走 PR、禁止直接 `git push origin main`」實際上未被 Ruleset 規則列表明確
+保證，日常操作仍請一律走 PR，但這不是 GitHub 端強制的，若要強制需額外新增 `pull_request` 規則
+（本文件不預設已加，需要時再確認）。
 
 > [!IMPORTANT]
 > **踩雷重點：必要 status checks 的名稱必須與 CI 實際跑出來的一致。**
