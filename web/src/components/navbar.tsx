@@ -26,6 +26,7 @@ export async function Navbar() {
 
     const items: NavItem[] = [{ href: "/", label: "首頁" }];
     if (settings?.showBlogLink ?? true) items.push({ href: "/blog", label: "部落格" });
+    if (settings?.showAbout) items.push({ href: "/about", label: "關於我" });
     items.push(...categories.map((c) => ({ href: `/category/${encodeURIComponent(c.slug)}`, label: c.name })));
     return (
       <NavbarClient
