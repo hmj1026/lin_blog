@@ -2,7 +2,6 @@
 
 ## Purpose
 定義專案文件完整性的需求，涵蓋環境變數範例（`web/.env.example` 與 Zod schema 對齊）、OpenSpec 規格 Purpose 完整性（無 `TBD` 佔位）、公開 API 端點文件（`docs/api.md`）與貢獻指南（`CONTRIBUTING.md`），確保開發者與貢獻者能依循一致且與程式碼同步的文件進行開發。
-
 ## Requirements
 ### Requirement: Environment Variable Example File
 專案 SHALL 提供 `web/.env.example`，列舉所有必要與選用的環境變數（含名稱與用途註解），且其涵蓋範圍與 `web/src/env.ts`／`env.public.ts`／`env.auth.ts` 的 Zod schema 保持一致。
@@ -38,3 +37,16 @@
 #### Scenario: Contributor can follow documented workflow
 - **WHEN** 新貢獻者開啟 `CONTRIBUTING.md`
 - **THEN** 文件載明本機開發流程、PR 提交規範與 commit 訊息慣例，且文件間連結有效
+
+### Requirement: Deployment Documentation Accuracy
+`docs/deployment.md` 的 CI/CD 章節 SHALL 與 `.github/workflows/` 的實際 workflow 觸發器一致：每個 workflow 的觸發事件與分支過濾 SHALL 如實描述，停用中的 workflow（如 `cd.yml`）SHALL 列出並標註停用狀態與原因。
+
+#### Scenario: Documented triggers match workflow definitions
+- **WHEN** 讀者比對 `docs/deployment.md` 的 CI/CD 觸發表與 `.github/workflows/*.yml` 的 `on:` 定義
+- **THEN** 兩者一致（含 CI 無 `push:[main]`、E2E 的實際觸發事件），無過時描述
+
+#### Scenario: Disabled workflow is documented with status
+- **GIVEN** `cd.yml` 處於停用狀態
+- **WHEN** 讀者查閱 `docs/deployment.md` 的 workflow 清單
+- **THEN** `cd.yml` 被列出且明確標註停用狀態、停用方式與重啟前置條件
+
