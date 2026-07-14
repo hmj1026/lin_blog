@@ -188,6 +188,15 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
                 <input
                   type="checkbox"
                   className="h-4 w-4 accent-primary"
+                  checked={settings.showAbout}
+                  onChange={(e) => updateSetting("showAbout", e.target.checked)}
+                />
+                顯示「關於我」
+              </label>
+              <label className="flex items-center gap-3 text-sm text-primary">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
                   checked={settings.showNewsletter}
                   onChange={(e) => updateSetting("showNewsletter", e.target.checked)}
                 />

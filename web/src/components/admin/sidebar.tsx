@@ -17,7 +17,15 @@ const links = [
   { href: "/logout?callbackUrl=/login", label: "登出" },
 ];
 
-function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function SidebarNav({
+  pathname,
+  onNavigate,
+  links,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+  links: { href: string; label: string }[];
+}) {
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
     return pathname === href || pathname.startsWith(href + "/");
@@ -56,11 +64,19 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
   );
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({ showAbout = false }: { showAbout?: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
+
+  const navLinks = showAbout
+    ? [
+        ...links.slice(0, 1),
+        { href: "/admin/about", label: "關於我" },
+        ...links.slice(1),
+      ]
+    : links;
 
   // 開啟時將焦點移入抽屜、Esc 關閉、Tab 於抽屜內循環（基本焦點陷阱）；關閉後焦點還原至觸發按鈕
   useEffect(() => {
@@ -121,7 +137,7 @@ export function AdminSidebar() {
 
       {/* 桌面版固定側邊欄 */}
       <aside className="hidden min-h-screen w-64 border-r border-line bg-white p-6 md:block">
-        <SidebarNav pathname={pathname} />
+        <SidebarNav pathname={pathname} links={navLinks} />
       </aside>
 
       {/* 手機版抽屜 */}
@@ -151,7 +167,7 @@ export function AdminSidebar() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <SidebarNav pathname={pathname} onNavigate={() => setOpen(false)} />
+            <SidebarNav pathname={pathname} onNavigate={() => setOpen(false)} links={navLinks} />
           </div>
         </div>
       )}

@@ -6,7 +6,8 @@ TBD - created by archiving change add-reader-discovery-and-subscriptions. Update
 ### Requirement: Public Post Search
 系統 SHALL 提供站內文章搜尋，僅以已發佈且未刪除文章的標題與摘要比對經 trim 的查詢字串，並以
 `/search?q=<query>` 呈現有界分頁結果。搜尋結果 SHALL 只包含公開展示需要的安全欄位，不得回傳草稿、
-已刪除文章、文章完整內容或管理端欄位。
+已刪除文章、文章完整內容或管理端欄位。站台層搜尋輸入框（header 搜尋欄）SHALL 與當前路由同步：
+位於搜尋結果頁時反映當前查詢字串，導覽離開搜尋頁後 SHALL NOT 殘留前次查詢字串。
 
 #### Scenario: Search from the article discovery module
 - **GIVEN** 訪客在文章頁的站內搜尋框輸入含前後空白的關鍵字
@@ -31,6 +32,16 @@ TBD - created by archiving change add-reader-discovery-and-subscriptions. Update
 - **GIVEN** 訪客未輸入內容或只輸入空白
 - **WHEN** 訪客送出文章頁搜尋表單
 - **THEN** 系統 SHALL 留在目前文章頁、顯示可存取的輸入提示且 SHALL NOT 導向搜尋頁或列出全部文章
+
+#### Scenario: Navigating away clears the header search input
+- **GIVEN** 訪客已於 header 搜尋欄送出搜尋並停留在 `/search?q=<query>` 結果頁
+- **WHEN** 訪客經由站內導覽（如點擊 logo 或導覽連結）離開搜尋頁回到首頁或其他頁面
+- **THEN** header 搜尋欄 SHALL 顯示為空，不殘留前次查詢字串
+
+#### Scenario: Header search input reflects the active query on the search page
+- **GIVEN** 訪客直接以 `/search?q=<query>` 開啟搜尋結果頁
+- **WHEN** 搜尋結果頁完成載入
+- **THEN** header 搜尋欄 SHALL 反映當前 `q` 查詢字串，訪客可直接修改後再次搜尋
 
 ### Requirement: Public Popular Posts Ranking
 系統 SHALL 依最近 30 日的有效文章瀏覽事件產生最多 5 篇公開熱門文章排行，只包含已發佈且未刪除文章，並以

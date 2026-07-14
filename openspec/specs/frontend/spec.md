@@ -301,3 +301,39 @@ The application SHALL use Suspense boundaries strategically to enable streaming 
 - **WHEN** 匿名使用者直接請求不存在或未授權（草稿）的文章/分類/標籤路由，觸發 `notFound()`
 - **THEN** HTTP 回應狀態碼為 `404`（而非因載入骨架串流而降級為 `200`），且已發布內容仍正常回傳 `200`
 
+### Requirement: Sitemap Coverage
+`/sitemap.xml` 的內容 SHALL 反映請求當下資料庫中已發佈、未刪除且已到發佈時間文章的 URL
+（含 `lastModified`），連同基本頁面（首頁、文章列表）。本 change SHALL 使用明確的
+`force-dynamic` metadata route；若未來改用 revalidation,必須另行明文記錄有界 window。sitemap
+內容 SHALL NOT 於 build 時固化；資料庫不可用時 SHALL 回退為僅含基本頁面的清單並記錄安全的
+structured error event，不得輸出 raw error、DSN、stack、secret 或文章內容，也不得使回應失敗
+（5xx）或使 build 失敗。production response SHALL 使用已驗證的 canonical site URL,不得使用
+`https://example.com` placeholder。
+
+#### Scenario: Published posts are listed
+- **GIVEN** 資料庫中存在已發佈且未刪除的文章
+- **WHEN** 請求 `/sitemap.xml`
+- **THEN** 回應收錄每篇已發佈文章的 `/blog/<slug>` URL 與 `lastModified`，以及首頁與 `/blog`
+
+#### Scenario: Database outage falls back without failing
+- **GIVEN** 資料庫暫時不可用
+- **WHEN** 請求 `/sitemap.xml`
+- **THEN** 回應仍成功（HTTP 200）並至少含首頁與 `/blog`，且以穩定事件碼記錄錯誤而非靜默吞掉；log 不含 raw error、DSN、stack、secret 或文章內容
+
+#### Scenario: Build does not bake sitemap content
+- **GIVEN** 於無資料庫連線的環境執行 production build
+- **WHEN** build 完成後啟動 runtime,再於 build 後新增並發佈一篇文章並請求 `/sitemap.xml`
+- **THEN** 回應反映請求當下資料庫中的已發佈文章（含新文章 slug 與 `lastModified`），而非 build 時固化的清單
+
+#### Scenario: Visibility rules exclude non-public posts
+- **GIVEN** 資料庫中同時存在 draft、已刪除、尚未到 `publishTime` 與已發佈文章
+- **WHEN** 請求 `/sitemap.xml`
+- **THEN** 只收錄已發佈、未刪除且已到發佈時間的文章 URL
+
+#### Scenario: Production sitemap uses the configured canonical host
+- **GIVEN** production runtime 的 `NEXT_PUBLIC_SITE_URL` 已設定為正式 canonical URL
+- **WHEN** 請求 `/sitemap.xml`
+- **THEN** 所有 URL 使用該 canonical host,且不出現 `https://example.com` 或其他 placeholder host
+
+> Scope note:本 change 不新增分類/標籤頁,也不處理 sitemap index/splitting；接近 sitemap protocol URL/大小上限時需另案處理。
+

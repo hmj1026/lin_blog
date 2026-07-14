@@ -11,6 +11,7 @@ export async function GET() {
 
   return jsonOk({
     showBlogLink: settings?.showBlogLink ?? true,
+    showAbout: settings?.showAbout ?? false,
     categories: categories.map((c) => ({ slug: c.slug, name: c.name })),
   });
 }

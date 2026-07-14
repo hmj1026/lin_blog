@@ -173,6 +173,12 @@ model SiteSetting {
   threadsUrl        String?
   showLine          Boolean  @default(false)
   lineUrl           String?
+  // About Me 頁面
+  showAbout           Boolean  @default(false)
+  aboutTitle          String?
+  aboutContent        String?
+  aboutAllowRawHtml   Boolean  @default(false)
+  aboutShowRawHtmlToc Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

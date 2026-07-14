@@ -40,6 +40,11 @@ function toRecord(data: {
   threadsUrl: string | null;
   showLine: boolean;
   lineUrl: string | null;
+  showAbout: boolean;
+  aboutTitle: string | null;
+  aboutContent: string | null;
+  aboutAllowRawHtml: boolean;
+  aboutShowRawHtmlToc: boolean;
 }): SiteSettingRecord {
   return {
     showBlogLink: data.showBlogLink,
@@ -77,6 +82,11 @@ function toRecord(data: {
     threadsUrl: data.threadsUrl,
     showLine: data.showLine,
     lineUrl: data.lineUrl,
+    showAbout: data.showAbout,
+    aboutTitle: data.aboutTitle,
+    aboutContent: data.aboutContent,
+    aboutAllowRawHtml: data.aboutAllowRawHtml,
+    aboutShowRawHtmlToc: data.aboutShowRawHtmlToc,
   };
 }
 
@@ -132,6 +142,11 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
         threadsUrl: params.create.threadsUrl,
         showLine: params.create.showLine ?? false,
         lineUrl: params.create.lineUrl,
+        showAbout: params.create.showAbout ?? false,
+        aboutTitle: params.create.aboutTitle,
+        aboutContent: params.create.aboutContent,
+        aboutAllowRawHtml: params.create.aboutAllowRawHtml ?? false,
+        aboutShowRawHtmlToc: params.create.aboutShowRawHtmlToc ?? false,
       },
       update: {
         showBlogLink: params.update.showBlogLink,
@@ -169,6 +184,11 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
         threadsUrl: params.update.threadsUrl,
         showLine: params.update.showLine,
         lineUrl: params.update.lineUrl,
+        showAbout: params.update.showAbout,
+        aboutTitle: params.update.aboutTitle,
+        aboutContent: params.update.aboutContent,
+        aboutAllowRawHtml: params.update.aboutAllowRawHtml,
+        aboutShowRawHtmlToc: params.update.aboutShowRawHtmlToc,
       },
     });
     return toRecord(result);
