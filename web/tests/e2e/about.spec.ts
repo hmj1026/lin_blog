@@ -31,6 +31,10 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("關於我頁面（about page）", () => {
   test("about page: 開關 ON 時後台可編修、前台正確呈現", async ({ page }) => {
+    // 本測試對 next dev 做多次後台路由首次編譯（/admin/settings、/admin、
+    // /admin/about）＋三次儲存＋原始 HTML 來回，CI runner 較慢時累計工作量
+    // 會超過預設 30s 預算（實測約 31.7s），比照 admin-post-editor-layout 放寬。
+    test.setTimeout(60_000);
     await loginAsAdmin(page);
 
     await setShowAbout(page, true);
@@ -108,6 +112,8 @@ test.describe("關於我頁面（about page）", () => {
   });
 
   test("about page: 開關 OFF 時隱藏且回 404", async ({ page }) => {
+    // 同 ON 案例：登入＋設定儲存＋多次後台/前台整頁導覽，CI 慢時放寬 30s 預算。
+    test.setTimeout(60_000);
     await loginAsAdmin(page);
 
     await setShowAbout(page, false);
