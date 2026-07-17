@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * E2E：一般文章（非 raw HTML）的探索側欄/文末堆疊版面
@@ -32,7 +33,7 @@ type Box = { x: number; y: number; width: number; height: number };
  * 作為 hydration gate（頁面上桌面／手機版各有一份，兩份都需就緒）。
  */
 async function gotoAndWaitHydrated(page: Page, path: string) {
-  await page.goto(path);
+  await gotoSettled(page, path);
   const searchInputs = page.getByLabel("站內搜尋");
   await expect(searchInputs).toHaveCount(2);
   for (let i = 0; i < 2; i += 1) {
@@ -85,7 +86,7 @@ test.describe("discovery-normal-post", () => {
     // 互動在頁面完成 hydration 前就送出，造成間歇性失敗（例如 client-side 搜尋表單
     // 送出時 React 尚未接手 onChange，讀到 SSR 初始空值）。先在 beforeAll 訪問一次，
     // 讓路由與頁面在正式測試開始前完成編譯與 hydration。
-    await page.goto(`/blog/${targetSlug}`);
+    await gotoSettled(page, `/blog/${targetSlug}`);
     await context.close();
   });
 
@@ -109,7 +110,7 @@ test.describe("discovery-normal-post", () => {
     });
 
     test("模組順序為 搜尋 → 訂閱 → 熱門（最多 5 篇）→ 最新（最多 5 篇）", async ({ page }) => {
-      await page.goto(`/blog/${targetSlug}`);
+      await gotoSettled(page, `/blog/${targetSlug}`);
       const sidebar = page.locator("aside > div").first();
       await expect(sidebar).toBeVisible();
 
@@ -192,7 +193,7 @@ test.describe("discovery-normal-post", () => {
     });
 
     test("空查詢留在文章頁並顯示提示，不導向搜尋頁", async ({ page }) => {
-      await page.goto(`/blog/${targetSlug}`);
+      await gotoSettled(page, `/blog/${targetSlug}`);
       const sidebar = page.locator("aside > div").first();
       const input = sidebar.getByLabel("站內搜尋");
       await input.fill("   ");
@@ -204,7 +205,7 @@ test.describe("discovery-normal-post", () => {
     });
 
     test("桌面版同一時間只顯示一份 Newsletter 表單（另一斷點實例為 CSS 隱藏，不得重複載入 CAPTCHA）", async ({ page }) => {
-      await page.goto(`/blog/${targetSlug}`);
+      await gotoSettled(page, `/blog/${targetSlug}`);
       // DOM 中 SSR 兩份（sidebar + stacked），但僅當前斷點的一份可見；
       // 不可見實例的 CAPTCHA 由 IntersectionObserver 閘控不初始化
       // （見 src/components/newsletter-form.tsx 的可見性閘控）。
@@ -214,7 +215,7 @@ test.describe("discovery-normal-post", () => {
     });
 
     test("桌面版無水平捲動", async ({ page }) => {
-      await page.goto(`/blog/${targetSlug}`);
+      await gotoSettled(page, `/blog/${targetSlug}`);
       const hasNoHorizontalScroll = await page.evaluate(() => {
         const el = document.scrollingElement;
         if (!el) return true;
@@ -227,7 +228,7 @@ test.describe("discovery-normal-post", () => {
       // 以「剛建立、零瀏覽事件」的文章驗證 design.md D2 的 fallback 行為：
       // 熱門文章不足時以最新文章補位，不讓文章頁失敗。真正的查詢層例外
       // 路徑由下一個 fault-injection 測試覆蓋。
-      await page.goto(`/blog/${targetSlug}`);
+      await gotoSettled(page, `/blog/${targetSlug}`);
       await expect(page.getByRole("heading", { level: 1, name: "Discovery Normal E2E Target" })).toBeVisible();
 
       const sidebar = page.locator("aside > div").first();
@@ -244,8 +245,7 @@ test.describe("discovery-normal-post", () => {
       await context.addCookies([
         { name: "e2e-discovery-fault", value: "1", url: "http://localhost:3000" },
       ]);
-      await page.goto(`/blog/${targetSlug}`);
-
+      await gotoSettled(page, `/blog/${targetSlug}`);
       // 文章主內容不受探索查詢失敗影響
       await expect(page.getByRole("heading", { level: 1, name: "Discovery Normal E2E Target" })).toBeVisible();
 
@@ -261,7 +261,7 @@ test.describe("discovery-normal-post", () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
     test("探索模組於文章內容之後依相同順序呈現，且無水平捲動", async ({ page }) => {
-      await page.goto(`/blog/${targetSlug}`);
+      await gotoSettled(page, `/blog/${targetSlug}`);
       await expect(page.getByRole("heading", { level: 1, name: "Discovery Normal E2E Target" })).toBeVisible();
 
       // 手機／平板：stacked 版面是 DOM 中第二個重複實例（見 post-discovery-panel.tsx

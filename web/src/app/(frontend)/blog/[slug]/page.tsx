@@ -71,7 +71,7 @@ export default async function PostPage({ params }: PostPageProps) {
                 width={900}
                 height={520}
                 className="h-full w-full object-cover"
-                priority
+                preload
                 unoptimized={postView.hero.startsWith("/api/files/")}
               />
             </div>

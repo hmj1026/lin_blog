@@ -44,6 +44,12 @@ export default async function globalSetup(config: FullConfig) {
         "/admin/posts/new",
         "/admin/media",
         "/admin/subscribers",
+        // Next 16 Turbopack dev 下 roles/settings/about 首次編譯較慢，且
+        // 冷啟首訪偶發 streaming segment 殘留（見 upgrade-nextjs-16 證據），
+        // 先在暖機 context 造訪吸收
+        "/admin/roles",
+        "/admin/settings",
+        "/admin/about",
       ];
       for (const route of hotAdminRoutes) {
         await adminPage.goto(route);

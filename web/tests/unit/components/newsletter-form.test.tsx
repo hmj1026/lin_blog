@@ -33,7 +33,11 @@ async function fillValidFormAndVerify(grecaptcha: ReturnType<typeof installGreca
   fireEvent.change(screen.getByLabelText("姓名"), { target: { value: "Ada" } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "ada@example.com" } });
   await waitFor(() => expect(grecaptcha.render).toHaveBeenCalled());
-  grecaptcha.issueToken("captcha-token");
+  // React 19 不再保證外部 callback 的 setState 在下一次 fireEvent 前 flush，
+  // 以 act 包裹確保 captchaToken 狀態已套用
+  await act(async () => {
+    grecaptcha.issueToken("captcha-token");
+  });
 }
 
 describe("NewsletterForm", () => {

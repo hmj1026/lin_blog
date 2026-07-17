@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * E2E：原始 HTML 文章的寬版（viewport gutter）內容版面與 opt-in 系統目錄
@@ -108,7 +109,7 @@ test.describe("raw-html-wide-layout", () => {
     test.use({ viewport: { width: 1903, height: 1000 } });
 
     test("iframe 父容器 computed width 至少 1871px，每側 gutter 不超過 16px", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const frame = page.locator("iframe[title='post-content']");
       await frame.waitFor({ state: "attached", timeout: 15000 });
 
@@ -124,7 +125,7 @@ test.describe("raw-html-wide-layout", () => {
     });
 
     test("iframe 旁沒有固定 280px 側欄", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const frame = page.locator("iframe[title='post-content']");
       await frame.waitFor({ state: "attached", timeout: 15000 });
       const frameBox = await stableBoundingBox(frame);
@@ -138,7 +139,7 @@ test.describe("raw-html-wide-layout", () => {
     });
 
     test("分享／標籤模組在 DOM 順序上排在 iframe 之後", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const order = await page.evaluate(() => {
         const iframe = document.querySelector("iframe[title='post-content']");
         const share = Array.from(document.querySelectorAll("h3")).find((h) => h.textContent === "分享此文");
@@ -151,7 +152,7 @@ test.describe("raw-html-wide-layout", () => {
     });
 
     test("hero 與延伸閱讀區塊仍使用 section-shell", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       // "header .section-shell" 同時命中全站導覽列（navbar-client.tsx 亦使用
       // section-shell）與文章 hero header，改以 article 內的 hero header 限定範圍。
       const header = page.locator("article header .section-shell");
@@ -163,7 +164,7 @@ test.describe("raw-html-wide-layout", () => {
     });
 
     test("附件 auto-fit/minmax 網格在寬版畫布下維持 3 欄不提早換行", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const iframe = page.locator("iframe[title='post-content']");
       await iframe.waitFor({ state: "attached", timeout: 15000 });
 
@@ -205,7 +206,7 @@ test.describe("raw-html-wide-layout", () => {
     test.use({ viewport: { width: 375, height: 812 } });
 
     test("外層文件 scrollWidth <= clientWidth，raw 外框不超過 layout viewport", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const frame = page.locator("iframe[title='post-content']");
       await frame.waitFor({ state: "attached", timeout: 15000 });
 
@@ -228,7 +229,7 @@ test.describe("raw-html-wide-layout", () => {
 
     test("桌面（1903px）：raw 結構渲染、版面寬滿，並比對視覺基準截圖", async ({ page }) => {
       await page.setViewportSize({ width: 1903, height: 1000 });
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const iframe = page.locator("iframe[title='post-content']");
       await iframe.waitFor({ state: "attached", timeout: 15000 });
 
@@ -255,7 +256,7 @@ test.describe("raw-html-wide-layout", () => {
 
     test("行動（375px）：raw 結構渲染、無水平捲動，並比對視覺基準截圖", async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const iframe = page.locator("iframe[title='post-content']");
       await iframe.waitFor({ state: "attached", timeout: 15000 });
 
