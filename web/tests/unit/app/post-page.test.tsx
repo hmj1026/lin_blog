@@ -25,10 +25,11 @@ vi.mock("next/headers", () => ({
   draftMode: vi.fn(),
 }));
 
-vi.mock("@/lib/utils/content", () => ({
-  prepareContent: (html: string) => ({ html: `Sanitized: ${html}`, tocItems: [] }),
-  prepareRawHtmlContent: (html: string) => ({ html: `Raw: ${html}`, tocItems: [] }),
-  sanitizeAndPrepareHtml: (html: string) => `Sanitized: ${html}`,
+vi.mock("@/lib/content-pipeline", () => ({
+  prepareForRender: (html: string, mode: boolean) =>
+    mode
+      ? { html: `Raw: ${html}`, tocItems: [], strategy: "iframe" }
+      : { html: `Sanitized: ${html}`, tocItems: [], strategy: "inline" },
 }));
 
 vi.mock("next/navigation", () => ({

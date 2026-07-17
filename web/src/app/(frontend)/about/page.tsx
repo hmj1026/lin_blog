@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { InlineToc } from "@/components/inline-toc";
 import { RawHtmlPostFrame } from "@/components/raw-html-post-frame";
-import { prepareContent, prepareRawHtmlContent } from "@/lib/utils/content";
+import { prepareForRender } from "@/lib/content-pipeline";
 import { siteSettingsQueries } from "@/lib/server-queries";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +17,11 @@ export default async function AboutPage() {
 
   const title = settings.aboutTitle?.trim() ? settings.aboutTitle : "關於我";
   const rawContent = settings.aboutContent ?? "";
-  const isRawHtml = settings.aboutAllowRawHtml;
-  const { html: contentHtml, tocItems } = isRawHtml
-    ? prepareRawHtmlContent(rawContent)
-    : prepareContent(rawContent);
+  const { html: contentHtml, tocItems, strategy } = prepareForRender(
+    rawContent,
+    settings.aboutAllowRawHtml
+  );
+  const isRawHtml = strategy === "iframe";
 
   return (
     <article className="space-y-16" data-testid="about-page">
