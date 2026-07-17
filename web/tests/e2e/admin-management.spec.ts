@@ -146,7 +146,7 @@ test.describe("角色管理", () => {
     
     if (hasAccess) {
       // 有權限則驗證頁面載入（標題是「角色權限」）
-      await expect(page.locator("h1:has-text('角色權限')")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "角色權限" })).toBeVisible();
     } else {
       // 沒權限則驗證重導向
       expect(url).toContain("/admin");

@@ -38,7 +38,7 @@ test.describe("新增文章流程", () => {
     await page.waitForURL("**/posts/new**");
     
     // 驗證標題顯示「新增文章」
-    await expect(page.locator("h1:has-text('新增文章')")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "新增文章" })).toBeVisible();
     
     // 驗證標題輸入框存在（id="post-title"）
     await expect(page.locator("#post-title")).toBeVisible();
@@ -84,7 +84,7 @@ test.describe("新增文章流程", () => {
         try {
           await page.waitForURL("**/admin/posts**", { timeout: 10000 });
           // 驗證重導向成功
-          await expect(page.locator("h1:has-text('文章列表')")).toBeVisible();
+          await expect(page.getByRole("heading", { name: "文章列表" })).toBeVisible();
         } catch {
           // 可能有驗證錯誤，測試表單填寫成功即可
           expect(true).toBe(true);
@@ -127,8 +127,10 @@ test.describe("編輯文章流程", () => {
     // 驗證進入編輯頁面
     await page.waitForURL("**/posts/**");
 
-    // 驗證標題顯示「編輯文章」
-    await expect(page.locator("h1:has-text('編輯文章')")).toBeVisible();
+    // 驗證標題顯示「編輯文章」；client-side 導航後同樣可能出現串流
+    // hidden segment 殘留（見 helpers/streaming.ts），用 getByRole 只比對
+    // a11y tree（排除 hidden 元素）避免 strict violation
+    await expect(page.getByRole("heading", { name: "編輯文章" })).toBeVisible();
 
     // 驗證編輯器載入
     await expect(page.locator("#post-title")).toBeVisible();
