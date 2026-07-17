@@ -60,3 +60,39 @@
 - **WHEN** API 嘗試儲存內容
 - **THEN** `class`/`style`/`<style>` 被保留，但 `<script>` 與事件屬性仍被移除
 
+### Requirement: About Page Reuses The Article Content Editor
+
+系統 SHALL 讓 `/admin/about` 編輯頁重用既有文章內容編輯器，提供與文章一致的兩種模式：視覺（TipTap）與
+原始 HTML 模式（`aboutAllowRawHtml`），並在原始 HTML 模式下提供自動目錄開關（`aboutShowRawHtmlToc`）。
+共用的內容編輯區塊 SHALL 為單一實作（SSOT），由文章表單與「關於我」編輯頁共同使用，避免重複邏輯。
+
+#### Scenario: Author about content in visual mode
+
+- **GIVEN** 管理者位於 `/admin/about`，`aboutAllowRawHtml` 為 `false`
+- **WHEN** 使用視覺編輯器輸入內容並儲存
+- **THEN** 內容以 HTML 字串存入 `aboutContent`，並顯示於前台 `/about`
+
+#### Scenario: Author about content in raw HTML mode
+
+- **GIVEN** 管理者於 `/admin/about` 切換為原始 HTML 模式（`aboutAllowRawHtml = true`）
+- **WHEN** 輸入含 `class`/`style`/`<style>` 的內容並儲存
+- **THEN** 自訂樣式被保留並存入 `aboutContent`，前台以隔離 iframe 呈現
+
+### Requirement: Server-side Sanitization Of About Content
+
+系統 SHALL 在寫入 DB 前對 `aboutContent` 做 sanitize，規則依 `aboutAllowRawHtml` 決定：為 `false` 時採嚴格
+消毒；為 `true` 時採寬鬆消毒（保留 `class`/`style`/`<style>`），但兩種模式皆 MUST 移除 `<script>`、`on*`
+事件屬性與危險 CSS 構造。此行為 SHALL 重用文章內容既有的兩支 sanitizer。
+
+#### Scenario: Dangerous about content is sanitized on save
+
+- **GIVEN** 「關於我」內容包含 `<script>` 或事件屬性
+- **WHEN** `PUT /api/site-settings/about` 嘗試儲存內容
+- **THEN** 危險內容被移除/清理後才寫入 DB
+
+#### Scenario: Raw about content preserves styling while stripping scripts
+
+- **GIVEN** `aboutAllowRawHtml = true` 的內容含 `class`、`style`、`<style>`，以及 `<script>` 或事件屬性
+- **WHEN** `PUT /api/site-settings/about` 嘗試儲存內容
+- **THEN** `class`/`style`/`<style>` 被保留，但 `<script>` 與事件屬性仍被移除
+

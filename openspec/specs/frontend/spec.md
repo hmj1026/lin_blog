@@ -337,3 +337,39 @@ structured error event，不得輸出 raw error、DSN、stack、secret 或文章
 
 > Scope note:本 change 不新增分類/標籤頁,也不處理 sitemap index/splitting；接近 sitemap protocol URL/大小上限時需另案處理。
 
+### Requirement: Conditional About Link In Public Navigation
+
+系統 SHALL 由後台設定 `showAbout` 決定前台導覽列是否顯示「關於我」連結；當 `showAbout` 為 `true` 時，
+導覽列 SHALL 顯示指向 `/about` 的「關於我」連結，比照既有 `showBlogLink` 的條件顯示行為；為 `false` 時
+MUST NOT 顯示。
+
+#### Scenario: About link shown when enabled
+
+- **GIVEN** `showAbout` 為 `true`
+- **WHEN** 使用者檢視前台導覽列
+- **THEN** 導覽列顯示「關於我」連結，指向 `/about`
+
+#### Scenario: About link hidden when disabled
+
+- **GIVEN** `showAbout` 為 `false`
+- **WHEN** 使用者檢視前台導覽列
+- **THEN** 導覽列不顯示「關於我」連結
+
+### Requirement: Public About Page Rendering And Visibility
+
+系統 SHALL 提供公開 `/about` 頁面，依 `aboutAllowRawHtml` 以視覺內容（含目錄）或原始 HTML 隔離 iframe 呈現
+`aboutTitle` 與 `aboutContent`；當 `showAbout` 為 `false` 時，`/about` SHALL 回應 not-found（404），不得讓
+隱藏頁面經由直接 URL 被存取。頁面 SHALL 為 DB 後端動態頁（不於建置期連線資料庫）。
+
+#### Scenario: About page renders when enabled
+
+- **GIVEN** `showAbout` 為 `true` 且已設定 `aboutTitle`/`aboutContent`
+- **WHEN** 使用者造訪 `/about`
+- **THEN** 頁面顯示標題與內容；原始 HTML 模式時內容於隔離 iframe 中呈現
+
+#### Scenario: About page returns not-found when disabled
+
+- **GIVEN** `showAbout` 為 `false`
+- **WHEN** 使用者直接造訪 `/about`
+- **THEN** 系統回應 404（styled not-found），不顯示任何「關於我」內容
+

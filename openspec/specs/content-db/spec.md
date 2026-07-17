@@ -48,3 +48,40 @@ The system SHALL provide database indexes for common time-range queries on event
 - **WHEN** the system queries events filtered by time range (e.g. last 7/30/365 days)
 - **THEN** an index optimized for the time filter SHALL exist
 
+### Requirement: About Page Content Stored In Site Settings
+
+系統 SHALL 於 `SiteSetting` singleton（key = `default`）以欄位形式儲存「關於我」頁面的開關與內容，
+比照既有 `showNewsletter`/`newsletterTitle` 與 `showContact`/`contactTitle` 的模式。新增欄位為：
+`showAbout`（Boolean，預設 `false`）、`aboutTitle`（nullable String）、`aboutContent`（nullable String，
+sanitized HTML）、`aboutAllowRawHtml`（Boolean，預設 `false`）、`aboutShowRawHtmlToc`（Boolean，預設 `false`）。
+新增欄位 MUST 為向後相容（既有列在 migration 後採用預設值，行為不變）。
+
+#### Scenario: About fields default to hidden and empty
+
+- **GIVEN** 一個尚未設定過「關於我」的站台
+- **WHEN** 系統讀取預設站點設定
+- **THEN** `showAbout` 為 `false`，`aboutTitle`/`aboutContent` 為 null，`aboutAllowRawHtml`/`aboutShowRawHtmlToc` 為 `false`
+
+#### Scenario: Migration is backward compatible
+
+- **GIVEN** 既有資料庫已存在 `SiteSetting` 列
+- **WHEN** 套用新增 About 欄位的 migration
+- **THEN** 既有列以預設值補齊 About 欄位，且既有欄位值與行為不受影響
+
+### Requirement: About Content Persisted Independently Of General Settings
+
+系統 SHALL 允許只更新「關於我」內容欄位（`aboutTitle`/`aboutContent`/`aboutAllowRawHtml`/`aboutShowRawHtmlToc`）
+而不覆寫其他站點設定欄位；一般設定的整包更新 SHALL 不覆寫「關於我」內容欄位。此分離用以避免兩個後台表單互相 clobber。
+
+#### Scenario: Editing about content leaves other settings untouched
+
+- **GIVEN** 站台已設定 `siteName` 與 `showBlogLink`
+- **WHEN** 後台僅透過「關於我」內容路徑更新 `aboutContent`
+- **THEN** `siteName` 與 `showBlogLink` 維持原值，僅 `aboutContent` 被更新
+
+#### Scenario: Saving general settings does not clobber about content
+
+- **GIVEN** `aboutContent` 已有內容
+- **WHEN** 後台透過一般站點設定表單更新（例如切換 `showAbout`）
+- **THEN** `aboutContent` 維持原值不被清空
+
