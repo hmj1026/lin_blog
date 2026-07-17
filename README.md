@@ -1,6 +1,6 @@
 # Lin Blog
 
-一個現代化的部落格系統，採用 Next.js 15 App Router 架構，具備完整的後台管理、RBAC 權限控制、媒體管理與文章分析功能。
+一個現代化的部落格系統，採用 Next.js 16 App Router 架構，具備完整的後台管理、RBAC 權限控制、媒體管理與文章分析功能。
 
 ## ✨ 功能特色
 
@@ -23,7 +23,7 @@
 
 | 類別 | 技術 |
 |------|------|
-| **框架** | Next.js 15 (App Router) |
+| **框架** | Next.js 16 (App Router) |
 | **語言** | TypeScript |
 | **資料庫** | PostgreSQL + Prisma ORM |
 | **認證** | NextAuth.js v4 |
