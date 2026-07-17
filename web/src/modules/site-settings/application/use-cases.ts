@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { siteSettingSchema, aboutContentSchema } from "@/lib/validations/site-setting.schema";
-import { sanitizePostHtml, sanitizeRawPostHtml } from "@/lib/utils/sanitize";
+import { sanitizeContentByMode } from "@/lib/content-pipeline";
 import { DEFAULT_SITE_SETTING_KEY } from "../domain";
 import type { SiteSettingRecord, SiteSettingsRepository } from "./ports";
 
@@ -115,11 +115,7 @@ export function createSiteSettingsUseCases(deps: { repo: SiteSettingsRepository 
       const data = aboutContentSchema.parse(payload);
       const rawContent = data.aboutContent ?? null;
       const sanitizedContent =
-        rawContent == null
-          ? null
-          : data.aboutAllowRawHtml
-            ? sanitizeRawPostHtml(rawContent)
-            : sanitizePostHtml(rawContent);
+        rawContent == null ? null : sanitizeContentByMode(rawContent, data.aboutAllowRawHtml);
       const contentFields = {
         aboutTitle: data.aboutTitle ?? null,
         aboutContent: sanitizedContent,

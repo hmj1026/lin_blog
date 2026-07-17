@@ -15,14 +15,6 @@ export function resolveUploadUrl(value: string) {
   return `${base.replace(/\/+$/, "")}${normalizedPath}`;
 }
 
-function stripDangerousAttributes(html: string) {
-  return html
-    .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, "")
-    .replace(/<\s*style[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, "")
-    .replace(/\son[a-z]+\s*=\s*(".*?"|'.*?'|[^\s>]+)/gi, "")
-    .replace(/\s(href|src)\s*=\s*("|\')\s*javascript:[^"\']*\2/gi, "");
-}
-
 function rewriteImgSrc(html: string) {
   return html.replace(/(<img\b[^>]*?\ssrc\s*=\s*)(["'])([^"']*)(\2)/gi, (_match, prefix, quote, src) => {
     const resolved = resolveUploadUrl(src);
@@ -31,11 +23,13 @@ function rewriteImgSrc(html: string) {
 }
 
 /**
- * 完整處理文章 HTML 內容
- * 一次性完成：安全過濾、標題 ID 處理、圖片路徑重寫
- * 
- * @param html - 原始文章 HTML
+ * 處理文章 HTML 內容：標題 ID 處理、圖片路徑重寫。
+ * 安全過濾不在此處——渲染端統一由 content-pipeline 的 prepareForRender
+ * 在 mode=false 時以 sanitizePostHtml 嚴格重消毒後才委派進來。
+ *
+ * @param html - 已消毒的文章 HTML
  * @returns { html: 處理後的 HTML, tocItems: 目錄項目清單 }
+ * 內部使用：本函式為 content-pipeline 的內部實作，頁面請改用 `@/lib/content-pipeline` 的 `prepareForRender`。
  */
 export function prepareContent(html: string): {
   html: string;
@@ -43,13 +37,10 @@ export function prepareContent(html: string): {
 } {
   if (!html) return { html: "", tocItems: [] };
 
-  // 1. 移除危險內容
-  const safe = stripDangerousAttributes(html);
+  // 1. 處理標題 ID（使用 cheerio，一次解析）
+  const { html: withIds, items } = processHeadings(html);
 
-  // 2. 處理標題 ID（使用 cheerio，一次解析）
-  const { html: withIds, items } = processHeadings(safe);
-
-  // 3. 重寫圖片路徑
+  // 2. 重寫圖片路徑
   const final = rewriteImgSrc(withIds);
 
   return { html: final, tocItems: items };
@@ -57,11 +48,12 @@ export function prepareContent(html: string): {
 
 /**
  * 原始 HTML 模式的內容處理：內容已於儲存時由 sanitizeRawPostHtml 消毒，
- * 此處「不」再呼叫 stripDangerousAttributes（保留 class/style/<style>），
+ * 此處「不」再做嚴格重消毒（保留 class/style/<style>），
  * 僅補標題 ID（供 ToC 錨點）與重寫圖片路徑。回傳的 html 為 iframe body 可直接使用的片段。
  *
  * @param html - 已消毒的原始 HTML 內容
  * @returns { html: 處理後的 HTML 片段, tocItems: 目錄項目清單 }
+ * 內部使用：本函式為 content-pipeline 的內部實作，頁面請改用 `@/lib/content-pipeline` 的 `prepareForRender`。
  */
 export function prepareRawHtmlContent(html: string): {
   html: string;
@@ -85,12 +77,3 @@ export function prepareRawHtmlContent(html: string): {
 
   return { html: finalHtml, tocItems: items };
 }
-
-/**
- * @deprecated 建議使用 prepareContent() 以獲得 tocItems 避免重複解析
- */
-export function sanitizeAndPrepareHtml(html: string): string {
-  const { html: result } = prepareContent(html);
-  return result;
-}
-
