@@ -25,6 +25,12 @@ type Props = {
   }>;
 };
 
+const DAY_IN_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+/** 以目前 request 時間推導未指定 from 時的查詢起點。 */
+export const deriveDefaultFromDate = (days: number): Date =>
+  new Date(Date.now() - days * DAY_IN_MILLISECONDS);
+
 export default async function AdminPostEventBrowserPage({ params, searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
@@ -39,7 +45,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
 
   const from = sp?.from ? safeParseDate(sp.from) : null;
   const to = sp?.to ? safeParseDate(sp.to) : null;
-  const derivedFrom = from ?? new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+  const derivedFrom = from ?? deriveDefaultFromDate(safeDays);
   const derivedTo = to ?? null;
 
   const deviceType = parseDeviceType(sp?.deviceType);
@@ -267,4 +273,3 @@ function PagerLink({ href, label, disabled }: { href: string; label: string; dis
     </Link>
   );
 }
-
