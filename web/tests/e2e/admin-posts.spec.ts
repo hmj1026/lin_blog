@@ -41,7 +41,7 @@ test.describe("新增文章流程", () => {
     await expect(page.getByRole("heading", { name: "新增文章" })).toBeVisible();
     
     // 驗證標題輸入框存在（id="post-title"）
-    await expect(page.locator("#post-title")).toBeVisible();
+    await expect(page.getByRole("main").locator("#post-title")).toBeVisible();
   });
 
   test("填寫文章並儲存為草稿", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("新增文章流程", () => {
     const testTitle = `E2E 測試文章 ${Date.now()}`;
     
     // 填寫標題（id="post-title"）
-    const titleInput = page.locator("#post-title");
+    const titleInput = page.getByRole("main").locator("#post-title");
     await titleInput.fill(testTitle);
     
     // 填寫 Slug（id="post-slug"）
@@ -133,7 +133,7 @@ test.describe("編輯文章流程", () => {
     await expect(page.getByRole("heading", { name: "編輯文章" })).toBeVisible();
 
     // 驗證編輯器載入
-    await expect(page.locator("#post-title")).toBeVisible();
+    await expect(page.getByRole("main").locator("#post-title")).toBeVisible();
   });
 });
 

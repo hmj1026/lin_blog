@@ -51,6 +51,14 @@ describe("MediaLibraryClient", () => {
     confirmMock.mockReturnValue(true);
   });
 
+  it("starts the initial request during the first effect flush", () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    render(<MediaLibraryClient />);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/uploads");
+  });
+
   it("loads and displays uploads", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

@@ -26,6 +26,14 @@ describe("DashboardCharts", () => {
     fetchMock.mockReset();
   });
 
+  it("starts the initial request during the first effect flush", () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    render(<DashboardCharts />);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/analytics/stats?days=7");
+  });
+
   it("loads and displays charts", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

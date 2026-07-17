@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 type TrendData = { date: string; count: number }[];
@@ -22,24 +22,21 @@ export function DashboardCharts() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"device" | "browser" | "os">("device");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/analytics/stats?days=${days}`);
-      const json = await res.json();
-      if (json.success) {
-        setData(json.data);
-      }
-    } catch {
-      console.error("Failed to fetch stats");
-    } finally {
-      setLoading(false);
-    }
-  }, [days]);
-
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let ignore = false;
+    fetch(`/api/analytics/stats?days=${days}`)
+      .then((response) => response.json())
+      .then((json) => {
+        if (!ignore && json.success) setData(json.data);
+      })
+      .catch(() => console.error("Failed to fetch stats"))
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [days]);
 
   if (loading || !data) {
     return <div className="h-64 flex items-center justify-center text-base-300">載入中...</div>;
@@ -69,7 +66,10 @@ export function DashboardCharts() {
         {[7, 14, 30].map((d) => (
           <button
             key={d}
-            onClick={() => setDays(d)}
+            onClick={() => {
+              setLoading(true);
+              setDays(d);
+            }}
             className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
               days === d ? "bg-primary text-white" : "bg-base-100 text-primary hover:bg-base-200"
             }`}
