@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * E2E：原始 HTML 模式的圖片插入工具（task 3.3/3.4 acceptance, section 6）
@@ -24,8 +25,8 @@ function testPngFile(name = "test.png") {
 }
 
 async function openNewPostInRawMode(page: Page) {
-  await page.goto("/admin/posts/new");
-  await page.locator("#post-title").fill(`E2E Raw Media ${Date.now()}`);
+  await gotoSettled(page, "/admin/posts/new");
+  await page.getByRole("main").locator("#post-title").fill(`E2E Raw Media ${Date.now()}`);
   await page.locator("#post-slug").fill(`e2e-raw-media-${Date.now()}`);
   await page.locator("#post-excerpt").fill("raw media e2e 摘要");
   // radio input 為 sr-only（視覺上隱藏，由外層 <label> 承接點擊），
@@ -138,8 +139,8 @@ test.describe("原始 HTML 模式圖片工具", () => {
 
 test.describe("VISUAL 模式圖片插入（TipTap）迴歸檢查", () => {
   test("6.7 VISUAL 模式下圖片上傳流程仍可用，無需第二個上傳端點", async ({ page }) => {
-    await page.goto("/admin/posts/new");
-    await page.locator("#post-title").fill(`E2E Visual Media ${Date.now()}`);
+    await gotoSettled(page, "/admin/posts/new");
+    await page.getByRole("main").locator("#post-title").fill(`E2E Visual Media ${Date.now()}`);
     await page.locator("#post-slug").fill(`e2e-visual-media-${Date.now()}`);
     await page.locator("#post-excerpt").fill("visual media e2e 摘要");
 

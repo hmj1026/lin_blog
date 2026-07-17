@@ -49,7 +49,7 @@ export function PostCard({ post, layout = "vertical" }: PostCardProps) {
           fill
           className="object-cover transition duration-500 group-hover:scale-105"
           sizes="(max-width: 768px) 100vw, 50vw"
-          priority={post.featured}
+          preload={post.featured}
           unoptimized={unoptimized}
           onLoad={(e) => {
             const img = e.currentTarget;

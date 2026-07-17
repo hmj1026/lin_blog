@@ -93,7 +93,7 @@ export default async function Home() {
                 width={900}
                 height={520}
                 className="h-full w-full object-cover"
-                priority
+                preload
               />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-primary/90 to-transparent p-6 text-white dark:from-black/80 dark:via-black/50">
                 <div className="flex items-center gap-3 text-xs uppercase tracking-[0.12em]">

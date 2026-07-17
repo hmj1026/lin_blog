@@ -20,25 +20,21 @@ export function MediaLibraryClient() {
   const [typeFilter, setTypeFilter] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  // 載入資料
   useEffect(() => {
-    fetchUploads();
+    let ignore = false;
+    fetch("/api/uploads")
+      .then((response) => response.json())
+      .then((json) => {
+        if (!ignore && json.success) setUploads(json.data);
+      })
+      .catch(() => console.error("Failed to fetch uploads"))
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
-
-  const fetchUploads = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/uploads");
-      const json = await res.json();
-      if (json.success) {
-        setUploads(json.data);
-      }
-    } catch {
-      console.error("Failed to fetch uploads");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 過濾
   const filteredUploads = useMemo(() => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
@@ -30,15 +30,21 @@ function SearchInput() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState("");
+  // URL 派生的初始／重設值：路由變更時以 render 期 reset（React 官方
+  // adjusting-state-when-props-change 模式）取代 effect 內 setState。
+  // reset key 用 pathname + urlQuery：維持原行為——任何 pathname 變更
+  // （含非 /search 間導航）都會把輸入框重設為 URL 派生值（非 /search 為空字串）
+  const urlQuery = pathname === "/search" ? (searchParams.get("q") ?? "") : "";
+  const [query, setQuery] = useState(urlQuery);
+  const [prevResetKey, setPrevResetKey] = useState({ pathname, urlQuery });
+  if (pathname !== prevResetKey.pathname || urlQuery !== prevResetKey.urlQuery) {
+    setPrevResetKey({ pathname, urlQuery });
+    setQuery(urlQuery);
+  }
   // hydration gate：掛載完成前禁用輸入與送出，避免 controlled input 在
   // onChange 附掛前被寫值，導致送出時 React state 仍為 SSR 初始空字串
   // （同 site-search-form.tsx 的既有模式）
   const hydrated = useHydrated();
-
-  useEffect(() => {
-    setQuery(pathname === "/search" ? (searchParams.get("q") ?? "") : "");
-  }, [pathname, searchParams]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

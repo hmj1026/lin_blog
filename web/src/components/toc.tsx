@@ -21,26 +21,38 @@ export function Toc({ contentSelector = "article" }: TocProps) {
   const [activeId, setActiveId] = useState<string>("");
 
   useEffect(() => {
-    const content = document.querySelector(contentSelector);
-    if (!content) return;
+    // DOM 掃描結果的 setState 解耦到 microtask（非 effect 同步 body），
+    // 避免 cascading render；時序仍在 hydration 後、與原寫法等價
+    let cancelled = false;
+    const scanHeadings = () => {
+      const content = document.querySelector(contentSelector);
+      if (!content) return;
 
-    const headings = content.querySelectorAll("h2, h3");
-    const tocItems: TocItem[] = [];
+      const headings = content.querySelectorAll("h2, h3");
+      const tocItems: TocItem[] = [];
 
-    headings.forEach((heading, index) => {
-      const element = heading as HTMLElement;
-      // 確保有 ID，若無則生成
-      if (!element.id) {
-        element.id = `heading-${index}`;
-      }
-      tocItems.push({
-        id: element.id,
-        text: element.textContent || "",
-        level: element.tagName === "H2" ? 2 : 3,
+      headings.forEach((heading, index) => {
+        const element = heading as HTMLElement;
+        // 確保有 ID，若無則生成
+        if (!element.id) {
+          element.id = `heading-${index}`;
+        }
+        tocItems.push({
+          id: element.id,
+          text: element.textContent || "",
+          level: element.tagName === "H2" ? 2 : 3,
+        });
       });
-    });
 
-    setItems(tocItems);
+      setItems(tocItems);
+    };
+    queueMicrotask(() => {
+      if (cancelled) return;
+      scanHeadings();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [contentSelector]);
 
   useEffect(() => {

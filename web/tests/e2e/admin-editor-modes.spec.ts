@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { gotoSettled } from "./helpers/streaming";
 
 // 輔助函數：登入（沿用 tests/e2e/admin-posts.spec.ts 的慣例）
 // radio input 為 sr-only（視覺上隱藏，由外層 <label> 承接點擊），直接點擊
@@ -11,8 +12,7 @@ async function selectMode(page: any, label: "視覺編輯器" | "原始 HTML") {
 // 這份 spec 在撰寫階段先不執行（write-only），將於 6.4/6.5 執行並修正整合問題。
 test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", () => {
   test("使用鍵盤在視覺編輯器／原始 HTML 之間切換模式", async ({ page }) => {
-    await page.goto("/admin/posts/new");
-
+    await gotoSettled(page, "/admin/posts/new");
     const radiogroup = page.getByRole("radiogroup", { name: "編輯模式" });
     await expect(radiogroup).toBeVisible();
 
@@ -51,8 +51,7 @@ test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", (
   test("原始 HTML 內容含區塊結構切回視覺編輯器時，鍵盤可完成警告的取消與確認", async ({
     page,
   }) => {
-    await page.goto("/admin/posts/new");
-
+    await gotoSettled(page, "/admin/posts/new");
     const rawOption = page.getByRole("radio", { name: "原始 HTML" });
     await selectMode(page, "原始 HTML");
 
@@ -91,8 +90,7 @@ test.describe("文章編輯器 authoring mode 選擇（鍵盤與無障礙）", (
   });
 
   test("模式狀態透過可存取名稱／狀態被宣告（accessible name/state）", async ({ page }) => {
-    await page.goto("/admin/posts/new");
-
+    await gotoSettled(page, "/admin/posts/new");
     const visualOption = page.getByRole("radio", { name: "視覺編輯器" });
     const rawOption = page.getByRole("radio", { name: "原始 HTML" });
 

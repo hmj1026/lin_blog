@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { gotoSettled } from "./helpers/streaming";
 
 test.describe("Analytics scripts", () => {
   test("injects GA, GTM, and FB Pixel when ids are set", async ({ page }) => {
     await page.route("https://www.googletagmanager.com/**", (route) => route.abort());
     await page.route("https://connect.facebook.net/**", (route) => route.abort());
 
-    await page.goto("/");
-
+    await gotoSettled(page, "/");
     await expect(page.locator("script#_next-ga")).toHaveAttribute(
       "src",
       /gtag\/js\?id=G-TEST123/

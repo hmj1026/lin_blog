@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * E2E：Newsletter 訂閱表單（使用可控 CAPTCHA 測試替身）
@@ -62,12 +63,12 @@ test.describe("newsletter-subscribe", () => {
     // 預熱路由：避免 dev server 首次命中新路由的即時編譯延後 hydration，
     // 造成第一個測試的表單互動落在 React 接手 onChange 之前
     // （見 discovery-normal-post.spec.ts 的說明）。
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     await context.close();
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     await expect(page.getByTestId("recaptcha-stub")).toBeVisible();
     // 等待 client-side hydration 完成再互動：姓名/Email 為 React controlled
     // input，若在 hydration 完成前用 fill() 寫入 DOM，之後才附掛的 onChange

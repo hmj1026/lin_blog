@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 
 describe("ThemeProvider", () => {
   beforeEach(() => {
+    document.documentElement.classList.remove("light", "dark");
     // 此測試環境未提供 localStorage / matchMedia，補足 ThemeProvider effect 所需
     vi.stubGlobal("localStorage", {
       getItem: vi.fn(() => null),
@@ -55,5 +56,59 @@ describe("ThemeProvider", () => {
     );
 
     expect(screen.getByTestId("theme")).toHaveTextContent("light");
+  });
+
+  it("exposes the stored theme without an intermediate default-theme render", () => {
+    vi.mocked(localStorage.getItem).mockReturnValue("dark");
+
+    function Consumer() {
+      const { theme, resolvedTheme } = useTheme();
+      return <div data-testid="theme">{`${theme}:${resolvedTheme}`}</div>;
+    }
+
+    render(
+      <ThemeProvider defaultTheme="system" storageKey="lin-blog-theme">
+        <Consumer />
+      </ThemeProvider>
+    );
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark:dark");
+  });
+
+  it("updates a system theme when the media query changes", () => {
+    let matches = false;
+    let notify: (() => void) | undefined;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({
+        get matches() {
+          return matches;
+        },
+        addEventListener: vi.fn((_event, listener: () => void) => {
+          notify = listener;
+        }),
+        removeEventListener: vi.fn(),
+      }))
+    );
+
+    function Consumer() {
+      const { theme, resolvedTheme } = useTheme();
+      return <div data-testid="theme">{`${theme}:${resolvedTheme}`}</div>;
+    }
+
+    render(
+      <ThemeProvider defaultTheme="system">
+        <Consumer />
+      </ThemeProvider>
+    );
+    expect(screen.getByTestId("theme")).toHaveTextContent("system:light");
+
+    act(() => {
+      matches = true;
+      notify?.();
+    });
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("system:dark");
+    expect(document.documentElement).toHaveClass("dark");
   });
 });

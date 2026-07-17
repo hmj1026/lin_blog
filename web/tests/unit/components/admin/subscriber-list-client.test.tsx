@@ -25,6 +25,14 @@ describe("SubscriberListClient", () => {
     fetchMock.mockReset();
   });
 
+  it("starts the initial request during the first effect flush", () => {
+    fetchMock.mockReturnValue(new Promise(() => {}));
+
+    render(<SubscriberListClient />);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/subscribers?page=1&pageSize=20");
+  });
+
   it("shows a loading state before the first fetch resolves", async () => {
     let resolveFetch: (value: unknown) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise((resolve) => { resolveFetch = resolve; }));

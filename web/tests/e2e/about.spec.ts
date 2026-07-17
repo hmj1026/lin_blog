@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * 對應「關於我」頁面功能（openspec: about page）：
@@ -15,7 +16,7 @@ import { loginAsAdmin } from "./helpers/auth";
  */
 
 async function setShowAbout(page: import("@playwright/test").Page, shouldShow: boolean) {
-  await page.goto("/admin/settings");
+  await gotoSettled(page, "/admin/settings");
   const checkbox = page.getByRole("checkbox", { name: "顯示「關於我」" });
   await expect(checkbox).toBeVisible();
   const isChecked = await checkbox.isChecked();
@@ -40,12 +41,12 @@ test.describe("關於我頁面（about page）", () => {
     await setShowAbout(page, true);
 
     // 整頁導覽到 /admin，確認 sidebar（伺服器渲染）反映開關已開啟
-    await page.goto("/admin");
+    await gotoSettled(page, "/admin");
     const aboutSidebarLink = page.locator("aside").getByRole("link", { name: "關於我" });
     await expect(aboutSidebarLink).toBeVisible();
 
     // 進入後台編輯頁
-    await page.goto("/admin/about");
+    await gotoSettled(page, "/admin/about");
     const editorForm = page.getByTestId("about-editor-form");
     await expect(editorForm).toBeVisible();
 
@@ -94,7 +95,7 @@ test.describe("關於我頁面（about page）", () => {
     await expect(page.getByText("已儲存")).toBeVisible();
 
     // 前台驗證：標題與（原始 HTML）內容正確呈現
-    await page.goto("/about");
+    await gotoSettled(page, "/about");
     const aboutPage = page.getByTestId("about-page");
     await expect(aboutPage).toBeVisible();
     await expect(aboutPage.getByRole("heading", { name: title, level: 1 })).toBeVisible();
@@ -119,7 +120,7 @@ test.describe("關於我頁面（about page）", () => {
     await setShowAbout(page, false);
 
     // 後台 sidebar 不再顯示「關於我」入口
-    await page.goto("/admin");
+    await gotoSettled(page, "/admin");
     await expect(page.locator("aside").getByRole("link", { name: "關於我" })).toHaveCount(0);
 
     // 前台 /about 回 404
@@ -127,7 +128,7 @@ test.describe("關於我頁面（about page）", () => {
     expect(response?.status()).toBe(404);
 
     // 前台 navbar 不再顯示「關於我」連結
-    await page.goto("/");
+    await gotoSettled(page, "/");
     await expect(page.getByRole("banner").getByRole("link", { name: "關於我" })).toHaveCount(0);
   });
 });

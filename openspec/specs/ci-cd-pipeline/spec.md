@@ -73,6 +73,16 @@ CI workflow 自身 SHALL NOT 保留獨立的 `push` 觸發;合併後(post-merge)
   執行映像建置與推送;CI workflow 自身不會因為這次 merge 而再被 `push` 觸發一次
   (post-merge 的 CI 矩陣只跑一次)
 
+### Requirement: ESLint react-hooks v6 規則恢復上游嚴格度
+
+`web/eslint.config.mjs` SHALL 移除 upgrade-nextjs-16 期間對 `react-hooks/set-state-in-effect`、`react-hooks/purity`、`react-hooks/error-boundaries`、`react-hooks/immutability` 的 warn 降級 override,恢復 `eslint-config-next@16` 預設 error。既有 14 處命中 SHALL 逐一以不改變可觀察行為的方式修正;`npm run lint` SHALL 無任何 react-hooks 規則之 error 或 warning。
+
+#### Scenario: Lint gate 回復嚴格度且行為不變
+
+- **GIVEN** 14 處命中已依 React 官方建議手法重構且 warn override 已移除
+- **WHEN** 執行 `npm run check`、unit、integration 與全套 Playwright E2E
+- **THEN** lint 0 errors 且無 react-hooks warnings,所有測試通過,ThemeProvider/hydration gate 等行為與基線一致
+
 ### Requirement: Reproducible Container Image
 系統 SHALL 提供一個 multi-stage `Dockerfile` 與 `docker-compose.yml`（app + postgres），使專案可在本機以容器方式建置並執行，且 `.dockerignore` 排除非必要檔案。
 

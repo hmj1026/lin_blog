@@ -1,0 +1,27 @@
+# 隔離驗證 override（upgrade-nextjs-16 §6.1）
+#
+# 用途：在既有環境旁平行啟動一組隔離的 blog + postgres 做 production image
+# 驗證，不與正式／本機 compose 狀態衝突。需 docker compose v2（`!override`
+# 標籤），與正式主機的 docker-compose v1 部署路徑無關。
+#
+# 用法（獨立 project 名 + SHA 衍生 tag + 專用非秘密測試 env）：
+#   docker compose -p lin-blog-verify-<sha> \
+#     -f docker-compose.yml -f docker-compose.verify.yml \
+#     --env-file .env.verify up -d
+#   ...驗證後：
+#   docker compose -p lin-blog-verify-<sha> \
+#     -f docker-compose.yml -f docker-compose.verify.yml down -v
+services:
+  blog:
+    # 覆寫固定 container_name，避免與既有 blog_app 衝突（隨 project 命名）
+    container_name: ${VERIFY_CONTAINER_PREFIX:?set VERIFY_CONTAINER_PREFIX (e.g. lin-blog-verify-<sha>)}_app
+    restart: "no"
+    ports: !override
+      # 預設不映射固定 host port；驗證 smoke 直接透過 container network 或
+      # 以 VERIFY_BLOG_PORT 指定未占用的 loopback port
+      - "127.0.0.1:${VERIFY_BLOG_PORT:-0}:3000"
+
+  postgres:
+    container_name: ${VERIFY_CONTAINER_PREFIX:?set VERIFY_CONTAINER_PREFIX}_db
+    restart: "no"
+    ports: !override []
