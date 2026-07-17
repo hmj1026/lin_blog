@@ -10,6 +10,13 @@ on:
       - "web/**"
       - ".github/workflows/docker-build.yml"
       - ".github/workflows/ci.yml"
+  pull_request:
+    # PR Docker gate（upgrade-nextjs-16 §6.6）：只 build + health smoke，不 push
+    paths:
+      - "web/**"
+      - "docker-compose.yml"
+      - "docker-compose.verify.yml"
+      - ".github/workflows/docker-build.yml"
   workflow_dispatch:
 
 concurrency:
@@ -27,6 +34,70 @@ jobs:
   # 先執行 CI 檢查
   ci:
     uses: ./.github/workflows/ci.yml
+
+  # PR gate：建置 image 並以隔離 compose 啟動 DB + app，套用 migration、
+  # 輪詢 health 與基本 smoke（upgrade-nextjs-16 §6.6）。不 push、不用 secrets。
+  pr-docker-verify:
+    name: PR Docker Build & Health
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          push: false
+          load: true
+          tags: lin-blog-pr-verify:${{ github.sha }}
+          cache-from: type=gha
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_RECAPTCHA_SITE_KEY=pr-verify-not-secret
+
+      - name: Start isolated stack, migrate, health, smoke
+        run: |
+          cat > /tmp/verify-env.txt <<'EOF'
+          VERIFY_CONTAINER_PREFIX=lin-blog-pr-verify
+          VERIFY_BLOG_PORT=3200
+          DATABASE_URL=postgresql://verify:verifypass@postgres:5432/lin_blog_verify
+          NEXTAUTH_SECRET=pr-verify-not-a-real-secret-0123456789
+          NEXTAUTH_URL=http://127.0.0.1:3200
+          NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3200
+          POSTGRES_USER=verify
+          POSTGRES_PASSWORD=verifypass
+          POSTGRES_DB=lin_blog_verify
+          POSTGRES_PORT=0
+          CRON_SECRET=pr-verify-cron-not-secret
+          EOF
+          echo "BLOG_IMAGE_TAG=${{ github.sha }}" >> /tmp/verify-env.txt
+          # 覆寫 image 為本次建置的本地 tag
+          cat > /tmp/image-override.yml <<'EOF'
+          services:
+            blog:
+              image: lin-blog-pr-verify:${BLOG_IMAGE_TAG}
+          EOF
+          COMPOSE="docker compose -p lin-blog-pr-verify -f docker-compose.yml -f docker-compose.verify.yml -f /tmp/image-override.yml --env-file /tmp/verify-env.txt"
+          $COMPOSE up -d
+          docker exec lin-blog-pr-verify_app node node_modules/prisma/build/index.js migrate deploy
+          for i in $(seq 1 40); do
+            st=$(docker inspect --format '{{.State.Health.Status}}' lin-blog-pr-verify_app)
+            [ "$st" = "healthy" ] && break
+            [ "$st" = "unhealthy" ] && { docker logs --tail 100 lin-blog-pr-verify_app; exit 1; }
+            sleep 3
+          done
+          [ "$st" = "healthy" ] || { echo "health=$st"; docker logs --tail 100 lin-blog-pr-verify_app; exit 1; }
+          curl -sf http://127.0.0.1:3200/ >/dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3200/admin)
+          [ "$code" = "307" ] || [ "$code" = "302" ] || { echo "anon /admin expected redirect, got $code"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3200/api/admin/subscribers)
+          [ "$code" = "401" ] || { echo "anon protected API expected 401, got $code"; exit 1; }
+          $COMPOSE down -v
 
   build-and-push:
     name: Build and Push
