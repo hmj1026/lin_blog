@@ -1,21 +1,17 @@
 "use client";
 
 import { useTheme } from "./theme-provider";
-import { useState, useEffect } from "react";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 /**
  * 主題切換按鈕
  * 顯示當前主題並提供切換功能
  */
 export function ThemeToggle() {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const hydrated = useHydrated();
 
   // 在 SSR 階段顯示 placeholder
-  if (!mounted) {
+  if (!hydrated) {
     return (
       <div
         className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white dark:border-base-200 dark:bg-base-100"
