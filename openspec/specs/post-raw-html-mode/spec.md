@@ -265,3 +265,21 @@ WYSIWYG 內容（僅 `p`/`h2`/`h3`/`ul`/`strong` 等既有允許標籤、無 inl
 - **THEN** iframe 仍不啟用 `allow-same-origin` 或 `allow-top-navigation`，且不執行使用者內容中的任何
   腳本；非 `#` 連結仍維持既有「由父頁面代為導覽」的行為
 
+### Requirement: Render Path Selected By Pipeline Strategy
+文章與 About 頁的渲染方式 SHALL 由 content-pipeline `prepareForRender` 回傳的 `strategy` 決定：`"iframe"` 渲染 `RawHtmlPostFrame`，`"inline"` 渲染 inline HTML。頁面元件 MUST NOT 自行讀取 `allowRawHtml`／`aboutAllowRawHtml` 選擇內容處理函式。
+
+#### Scenario: Blog page renders by strategy
+- **WHEN** `blog/[slug]` 頁面渲染一篇 raw HTML 模式文章
+- **THEN** 頁面依 `prepareForRender` 回傳的 `strategy === "iframe"` 渲染 iframe sandbox，行為與現行 raw 模式渲染一致
+
+#### Scenario: About page renders by strategy
+- **WHEN** `/about` 頁面渲染非 raw 模式的關於我內容
+- **THEN** 頁面依 `strategy === "inline"` 渲染，內容經嚴格 allowlist 消毒
+
+### Requirement: Desynced Flag Renders Safely
+當已儲存內容與目前模式旗標不一致（內容曾以 raw 模式的寬鬆 allowlist 消毒，旗標其後為 false 且內容未重存）時，系統 SHALL 於渲染前以嚴格 allowlist sanitizer 重消毒，確保 inline 渲染不含 `<style>`、`style=` 屬性與事件屬性。
+
+#### Scenario: Raw-sanitized content with flag off is strictly cleaned at render
+- **WHEN** 資料庫中的文章 content 含 raw 模式放行的 `style=` 屬性與 `<style>` 區塊，且 `allowRawHtml=false`
+- **THEN** 頁面 inline 輸出不含 `style=` 屬性與 `<style>` 區塊，僅保留嚴格 allowlist 內的標籤與屬性
+
