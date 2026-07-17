@@ -5,7 +5,8 @@ vi.mock("@/env.public", () => ({
   publicEnv: { NEXT_PUBLIC_UPLOAD_BASE_URL: undefined },
 }));
 
-import { resolveUploadUrl, sanitizeAndPrepareHtml } from "@/lib/utils/content";
+import { resolveUploadUrl } from "@/lib/utils/content";
+import { prepareForRender } from "@/lib/content-pipeline";
 
 describe("resolveUploadUrl with empty base URL (local storage)", () => {
   it("returns relative path when base URL is not set", () => {
@@ -33,10 +34,10 @@ describe("resolveUploadUrl with empty base URL (local storage)", () => {
   });
 });
 
-describe("sanitizeAndPrepareHtml with empty base URL", () => {
+describe("prepareForRender (mode=false) with empty base URL", () => {
   it("rewrites img src to relative path", () => {
     const html = `<p>text</p><img src="uploads/image.jpg" alt="test" />`;
-    const out = sanitizeAndPrepareHtml(html);
+    const { html: out } = prepareForRender(html, false);
     expect(out).toContain('src="/uploads/image.jpg"');
     expect(out).not.toContain("http://localhost");
     expect(out).not.toContain("https://");
@@ -44,7 +45,7 @@ describe("sanitizeAndPrepareHtml with empty base URL", () => {
 
   it("preserves absolute URLs in img src", () => {
     const html = `<img src="https://cdn.example.com/image.png" alt="external" />`;
-    const out = sanitizeAndPrepareHtml(html);
+    const { html: out } = prepareForRender(html, false);
     expect(out).toContain('src="https://cdn.example.com/image.png"');
   });
 });
