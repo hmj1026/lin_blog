@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { sanitizePostHtml, sanitizeRawPostHtml } from "@/lib/utils/sanitize";
+import { sanitizeContentByMode } from "@/lib/content-pipeline";
 import { postSchema, importPostSchema } from "@/lib/validations/post.schema";
 import { categorySchema } from "@/lib/validations/category.schema";
 import { tagSchema } from "@/lib/validations/tag.schema";
@@ -7,14 +7,6 @@ import { isPostStatus, isReadablePost, normalizeSlug } from "../domain";
 import type { CategoryRepository, PostRepository, PostVersionRepository, TagRepository } from "./ports";
 
 export type PostsUseCases = ReturnType<typeof createPostsUseCases>;
-
-/**
- * 依 allowRawHtml 選擇消毒器：true → 寬鬆（保留 class/style/<style>，仍移除 script/事件屬性/危險 CSS）；
- * false → 嚴格。切換模式時提交的 content 一律以「切換後」模式重新消毒，避免殘留與現行規格不一致的內容。
- */
-function sanitizeContentByMode(content: string, allowRawHtml: boolean): string {
-  return allowRawHtml ? sanitizeRawPostHtml(content) : sanitizePostHtml(content);
-}
 
 /**
  * showRawHtmlToc 只在原始 HTML 模式下有意義；allowRawHtml 為 false 時強制歸零，

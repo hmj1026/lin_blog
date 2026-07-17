@@ -8,7 +8,7 @@ import { InlineToc } from "@/components/inline-toc";
 import { StreamedPostDiscoveryPanel } from "@/components/discovery/streamed-post-discovery-panel";
 import { ReadingProgress } from "@/components/reading-progress";
 import { ShareButtons } from "@/components/share-buttons";
-import { prepareContent, prepareRawHtmlContent } from "@/lib/utils/content";
+import { prepareForRender } from "@/lib/content-pipeline";
 import { RawHtmlPostFrame } from "@/components/raw-html-post-frame";
 import { toFrontendPost } from "@/lib/frontend/post";
 import { draftMode } from "next/headers";
@@ -37,10 +37,11 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const postView = toFrontendPost(post);
   const related = relatedRaw.map(toFrontendPost);
-  const isRawHtmlPost = postView.allowRawHtml;
-  const { html: contentHtml, tocItems } = isRawHtmlPost
-    ? prepareRawHtmlContent(postView.content)
-    : prepareContent(postView.content);
+  const { html: contentHtml, tocItems, strategy } = prepareForRender(
+    postView.content,
+    postView.allowRawHtml
+  );
+  const isRawHtmlPost = strategy === "iframe";
   const analyticsSource: "frontend" | "preview" = allowDraft || post.status !== "PUBLISHED" ? "preview" : "frontend";
   const siteUrl = getSiteUrl();
   const postUrl = `${siteUrl}/blog/${post.slug}`;

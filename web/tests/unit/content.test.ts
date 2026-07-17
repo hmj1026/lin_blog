@@ -4,7 +4,8 @@ vi.mock("@/env.public", () => ({
   publicEnv: { NEXT_PUBLIC_UPLOAD_BASE_URL: "https://cdn.example.com" },
 }));
 
-import { resolveUploadUrl, sanitizeAndPrepareHtml, prepareRawHtmlContent } from "@/lib/utils/content";
+import { resolveUploadUrl, prepareRawHtmlContent } from "@/lib/utils/content";
+import { prepareForRender } from "@/lib/content-pipeline";
 
 describe("resolveUploadUrl", () => {
   it("keeps absolute urls", () => {
@@ -18,33 +19,35 @@ describe("resolveUploadUrl", () => {
   });
 });
 
-describe("sanitizeAndPrepareHtml", () => {
+describe("prepareForRender (mode=false, strict re-sanitization)", () => {
   it("removes script tags and event handlers", () => {
     const html = `<p onclick="alert(1)">x</p><script>alert(1)</script>`;
-    const out = sanitizeAndPrepareHtml(html);
+    const { html: out } = prepareForRender(html, false);
     expect(out).toMatch(/<p\b/i);
     expect(out).not.toMatch(/script/i);
     expect(out).not.toMatch(/onclick/i);
   });
 
+  it("removes <style> blocks and style attributes (strict allowlist)", () => {
+    const html = `<style>.x{color:red}</style><p style="color:red" class="x">x</p>`;
+    const { html: out } = prepareForRender(html, false);
+    expect(out).not.toMatch(/<style/i);
+    expect(out).not.toMatch(/style=/i);
+    expect(out).not.toMatch(/class=/i);
+    expect(out).toContain("x");
+  });
+
   it("rewrites img src", () => {
     const html = `<p>t</p><img src="uploads/a.png" alt="a" />`;
-    const out = sanitizeAndPrepareHtml(html);
+    const { html: out } = prepareForRender(html, false);
     expect(out).toContain(`src="https://cdn.example.com/uploads/a.png"`);
   });
 
   it("adds IDs to headings without ID", () => {
     const html = `<h2>Introduction</h2><h3>Details</h3>`;
-    const out = sanitizeAndPrepareHtml(html);
+    const { html: out } = prepareForRender(html, false);
     expect(out).toContain('id="toc-0"');
     expect(out).toContain('id="toc-1"');
-  });
-
-  it("preserves existing heading IDs", () => {
-    const html = `<h2 id="custom">Title</h2>`;
-    const out = sanitizeAndPrepareHtml(html);
-    expect(out).toContain('id="custom"');
-    expect(out).not.toContain('id="toc-');
   });
 });
 
@@ -66,6 +69,12 @@ describe("prepareRawHtmlContent", () => {
     expect(html).toContain("<style>");
     expect(html).toMatch(/\.raw-marker\s*\{/);
     expect(html).toContain('class="raw-marker"');
+  });
+
+  it("preserves existing heading IDs", () => {
+    const { html } = prepareRawHtmlContent(`<h2 id="custom">Title</h2>`);
+    expect(html).toContain('id="custom"');
+    expect(html).not.toContain('id="toc-');
   });
 
   it("adds heading IDs and returns tocItems", () => {
