@@ -24,8 +24,6 @@ export function SubscriberListClient() {
   const [appliedSearch, setAppliedSearch] = useState("");
 
   const fetchSubscribers = useCallback(async (search: string, targetPage: number) => {
-    setLoading(true);
-    setError(false);
     try {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
@@ -49,18 +47,42 @@ export function SubscriberListClient() {
   }, []);
 
   useEffect(() => {
-    fetchSubscribers(appliedSearch, page === 0 ? 1 : page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let ignore = false;
+    fetch(`/api/admin/subscribers?page=1&pageSize=${PAGE_SIZE}`)
+      .then(async (response) => ({ response, json: await response.json() }))
+      .then(({ response, json }) => {
+        if (ignore) return;
+        if (!response.ok || !json.success) {
+          setError(true);
+          return;
+        }
+        setItems(json.data.items);
+        setTotal(json.data.total);
+        setPage(json.data.page ?? 1);
+      })
+      .catch(() => {
+        if (!ignore) setError(true);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = searchInput.trim();
+    setLoading(true);
+    setError(false);
     setAppliedSearch(trimmed);
     fetchSubscribers(trimmed, 1);
   }
 
   function goToPage(nextPage: number) {
+    setLoading(true);
+    setError(false);
     fetchSubscribers(appliedSearch, nextPage);
   }
 

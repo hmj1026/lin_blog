@@ -22,17 +22,6 @@ const config = [
   ...coreWebVitals,
   ...typescript,
   {
-    // eslint-config-next@16 引入 react-hooks v6 新規則；既有程式碼命中 14 處，
-    // 依 upgrade-nextjs-16 規格維持 baseline 語意（升級中不改業務行為），
-    // 降為 warn，另立 change 逐一清理後恢復 error。
-    rules: {
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/purity": "warn",
-      "react-hooks/error-boundaries": "warn",
-      "react-hooks/immutability": "warn",
-    },
-  },
-  {
     files: ["src/components/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [

@@ -17,7 +17,7 @@ test.describe("文章編輯頁資訊架構（sticky action bar / 響應式版面
       // 在編輯器中輸入大量內容以撐長頁面，確保有可捲動空間
       // getByLabel("標題") 為子字串比對，會同時命中「SEO 標題」造成 strict mode
       // violation；改用穩定的欄位 id。
-      await page.locator("#post-title").fill("Layout Sticky Test");
+      await page.getByRole("main").locator("#post-title").fill("Layout Sticky Test");
       await page.locator("#post-excerpt").fill("Sticky action bar regression check");
       const editor = page.locator(".tiptap.ProseMirror").first();
       await editor.click();

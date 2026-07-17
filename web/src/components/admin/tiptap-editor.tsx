@@ -107,11 +107,16 @@ export function TiptapEditor({ value, onChange }: Props) {
     editor.commands.setContent(value, { emitUpdate: false });
   }, [editor, value]);
 
-  useEffect(() => {
+  // mode／value 變更時同步 HTML 草稿：以 render 期 reset（React 官方
+  // adjusting-state-when-props-change 模式）取代 effect 內 setState；
+  // htmlDraft 初始值已是 value，等同原 effect 的 mount 行為
+  const [prevDraftKey, setPrevDraftKey] = useState({ mode, value });
+  if (mode !== prevDraftKey.mode || value !== prevDraftKey.value) {
+    setPrevDraftKey({ mode, value });
     if (mode === "html") {
       setHtmlDraft(value);
     }
-  }, [mode, value]);
+  }
 
   async function uploadBlobAndInsert(blob: Blob, fileName: string) {
     if (!editor) return;

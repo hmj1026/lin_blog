@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AdminPostAnalyticsPage from "@/app/(admin)/admin/analytics/posts/page";
-import AdminPostEventBrowserPage from "@/app/(admin)/admin/analytics/posts/[postId]/page";
+import AdminPostEventBrowserPage, {
+  deriveDefaultFromDate,
+} from "@/app/(admin)/admin/analytics/posts/[postId]/page";
 import { analyticsQueries } from "@/lib/server-queries";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -113,6 +115,15 @@ describe("Admin Post Event Browser Page", () => {
     (getSession as any).mockResolvedValue(mockSession);
     (analyticsQueries.getPostSummary as any).mockResolvedValue(mockPostSummary);
     (analyticsQueries.listPostViewEvents as any).mockResolvedValue(mockEvents);
+  });
+
+  it("derives the default from date from the current request time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T12:00:00.000Z"));
+
+    expect(deriveDefaultFromDate(7)).toEqual(new Date("2026-07-11T12:00:00.000Z"));
+
+    vi.useRealTimers();
   });
 
   it("renders event details", async () => {

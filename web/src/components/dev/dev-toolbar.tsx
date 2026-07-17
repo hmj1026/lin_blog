@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useHydrated } from "@/hooks/use-hydrated";
 
 /**
  * 開發環境專用工具列
@@ -8,19 +9,14 @@ import { useEffect, useState } from "react";
  * 顯示當前環境資訊，方便開發時快速識別
  */
 export function DevToolbar() {
-  const [isVisible, setIsVisible] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  // 僅在 client 掛載完成後顯示（維持原 effect 寫法的時序），環境判斷用
+  // build-time 內嵌的 NEXT_PUBLIC_* 變數，server/client 一致
+  const hydrated = useHydrated();
 
-  useEffect(() => {
-    // 在客戶端檢查環境變數
-    // NEXT_PUBLIC_* 變數會被 Next.js 內嵌到客戶端
-    const appEnv = process.env.NEXT_PUBLIC_APP_ENV || process.env.APP_ENV;
-    if (appEnv !== "production") {
-      setIsVisible(true);
-    }
-  }, []);
-
-  if (!isVisible) return null;
+  const envVisible =
+    (process.env.NEXT_PUBLIC_APP_ENV || process.env.APP_ENV) !== "production";
+  if (!hydrated || !envVisible) return null;
 
   const appEnv = process.env.NEXT_PUBLIC_APP_ENV || "local";
   const nodeEnv = process.env.NODE_ENV || "development";

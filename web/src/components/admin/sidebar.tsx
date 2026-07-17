@@ -113,10 +113,13 @@ export function AdminSidebar({ showAbout = false }: { showAbout?: boolean }) {
     };
   }, [open]);
 
-  // 路由變更時自動關閉抽屜
-  useEffect(() => {
+  // 路由變更時自動關閉抽屜：以 render 期 reset（React 官方
+  // adjusting-state-when-props-change 模式）取代 effect 內 setState
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <>
