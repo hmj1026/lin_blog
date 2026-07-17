@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.5.0 — 2026-07-18 — 升級 Next.js 16 / React 19 並完成 react-hooks v6 規則清理
+
+框架基線升級:Next.js 16.2.10(Turbopack 預設)、React 19.2.7、ESLint 9 Flat Config。
+同步完成 react-hooks v6 新規則全部 14 處命中之重構(不改變可觀察行為),並移除升級期間的
+warn 降級 override,lint gate 恢復上游 error 嚴格度。
+
+### 新增功能 (feat)
+- **deps**: 升級 Next.js 16.2.10 + React 19.2.7 與 ESLint 9 Flat Config
+
+### 重構與優化 (refactor)
+- **infra**: 主題與 hydration 狀態管理改為 `useSyncExternalStore`(SSR/hydration 契約不變)
+- **view**: 前台導航與目錄元件消除多餘的 Effect 狀態同步
+- **view**: 後台管理元件消除 Effect 並補上初始 fetch race guard
+- **controller**: 後台分析事件查詢的預設時間推導抽為純函式
+
+### 測試與維運 (test/ci/docs/chore)
+- **ci**: PR 觸發之 Docker build 與 health smoke gate
+- **test**: E2E h1 斷言改用 getByRole;新增 navbar 與 use-hydrated 行為測試
+- **chore**: 移除 react-hooks 規則 warn 例外配置,恢復 eslint-config-next@16 預設嚴格度
+- **docs**: 框架版本/ESLint 設定參照更新至 Next.js 16 基線;同步 ci-cd-pipeline 規格
+
 ## 1.4.9 — 2026-07-17 — 實作內容管線以統一消毒與渲染準備邏輯
 
 實作內容管線 (Content Pipeline) 以統一內容消毒與渲染準備邏輯，重構現有用例，並於前台部落格及關於我頁面整合內容管線渲染策略。
