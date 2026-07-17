@@ -31,6 +31,28 @@ cd "$PROJECT_DIR"
 # 1. 拉取指定版本 image
 docker pull "${IMAGE}:${TAG}"
 
+# 1b. RepoDigest preflight（upgrade-nextjs-16 §6.2）：
+#     APPROVED_REPO_DIGEST 為 verification manifest 核准的 immutable digest
+#     （格式 sha256:...）。pull 後、停掉舊服務前比對實際 RepoDigest，
+#     mismatch 必須在 down 之前失敗，避免以未經核准的 artifact 替換服務。
+if [[ -n "${APPROVED_REPO_DIGEST:-}" ]]; then
+  actual_digest="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "${IMAGE}:${TAG}" \
+    | grep -F "${IMAGE}@" | head -1 | cut -d@ -f2 || true)"
+  if [[ -z "$actual_digest" ]]; then
+    echo "RepoDigest preflight failed: cannot resolve digest for ${IMAGE}:${TAG}" >&2
+    exit 1
+  fi
+  if [[ "$actual_digest" != "$APPROVED_REPO_DIGEST" ]]; then
+    echo "RepoDigest preflight failed:" >&2
+    echo "  approved: ${APPROVED_REPO_DIGEST}" >&2
+    echo "  actual:   ${actual_digest}" >&2
+    exit 1
+  fi
+  echo "RepoDigest preflight OK: ${actual_digest}"
+else
+  echo "WARN: APPROVED_REPO_DIGEST not set; skipping digest preflight（僅限非正式流程）" >&2
+fi
+
 # 2. 以指定 tag 重啟容器（BLOG_IMAGE_TAG 供 docker-compose.yml 內插）
 export BLOG_IMAGE_TAG="$TAG"
 docker-compose down

@@ -5,6 +5,7 @@ import {
   waitForScrollSettled,
   type ScrollObservationSource,
 } from "./helpers/scroll-observation";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * Adapts a Playwright page to the deterministic scroll-observation algorithm.
@@ -85,7 +86,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.1 自訂樣式在隔離 iframe 內生效", async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     const frame = page.frameLocator("iframe[title='post-content']");
     const marker = frame.locator(".raw-marker");
     await expect(marker).toBeVisible({ timeout: 15000 });
@@ -99,7 +100,7 @@ test.describe("raw-html-post", () => {
       dialogFired = true;
       await dialog.dismiss();
     });
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     // 負向觀察（design D2 允許的例外）：這裡驗證的是「腳本沒有執行」，沒有
     // 更強的完成訊號可等待。給 iframe 充足時間載入其自寫腳本，若使用者腳本
     // 殘留，alert 會在此有界觀察視窗內觸發。
@@ -108,7 +109,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.3 文章樣式不外洩到站台其餘部分", async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     await page.locator("iframe[title='post-content']").waitFor({ state: "attached" });
     // 外層文章標題 h1 不應被 iframe 內 h1{color:green} 影響
     const outerH1Color = await page.locator("h1").first().evaluate((el) => getComputedStyle(el).color);
@@ -123,7 +124,7 @@ test.describe("raw-html-post", () => {
     // 丟失（先前被 ThemeProvider 的全頁 remount 意外掩蓋）；父頁面掛載後會
     // 主動請求 iframe 重報高度。內容含 1600px 間隔區塊，高度必須遠超過
     // 預設 600px。
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     const iframe = page.locator("iframe[title='post-content']");
     await expect
       .poll(async () => parseInt((await iframe.evaluate((el) => el.style.height)) || "0", 10), {
@@ -133,7 +134,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.4 點擊目錄可捲動至對應標題", async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     const tocButtons = page.locator("nav[aria-label='目錄'] button");
     await expect(tocButtons).toHaveCount(2, { timeout: 15000 });
     const before = await page.evaluate(() => window.scrollY);
@@ -143,7 +144,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.4b iframe 內連結點擊由父頁面代為導覽", async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     const frame = page.frameLocator("iframe[title='post-content']");
     await frame.locator("#home-link").click();
     // sandbox 擋掉 iframe 內導覽，改由父頁面 postMessage 代為導覽至首頁
@@ -152,7 +153,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.4c 內文 # 錨點連結由父頁面捲動", async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     const frame = page.frameLocator("iframe[title='post-content']");
     await expect(frame.locator("#jump-link")).toBeVisible({ timeout: 15000 });
     // click() 的 actionability 檢查會先自動把不在可視範圍的元素捲入視野；
@@ -186,7 +187,7 @@ test.describe("raw-html-post", () => {
   });
 
   test("8.4d 指向不存在 id 的 # 錨點為安全 no-op", async ({ page }) => {
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     const frame = page.frameLocator("iframe[title='post-content']");
     await expect(frame.locator("#missing-link")).toBeVisible({ timeout: 15000 });
     // 同 8.4c：先讓 click() 的自動捲動塵埃落定，避免污染 before/after 差值量測。
@@ -204,7 +205,7 @@ test.describe("raw-html-post", () => {
 
   test("8.5 預覽流程正確顯示巢狀 iframe", async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto(`/admin/posts/${postId}`);
+    await gotoSettled(page, `/admin/posts/${postId}`);
     await page.locator("button:has-text('預覽')").first().click();
     const previewFrame = page.frameLocator("iframe[title='post-preview']");
     const postFrame = previewFrame.frameLocator("iframe[title='post-content']");

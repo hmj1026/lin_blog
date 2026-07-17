@@ -4,10 +4,11 @@
 // 一般訪客無法看到草稿內容（回傳 404）。
 import { test, expect } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 test.describe("ISR 公開頁與草稿預覽", () => {
   test("A. 匿名訪客可正常瀏覽已發布文章（無需 session 查詢）", async ({ page }) => {
-    await page.goto("/blog");
+    await gotoSettled(page, "/blog");
     const firstPostLink = page.locator("a[href^='/blog/']").first();
     await expect(firstPostLink).toBeVisible();
     await firstPostLink.click();
@@ -29,7 +30,7 @@ test.describe("ISR 公開頁與草稿預覽", () => {
 
     // 透過 /api/preview 啟用 draftMode（帶 draft bypass cookie 重導向至 /blog/[slug]），
     // 具 posts:write 權限的編輯者應能看到 DRAFT 文章內容。
-    await page.goto(`/api/preview?slug=${encodeURIComponent(DRAFT_FIXTURE_SLUG)}`);
+    await gotoSettled(page, `/api/preview?slug=${encodeURIComponent(DRAFT_FIXTURE_SLUG)}`);
     await expect(page).toHaveURL(new RegExp(`/blog/${DRAFT_FIXTURE_SLUG}`));
     await expect(page.locator("h1")).toContainText(DRAFT_FIXTURE_TITLE);
   });

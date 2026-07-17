@@ -1,10 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 test.describe("文章詳細頁", () => {
   test("從文章列表進入文章詳細頁並正確顯示內容", async ({ page }) => {
     // 前往文章列表頁
-    await page.goto("/blog");
+    await gotoSettled(page, "/blog");
     await expect(page.locator("h1")).toBeVisible();
 
     // 點擊第一篇文章
@@ -24,7 +25,7 @@ test.describe("文章詳細頁", () => {
     // 此測試的重點是分類/標籤的呈現，不是導覽本身：
     // 直接以 href 進入文章頁，避免 client-side soft navigation 的時序干擾
     // （同下方 SEO meta 測試的既有 pattern）。
-    await page.goto("/blog");
+    await gotoSettled(page, "/blog");
     const firstArticleLink = page.locator("a[href^='/blog/']").first();
     const href = await firstArticleLink.getAttribute("href");
     await page.goto(href ?? "/blog");
@@ -36,7 +37,7 @@ test.describe("文章詳細頁", () => {
   });
 
   test("文章詳細頁有正確的 SEO meta tags", async ({ page }) => {
-    await page.goto("/blog");
+    await gotoSettled(page, "/blog");
     const firstArticleLink = page.locator("a[href^='/blog/']").first();
     const href = await firstArticleLink.getAttribute("href");
     // 直接導覽到文章頁以取得伺服器渲染的 <head>；client-side soft navigation 在
@@ -55,8 +56,7 @@ test.describe("文章詳細頁", () => {
 
 test.describe("分類頁", () => {
   test("分類頁可正常載入並顯示文章", async ({ page }) => {
-    await page.goto("/category/策略");
-    
+    await gotoSettled(page, "/category/策略");
     // 驗證頁面載入
     await expect(page.locator("h1")).toBeVisible();
     
@@ -68,8 +68,7 @@ test.describe("分類頁", () => {
   });
 
   test("分類頁顯示正確的分類名稱", async ({ page }) => {
-    await page.goto("/category/策略");
-    
+    await gotoSettled(page, "/category/策略");
     // 驗證分類名稱顯示在頁面標題或內容中
     const hasTitle = await page.locator("h1").textContent();
     expect(hasTitle).toContain("策略");
@@ -79,8 +78,7 @@ test.describe("分類頁", () => {
 test.describe("標籤頁", () => {
   test("標籤頁可正常載入並顯示文章", async ({ page }) => {
     // 先從首頁找一個標籤連結
-    await page.goto("/");
-    
+    await gotoSettled(page, "/");
     const tagLink = page.locator("a[href^='/tag/']").first();
     const isTagVisible = await tagLink.isVisible().catch(() => false);
     
@@ -98,7 +96,7 @@ test.describe("標籤頁", () => {
       expect(hasArticles || hasEmptyState).toBeTruthy();
     } else {
       // 如果首頁沒有標籤，直接訪問一個標籤頁
-      await page.goto("/tag/設計");
+      await gotoSettled(page, "/tag/設計");
       await expect(page.locator("h1")).toBeVisible();
     }
   });
@@ -116,7 +114,7 @@ test.describe("Hydration 保留 SSR DOM", () => {
           document.querySelector("main");
       });
     });
-    await page.goto("/");
+    await gotoSettled(page, "/");
     // 確定性 hydration 訊號（不用 networkidle——CI 負載下不可靠）：header 搜尋欄
     // 的 useHydrated disabled gate 於 hydration 後的 effect flush 解除；ThemeProvider
     // 的 mounted 翻轉（舊 bug 的 remount 時點）在同一個 flush 排程、於同一個後續
@@ -134,7 +132,7 @@ test.describe("首頁 Header 搜尋欄", () => {
   test("搜尋後導覽回首頁，header 搜尋欄清空", async ({ page }) => {
     // header 搜尋欄僅在 lg 斷點顯示（見 navbar-client.tsx `hidden ... lg:flex`），
     // Desktop Chrome 專案預設 viewport 1280x720 已足夠寬，無需額外設定。
-    await page.goto("/");
+    await gotoSettled(page, "/");
     const searchInput = page.locator("header form input[type='text']");
     await expect(searchInput).toBeVisible();
     // SearchInput 為 controlled input，掛載前被 useHydrated gate 禁用；

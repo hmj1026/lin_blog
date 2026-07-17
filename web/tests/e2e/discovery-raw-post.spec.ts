@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * E2E：原始 HTML（allowRawHtml=true）寬版文章的探索 grid
@@ -71,7 +72,7 @@ test.describe("discovery-raw-post", () => {
     expect(res.ok(), `建立文章失敗：${res.status()}`).toBeTruthy();
     // 預熱路由：避免 dev server 首次命中新路由的即時編譯延後 hydration，
     // 造成後續測試第一個互動落在 hydration 完成前（見 discovery-normal-post.spec.ts）。
-    await page.goto(`/blog/${slug}`);
+    await gotoSettled(page, `/blog/${slug}`);
     await context.close();
   });
 
@@ -79,7 +80,7 @@ test.describe("discovery-raw-post", () => {
     test.use({ viewport: { width: 1903, height: 1000 } });
 
     test("iframe 維持寬版可用寬度（computed width >= 1871px）", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const frame = page.locator("iframe[title='post-content']");
       await frame.waitFor({ state: "attached", timeout: 15000 });
       const frameParent = frame.locator("..");
@@ -88,7 +89,7 @@ test.describe("discovery-raw-post", () => {
     });
 
     test("iframe sandbox 屬性未被更動", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const frame = page.locator("iframe[title='post-content']");
       await frame.waitFor({ state: "attached", timeout: 15000 });
       const sandbox = await frame.getAttribute("sandbox");
@@ -98,7 +99,7 @@ test.describe("discovery-raw-post", () => {
     });
 
     test("探索 grid 在 DOM 順序上位於 iframe 之後", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const order = await page.evaluate(() => {
         const iframe = document.querySelector("iframe[title='post-content']");
         const newsletterHeading = Array.from(document.querySelectorAll("h3")).find(
@@ -113,7 +114,7 @@ test.describe("discovery-raw-post", () => {
     });
 
     test("探索 grid 桌面為多欄（md/xl 斷點生效，卡片非單欄堆疊）", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const newsletterHeading = page.getByRole("heading", { name: "訂閱電子報" });
       const popularHeading = page.getByRole("heading", { name: "熱門文章" });
       await expect(newsletterHeading).toBeVisible();
@@ -139,7 +140,7 @@ test.describe("discovery-raw-post", () => {
     test.use({ viewport: { width: 375, height: 812 } });
 
     test("探索 grid 手機堆疊為單欄，無水平捲動", async ({ page }) => {
-      await page.goto(`/blog/${slug}`);
+      await gotoSettled(page, `/blog/${slug}`);
       const frame = page.locator("iframe[title='post-content']");
       await frame.waitFor({ state: "attached", timeout: 15000 });
 

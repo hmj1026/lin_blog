@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { gotoSettled } from "./helpers/streaming";
 
 test.describe("文章管理列表", () => {
   test("文章列表頁顯示所有文章", async ({ page }) => {
     
-    await page.goto("/admin/posts");
-    
+    await gotoSettled(page, "/admin/posts");
     // 驗證頁面標題
     await expect(
       page.getByRole("heading", { name: "文章列表", exact: true }).filter({ visible: true })
@@ -17,8 +17,7 @@ test.describe("文章管理列表", () => {
   });
 
   test("文章列表顯示文章資訊", async ({ page }) => {
-    await page.goto("/admin/posts");
-    
+    await gotoSettled(page, "/admin/posts");
     // 檢查是否有表格或文章列表
     const hasTable = await page.locator("table").first().isVisible().catch(() => false);
     const hasSearchInput = await page.locator("input[type='search']").first().isVisible();
@@ -30,8 +29,7 @@ test.describe("文章管理列表", () => {
 
 test.describe("新增文章流程", () => {
   test("點擊新增文章進入編輯器", async ({ page }) => {
-    await page.goto("/admin/posts");
-    
+    await gotoSettled(page, "/admin/posts");
     // 點擊新增文章按鈕
     const newPostButton = page.locator("a[href='/admin/posts/new']");
     await newPostButton.click();
@@ -40,15 +38,14 @@ test.describe("新增文章流程", () => {
     await page.waitForURL("**/posts/new**");
     
     // 驗證標題顯示「新增文章」
-    await expect(page.locator("h1:has-text('新增文章')")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "新增文章" })).toBeVisible();
     
     // 驗證標題輸入框存在（id="post-title"）
     await expect(page.locator("#post-title")).toBeVisible();
   });
 
   test("填寫文章並儲存為草稿", async ({ page }) => {
-    await page.goto("/admin/posts/new");
-    
+    await gotoSettled(page, "/admin/posts/new");
     const testTitle = `E2E 測試文章 ${Date.now()}`;
     
     // 填寫標題（id="post-title"）
@@ -87,7 +84,7 @@ test.describe("新增文章流程", () => {
         try {
           await page.waitForURL("**/admin/posts**", { timeout: 10000 });
           // 驗證重導向成功
-          await expect(page.locator("h1:has-text('文章列表')")).toBeVisible();
+          await expect(page.getByRole("heading", { name: "文章列表" })).toBeVisible();
         } catch {
           // 可能有驗證錯誤，測試表單填寫成功即可
           expect(true).toBe(true);
@@ -118,8 +115,7 @@ test.describe("編輯文章流程", () => {
     });
     expect(createResponse.ok(), `建立編輯 fixture 失敗：${createResponse.status()}`).toBeTruthy();
 
-    await page.goto("/admin/posts");
-
+    await gotoSettled(page, "/admin/posts");
     const searchInput = page.locator("input[type='search']").first();
     await expect(searchInput).toBeVisible();
     await searchInput.fill(title);
@@ -131,8 +127,10 @@ test.describe("編輯文章流程", () => {
     // 驗證進入編輯頁面
     await page.waitForURL("**/posts/**");
 
-    // 驗證標題顯示「編輯文章」
-    await expect(page.locator("h1:has-text('編輯文章')")).toBeVisible();
+    // 驗證標題顯示「編輯文章」；client-side 導航後同樣可能出現串流
+    // hidden segment 殘留（見 helpers/streaming.ts），用 getByRole 只比對
+    // a11y tree（排除 hidden 元素）避免 strict violation
+    await expect(page.getByRole("heading", { name: "編輯文章" })).toBeVisible();
 
     // 驗證編輯器載入
     await expect(page.locator("#post-title")).toBeVisible();
@@ -141,8 +139,7 @@ test.describe("編輯文章流程", () => {
 
 test.describe("媒體管理", () => {
   test("媒體頁面可正常載入", async ({ page }) => {
-    await page.goto("/admin/media");
-    
+    await gotoSettled(page, "/admin/media");
     // 驗證頁面載入
     await expect(page.locator("h1, h2").filter({ hasText: /媒體|Media|檔案/ })).toBeVisible();
   });

@@ -1,24 +1,25 @@
 import { test, expect } from "@playwright/test";
 import { E2E_ADMIN_EMAIL, loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 test.describe("Blog Frontend", () => {
   test("首頁可正常載入", async ({ page }) => {
-    await page.goto("/");
+    await gotoSettled(page, "/");
     await expect(page.locator("h1")).toBeVisible();
   });
 
   test("文章列表頁可正常載入", async ({ page }) => {
-    await page.goto("/blog");
+    await gotoSettled(page, "/blog");
     await expect(page.locator("h1")).toBeVisible();
   });
 
   test("搜尋頁可正常載入", async ({ page }) => {
-    await page.goto("/search");
+    await gotoSettled(page, "/search");
     await expect(page.locator("input[name='q']")).toBeVisible();
   });
 
   test("搜尋功能可輸入關鍵字", async ({ page }) => {
-    await page.goto("/search");
+    await gotoSettled(page, "/search");
     const searchInput = page.locator("input[name='q']");
     // /search 是 force-dynamic 的 server component（input 為 uncontrolled，
     // 不受 hydration 影響）；放寬可見等待以容忍 dev server 冷編譯超過
@@ -34,19 +35,19 @@ test.describe("Blog Frontend", () => {
 
 test.describe("Admin Panel - 未登入", () => {
   test("未登入時重導向至登入頁", async ({ page }) => {
-    await page.goto("/admin");
+    await gotoSettled(page, "/admin");
     await page.waitForURL("**/login**");
     expect(page.url()).toContain("/login");
   });
 
   test("登入頁可正常載入", async ({ page }) => {
-    await page.goto("/login");
+    await gotoSettled(page, "/login");
     await expect(page.locator("input[type='email'], input[name='email']")).toBeVisible();
     await expect(page.locator("input[type='password']")).toBeVisible();
   });
 
   test("輸入錯誤密碼顯示錯誤訊息", async ({ page }) => {
-    await page.goto("/login");
+    await gotoSettled(page, "/login");
     await page.fill("input[type='email'], input[name='email']", E2E_ADMIN_EMAIL);
     await page.fill("input[type='password']", "wrongpassword");
     await page.click("button[type='submit']");
@@ -67,7 +68,7 @@ test.describe("Admin Panel - 登入流程", () => {
 
 test.describe("Media Upload - 頁面載入", () => {
   test("媒體頁需要登入", async ({ page }) => {
-    await page.goto("/admin/media");
+    await gotoSettled(page, "/admin/media");
     await page.waitForURL("**/login**");
     expect(page.url()).toContain("/login");
   });
@@ -75,12 +76,12 @@ test.describe("Media Upload - 頁面載入", () => {
 
 test.describe("SEO 與 Meta", () => {
   test("首頁有正確的 title", async ({ page }) => {
-    await page.goto("/");
+    await gotoSettled(page, "/");
     await expect(page).toHaveTitle(/Lin Blog|部落格/);
   });
 
   test("首頁有 meta description", async ({ page }) => {
-    await page.goto("/");
+    await gotoSettled(page, "/");
     const metaDescription = page.locator('meta[name="description"]');
     await expect(metaDescription).toHaveCount(1);
   });
@@ -89,13 +90,13 @@ test.describe("SEO 與 Meta", () => {
 test.describe("響應式設計", () => {
   test("手機版首頁可正常載入", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto("/");
+    await gotoSettled(page, "/");
     await expect(page.locator("h1")).toBeVisible();
   });
 
   test("平板版首頁可正常載入", async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
-    await page.goto("/");
+    await gotoSettled(page, "/");
     await expect(page.locator("h1")).toBeVisible();
   });
 });

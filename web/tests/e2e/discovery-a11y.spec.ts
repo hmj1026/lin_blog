@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { loginAsAdmin } from "./helpers/auth";
+import { gotoSettled } from "./helpers/streaming";
 
 /**
  * E2E：探索模組／Newsletter／後台名單的鍵盤與無障礙檢查
@@ -26,8 +27,7 @@ import { loginAsAdmin } from "./helpers/auth";
  * client fetch 完成後才會渲染的分頁摘要。
  */
 async function gotoAndWaitHydrated(page: Page, path: string) {
-  await page.goto(path);
-
+  await gotoSettled(page, path);
   if (path.startsWith("/blog/")) {
     for (const label of ["站內搜尋", "姓名", "Email"]) {
       await expect(page.getByLabel(label)).toBeEnabled();
@@ -86,8 +86,7 @@ test.describe("discovery-a11y", () => {
   });
 
   test("/search 結果頁：搜尋輸入具備 visible label，可鍵盤聚焦並以 Enter 重新搜尋", async ({ page }) => {
-    await page.goto("/search?q=a11y");
-
+    await gotoSettled(page, "/search?q=a11y");
     // visible label（非僅 placeholder），且可程式化關聯
     const label = page.getByText("搜尋關鍵字", { exact: true });
     await expect(label).toBeVisible();

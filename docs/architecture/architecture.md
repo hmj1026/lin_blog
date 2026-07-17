@@ -6,7 +6,7 @@
 
 | 類別 | 技術 |
 |------|------|
-| **框架** | Next.js 15 (App Router) |
+| **框架** | Next.js 16 (App Router) |
 | **語言** | TypeScript |
 | **資料庫** | PostgreSQL + Prisma ORM |
 | **認證** | NextAuth.js v4 |
@@ -163,4 +163,4 @@ App Router ───X──→ Prisma/DB  (禁止)
 Domain ───X──→ Next.js        (禁止)
 ```
 
-詳見 [.eslintrc.json](file:///e:/projects/lin_blog/web/.eslintrc.json)
+詳見 [eslint.config.mjs](../../web/eslint.config.mjs)

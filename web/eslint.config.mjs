@@ -1,0 +1,125 @@
+import coreWebVitals from "eslint-config-next/core-web-vitals";
+import typescript from "eslint-config-next/typescript";
+
+/**
+ * ESLint 9 Flat Config
+ * 由 legacy .eslintrc.json + .eslintignore 遷移；overrides 逐條對應：
+ * ADR-0003 Clean Architecture 依賴規則（UI / App Router / application / domain）。
+ */
+const config = [
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "build/**",
+      "coverage/**",
+      "playwright-report/**",
+      "test-results/**",
+      "next-env.d.ts",
+    ],
+  },
+  ...coreWebVitals,
+  ...typescript,
+  {
+    // eslint-config-next@16 引入 react-hooks v6 新規則；既有程式碼命中 14 處，
+    // 依 upgrade-nextjs-16 規格維持 baseline 語意（升級中不改業務行為），
+    // 降為 warn，另立 change 逐一清理後恢復 error。
+    rules: {
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/error-boundaries": "warn",
+      "react-hooks/immutability": "warn",
+    },
+  },
+  {
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@/lib/db", message: "UI layer MUST NOT depend on Prisma/db; call a module use case instead" },
+            { name: "@prisma/client", message: "UI layer MUST NOT depend on Prisma types" },
+          ],
+          patterns: [
+            {
+              group: ["@/modules/*/infrastructure", "@/modules/*/infrastructure/**"],
+              message:
+                "UI layer MUST NOT import a module's infrastructure; use the read facade (server-queries) or the module's *UseCases singleton",
+            },
+            {
+              group: ["@/modules/*/domain", "@/modules/*/domain/**"],
+              message:
+                "UI layer MUST NOT import a module's domain; use the read facade (server-queries), the *UseCases singleton, the module's public index barrel, or its client-safe client.ts barrel (pure domain re-exports only)",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/app/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@/lib/db", message: "App Router adapter MUST NOT import Prisma/db; call a module use case instead" },
+            { name: "@prisma/client", message: "App Router adapter MUST NOT depend on Prisma types" },
+          ],
+          patterns: [
+            {
+              group: ["@/modules/*/infrastructure", "@/modules/*/infrastructure/**"],
+              message:
+                "App Router adapter MUST NOT import a module's infrastructure; use the read facade (server-queries) or the module's *UseCases singleton",
+            },
+            {
+              group: ["@/modules/*/domain", "@/modules/*/domain/**"],
+              message:
+                "App Router adapter MUST NOT import a module's domain; use the read facade (server-queries), the *UseCases singleton, the module's public index barrel, or its client-safe client.ts barrel (pure domain re-exports only)",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/**/application/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@prisma/client",
+              message:
+                "application layer MUST NOT depend on Prisma types; define ports and inject implementations from the composition root",
+            },
+          ],
+          patterns: [
+            { group: ["next/*", "react", "react-dom"], message: "application layer MUST remain framework-free (no Next.js/React)" },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/modules/**/domain/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@/lib/db", message: "domain layer MUST NOT depend on Prisma/db" },
+            { name: "@prisma/client", message: "domain layer MUST NOT depend on Prisma types" },
+            { name: "server-only", message: "domain layer MUST remain framework-free (no server-only)" },
+          ],
+          patterns: [{ group: ["next/*", "react", "react-dom"], message: "domain layer MUST NOT depend on Next.js/React" }],
+        },
+      ],
+    },
+  },
+];
+
+export default config;
