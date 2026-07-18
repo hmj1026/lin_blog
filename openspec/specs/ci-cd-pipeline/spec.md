@@ -314,3 +314,123 @@ PR→develop 承擔,release 閘門由 PR→main 承擔。PR E2E SHALL 驗證 Git
 - **WHEN** 維運者以 `workflow_dispatch` 手動觸發 E2E workflow
 - **THEN** E2E 完整執行,不受 branch 觸發規則限制
 
+
+### Requirement: Framework Version Baseline (Next.js 16 and React 19.2)
+系統 SHALL 以實作當下最新Next.js 16.x stable及React 19.2作為`web/`基線。`react`與`react-dom` SHALL精確鎖定相同19.2.x patch，`@types/react`與`@types/react-dom` SHALL同步至相容19.2版本；`next`與`eslint-config-next` SHALL為`^16`，ESLint SHALL滿足目標peer range並使用Flat Config。
+
+升級 SHALL分成兩個阻斷階段：Stage A先在Next.js 15.5.9上完成React 19 runtime／TypeScript codemods與完整gate；Stage B才執行Next.js official upgrade codemod、ESLint、Proxy、image preload與Turbopack遷移。任一Stage A阻斷項 SHALL停止Stage B。React Compiler SHALL保持停用。
+
+`middleware.ts`／`middleware` export SHALL遷移為`proxy.ts`／`proxy`；matcher、管理端保護、受保護API、RBAC與rate-limit行為 SHALL保持不變。所有`next/image` `priority`命中 SHALL遷移為`preload`，其他React 19／Next.js 16 breaking或deprecated surfaces SHALL記錄命中與處置或零結果證據。
+
+NextAuth SHALL維持v4並使用明確宣告同時支援Next.js 16與React 19的latest v4 patch。若實作時不存在符合條件的v4版本，Stage B SHALL停止並另提相容性change；禁止peer override與`--legacy-peer-deps`。
+
+`next dev`與`next build` SHALL預設使用Turbopack。只有已確認的不相容 MAY以`--webpack`退回；例外 SHALL記錄重現步驟、issue ID、owner、到期日及移除條件。
+
+#### Scenario: React 19 stage passes before Next.js 16 begins
+- **GIVEN**Next.js仍為15.5.9且React 18.3 warning baseline已保存
+- **WHEN**React／ReactDOM與types升至19.2、React runtime及TypeScript codemods完成，並執行clean install、lint、typecheck、unit、integration、build與React專項runtime測試
+- **THEN**所有gate通過，React dependency tree無invalid peer，browser／server console無新增React deprecated、hydration或render errors，才可開始Stage B
+
+#### Scenario: React 19 critical interactions remain functional
+- **GIVEN**Stage A依賴與codemod已完成
+- **WHEN**驗證RootLayout／ThemeProvider hydration、error boundary／global error、Suspense／streaming、Tiptap editor、image cropper、newsletter、登入／session與RBAC
+- **THEN**互動與錯誤處理符合既有行為，且測試不只依賴`networkidle`，而以可操作狀態與行為assertions判定ready
+
+#### Scenario: Migration audit is complete and reviewable
+- **GIVEN**升級前React warnings、ESLint、Proxy與breaking／deprecated inventory已保存
+- **WHEN**React及Next.js codemods與人工補正完成
+- **THEN**每項diff均分類為接受、補正或拒絕；所有image `priority`已遷移；每個盤點項均有命中檔案與處置或零結果證據，且lint rule／ignore inventory與基線等價
+
+#### Scenario: Dependency and lint baseline installs cleanly
+- **GIVEN**Next.js 16、React 19.2、NextAuth v4、ESLint 9及Flat Config已完成設定
+- **WHEN**從無`node_modules`的環境執行`npm ci`、完整`npm ls`與`npm run lint`
+- **THEN**命令全部exit 0、無`ERESOLVE`／invalid peer，React／ReactDOM patch一致，既有lint rules與ignore範圍未遺失
+
+#### Scenario: NextAuth compatibility blocks unsupported combinations
+- **GIVEN**準備完成Stage B dependency resolution
+- **WHEN**next-auth v4 latest patch未明確宣告支援Next.js 16或React 19
+- **THEN**停止本change且不使用override或`--legacy-peer-deps`，另提Auth相容性決策
+
+#### Scenario: Proxy preserves the existing request boundary
+- **GIVEN**`middleware.ts`與named export已遷移為`proxy.ts`與`proxy`
+- **WHEN**執行matcher、匿名`/admin`導向、受保護API、登入、RBAC allow／deny與rate-limit測試
+- **THEN**所有既有安全與路由行為保持不變，且runtime不依賴deprecated middleware慣例
+
+#### Scenario: All quality gates pass on the verified implementation
+- **GIVEN**兩個升級Stage與必要相容性修正已完成並形成`VERIFIED_SHA`
+- **WHEN**該SHA的lint、typecheck、unit、PostgreSQL integration、production build與E2E workflows執行
+- **THEN**所有required jobs成功，沒有未核准skipped／cancelled步驟，並保存run URLs與結論
+
+#### Scenario: Development server uses Turbopack
+- **GIVEN**dev script未包含`--webpack`
+- **WHEN**執行`npm run dev`並保存啟動輸出後，對首頁、文章頁與`/admin`執行smoke
+- **THEN**啟動輸出確認使用Turbopack且所有smoke通過
+
+#### Scenario: Standalone production artifact preserves critical behavior
+- **GIVEN**production build成功並產出`.next/standalone`；未啟用受治理fallback時使用Turbopack
+- **WHEN**直接啟動該artifact並測試首頁、DB-backed文章頁、anonymous admin redirect、登入、session與RBAC allow／deny
+- **THEN**HTTP、DB、authentication與authorization行為全部通過，目標不是`next dev`或Docker image
+
+#### Scenario: Webpack fallback is a governed exception
+- **GIVEN**Turbopack遇到可重現且已確認的不相容
+- **WHEN**production build暫時改用`next build --webpack`
+- **THEN**重現步驟、issue ID、owner、到期日及移除條件已記錄，其餘gate與Webpack standalone smoke全數通過；此時Turbopack production build不作為完成條件
+
+### Requirement: Release Artifact Promotion and Production Deployment
+必要修正與隔離驗證harness SHALL先形成candidate implementation commit及`VERIFIED_SHA`。Release tag SHALL dereference並記錄resolved commit SHA與tree SHA；其tree須等於`VERIFIED_SHA^{tree}`，否則最終release commit成為新的`VERIFIED_SHA`並重跑gates。OCI revision SHALL等於resolved release commit SHA，GHCR image SHALL記錄immutable RepoDigest。Production MAY沿用immutable `BLOG_IMAGE_TAG`介面，但`deploy.sh` SHALL在停掉舊服務前驗證pull後RepoDigest等於manifest核准值。
+
+正式主機 SHALL採受治理的維護時段停機部署，不宣稱blue-green、canary或zero-downtime。部署前 SHALL記錄maintenance owner／window／最大停機時間、previous digest、DB backup timestamp、Prisma zero-schema-delta與migration status，以及production compose、deploy script、nginx與env schema fingerprints。Required／conditional env matrix SHALL區分build-time與runtime，只記錄key存在、來源及fingerprint，不得保存secret值。
+
+Production preflight、backup、deploy、正式smoke、observation及rollback SHALL由verification manifest指定且具production權限的named owner執行，證據 SHALL保存於指定PR attachment或外部release record。若owner、權限、maintenance window或證據位置未就緒，change SHALL保持incomplete／blocked；repo-local或production-like驗證 SHALL NOT替代正式上線gate。
+
+部署後 SHALL透過正式nginx／TLS網域執行production smoke並觀察至少15分鐘。觀察期內container SHALL維持healthy且restart count不得增加；規格smoke requests SHALL無5xx、auth／session failure或DB error；所有關鍵probes SHALL持續成功。任何違反即為rollback threshold，由指定owner於目標RTO內回切。未完成觀察 SHALL NOT宣布部署成功。
+
+#### Scenario: Final GHCR digest is the verified release artifact
+- **GIVEN**release tag已dereference，resolved commit SHA與tree SHA已記錄，且release build secrets contract通過
+- **WHEN**CI建置並push GHCR image
+- **THEN**release tree等於verified tree、OCI revision等於resolved commit SHA，manifest另記tag object SHA、build-time env fingerprints及RepoDigest；production tag pull後解析為同一RepoDigest
+
+#### Scenario: Docker verification is isolated and reproducible
+- **GIVEN**使用專用compose override移除固定container names／host port衝突、獨立project、`VERIFIED_SHA`衍生tag及非秘密測試env
+- **WHEN**建置並啟動PostgreSQL與blog、套用migration、輪詢health並執行container smoke
+- **THEN**image digest、compose status、health與smoke成功，失敗時保存redacted logs，完成後清理isolated volumes與network
+
+#### Scenario: Manual Docker evidence is a governed exception
+- **GIVEN**平台限制經release owner記錄並核准，無法建立PR required Docker job
+- **WHEN**具名operator對`VERIFIED_SHA`執行版本化隔離harness
+- **THEN**manifest保存核准人、原因、owner、完整命令、harness hash、時間、digest與結果；例外只適用本change且不得取代production rollout gate
+
+#### Scenario: Production rollout waits for authorized evidence path
+- **GIVEN**正式GHCR digest已通過production-like驗證
+- **WHEN**尚未指定具production權限的owner、maintenance window或external release record位置
+- **THEN**change保持incomplete／blocked，不執行正式部署，也不以repo-local證據宣告上線
+
+#### Scenario: Production preflight rejects drift or unsafe state
+- **GIVEN**正式GHCR RepoDigest已驗證且maintenance window已核准
+- **WHEN**部署前比對production bundle fingerprints、env matrix、DB backup、migration status、zero schema delta、previous digest，並確認pull後RepoDigest等於核准值
+- **THEN**全部一致才可執行`deploy.sh`；任何缺漏、漂移或非預期migration SHALL中止部署
+
+#### Scenario: Production deployment passes formal smoke
+- **GIVEN**已驗證digest於維護時段部署並完成migration及container health
+- **WHEN**透過正式HTTPS網域測試首頁、DB-backed文章、anonymous admin redirect、登入／session、RBAC allow／deny及啟用中的newsletter／storage契約
+- **THEN**所有critical probes成功，未通過時立即依previous digest rollback
+
+#### Scenario: Post-deploy observation determines completion
+- **GIVEN**正式網域smoke已通過
+- **WHEN**至少15分鐘觀察health、restart、5xx、auth／session、DB狀態與關鍵probe
+- **THEN**container持續healthy且無新增restart，規格smoke無5xx／auth／session／DB error並持續成功才宣布完成；任一違反即由owner於目標RTO內回切previous digest並重驗smoke
+
+#### Scenario: Source upgrade can be reverted and rebuilt
+- **GIVEN**升級前commit SHA與lockfile hash已保存
+- **WHEN**在隔離環境revert升級commit並對reverted source執行`npm ci`及production build
+- **THEN**Next.js 15／React 18整組依賴可乾淨安裝並成功建置，不允許React 18／19混搭
+
+#### Scenario: Previous image remains compatible with production-like state
+- **GIVEN**previous immutable digest、production-like DB snapshot、env schema及storage contract已保存
+- **WHEN**啟動previous image並執行health、正式路由等價smoke與authentication／RBAC驗證
+- **THEN**舊image相容部署後保留的DB／env／storage狀態，rollback命令與預期RTO已驗證
+
+#### Scenario: Verification manifest is traceable without changing the target SHA
+- **GIVEN**所有驗證均以`VERIFIED_SHA`及正式GHCR RepoDigest為目標
+- **WHEN**建立CI artifact或PR attachment verification manifest
+- **THEN**manifest記錄versions、lockfile hash、inventories、run URLs、digests、production bundle fingerprints、smoke、observation與rollback證據，且不提交回被驗證commit
