@@ -8,7 +8,9 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 const mockTags = [
-  { id: "1", slug: "react", name: "React", deletedAt: null },
+  { id: "1", slug: "react", name: "React", postCount: 8, deletedAt: null },
+  { id: "2", slug: "next", name: "Next", postCount: 3, deletedAt: null },
+  { id: "3", slug: "old", name: "Old", postCount: 0, deletedAt: "2026-01-01T00:00:00.000Z" },
 ];
 
 describe("TagAdminClient", () => {
@@ -21,6 +23,30 @@ describe("TagAdminClient", () => {
     render(<TagAdminClient initialTags={mockTags} />);
     expect(screen.getByDisplayValue("React")).toBeInTheDocument();
     expect(screen.getByDisplayValue("react")).toBeInTheDocument();
+    expect(screen.getByText("8 篇文章")).toBeInTheDocument();
+  });
+
+  it("supports search, usage sorting and trash restore", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { id: "3" } }) });
+    render(<TagAdminClient initialTags={mockTags} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "搜尋標籤" }), "Next");
+    expect(screen.queryByDisplayValue("React")).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("searchbox", { name: "搜尋標籤" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "標籤排序" }), "usage-desc");
+    expect(within(screen.getAllByRole("row")[1]).getByDisplayValue("React")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "垃圾桶" }));
+    await userEvent.click(screen.getByRole("button", { name: "復原 Old" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/tags/3", expect.objectContaining({ method: "PATCH" }));
+  });
+
+  it("requires confirmation before merging", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { id: "1", movedPosts: 8 } }) });
+    render(<TagAdminClient initialTags={mockTags} />);
+    const row = screen.getByDisplayValue("React").closest("tr") as HTMLElement;
+    await userEvent.selectOptions(within(row).getByRole("combobox", { name: "React 合併目標" }), "2");
+    await userEvent.click(within(row).getByRole("button", { name: "合併 React" }));
+    await userEvent.click(screen.getByRole("button", { name: "確認合併" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/tags/1", expect.objectContaining({ body: JSON.stringify({ mergeIntoId: "2" }) }));
   });
 
   it("creates a new tag", async () => {
@@ -28,7 +54,7 @@ describe("TagAdminClient", () => {
       ok: true,
       json: async () => ({
         success: true,
-        data: { id: "2", slug: "vue", name: "Vue", deletedAt: null },
+        data: { id: "4", slug: "vue", name: "Vue", deletedAt: null },
       }),
     });
 
@@ -99,6 +125,12 @@ describe("TagAdminClient", () => {
     const row = screen.getByDisplayValue("React").closest("tr");
     const deleteBtn = within(row as HTMLElement).getByText("刪除");
     await userEvent.click(deleteBtn);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "確認刪除標籤" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog", { name: "確認刪除標籤" })).getByText(/React/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "確認刪除" }));
 
      expect(fetchMock).toHaveBeenCalledWith("/api/tags/1", expect.objectContaining({
       method: "DELETE"

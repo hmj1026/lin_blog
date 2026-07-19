@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PostListClient } from "@/components/admin/post-list-client";
 
@@ -14,12 +14,6 @@ vi.mock("next/navigation", () => ({
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
-
-// Mock confirm and alert
-const confirmMock = vi.fn();
-const alertMock = vi.fn();
-vi.stubGlobal("confirm", confirmMock);
-vi.stubGlobal("alert", alertMock);
 
 const mockPosts = [
   {
@@ -50,15 +44,14 @@ describe("PostListClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMock.mockReset();
-    confirmMock.mockReturnValue(true); // Default confirm true
   });
 
   it("renders posts", () => {
     render(<PostListClient posts={mockPosts as any} />);
     expect(screen.getByText("Post One")).toBeInTheDocument();
     expect(screen.getByText("Post Two")).toBeInTheDocument();
-    expect(screen.getByText("已發佈")).toBeInTheDocument();
-    expect(screen.getByText("草稿")).toBeInTheDocument();
+    expect(screen.getAllByText("已發佈").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("草稿").length).toBeGreaterThan(0);
   });
 
   it("displays published date for published posts and '未發布' for drafts", () => {
@@ -73,14 +66,30 @@ describe("PostListClient", () => {
     expect(screen.getByText("未發布")).toBeInTheDocument();
   });
 
-  it("filters posts by title", async () => {
+  it("uses a GET form so search and filters remain URL-driven", async () => {
     render(<PostListClient posts={mockPosts as any} />);
-    
-    const searchInput = screen.getByPlaceholderText("搜尋文章標題...");
-    await userEvent.type(searchInput, "One");
 
+    const searchInput = screen.getByRole("searchbox", { name: "搜尋文章" });
+    await userEvent.type(searchInput, "One");
+    expect(searchInput).toHaveAttribute("name", "q");
+    expect(screen.getByRole("form", { name: "文章篩選" })).toHaveAttribute("method", "get");
     expect(screen.getByText("Post One")).toBeInTheDocument();
-    expect(screen.queryByText("Post Two")).not.toBeInTheDocument();
+    expect(screen.getByText("Post Two")).toBeInTheDocument();
+  });
+
+  it("offers category, tag, featured and sort filters", () => {
+    render(
+      <PostListClient
+        posts={mockPosts as any}
+        categories={[{ id: "category-1", name: "產品" }]}
+        tags={[{ id: "tag-1", name: "UX" }]}
+      />
+    );
+
+    expect(screen.getByRole("combobox", { name: "分類" })).toHaveAttribute("name", "category");
+    expect(screen.getByRole("combobox", { name: "標籤" })).toHaveAttribute("name", "tag");
+    expect(screen.getByRole("combobox", { name: "精選" })).toHaveAttribute("name", "featured");
+    expect(screen.getByRole("combobox", { name: "排序" })).toHaveAttribute("name", "sort");
   });
 
   it("handles selection", async () => {
@@ -101,6 +110,16 @@ describe("PostListClient", () => {
     // Deselect one
     await userEvent.click(checkboxes[1]);
     expect(screen.getByText("已選取 1 篇文章")).toBeInTheDocument();
+  });
+
+  it("clears selection when the URL-driven result set changes", async () => {
+    const { rerender } = render(<PostListClient posts={mockPosts as any} selectionKey="page-1" />);
+    await userEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(screen.getByText("已選取 1 篇文章")).toBeInTheDocument();
+
+    rerender(<PostListClient posts={mockPosts as any} selectionKey="page-2" />);
+
+    expect(screen.queryByText("已選取 1 篇文章")).not.toBeInTheDocument();
   });
 
   it("handles batch actions (publish)", async () => {
@@ -149,9 +168,65 @@ describe("PostListClient", () => {
     const deleteBtn = screen.getByText("批次刪除");
     await userEvent.click(deleteBtn);
 
-    expect(confirmMock).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "確認批次刪除文章" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText(/1 篇文章/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "確認刪除" }));
+
     expect(fetchMock).toHaveBeenCalledWith("/api/posts/batch", expect.objectContaining({
       body: expect.stringContaining('"action":"delete"')
+    }));
+  });
+
+  it("shows batch action errors in an accessible alert", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: async () => ({ success: false, message: "批次操作被拒絕" }),
+    });
+
+    render(<PostListClient posts={mockPosts as any} />);
+
+    await userEvent.click(screen.getAllByRole("checkbox")[1]);
+    await userEvent.click(screen.getByText("批次發佈"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("批次操作被拒絕");
+  });
+
+  it("keeps failed batch items selected and reports the partial result", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        count: 1,
+        results: [{ id: "1", ok: true }, { id: "2", ok: false }],
+      }),
+    });
+    render(<PostListClient posts={mockPosts as any} />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "選取目前篩選的全部文章" }));
+    await userEvent.click(screen.getByText("批次發佈"));
+
+    expect(await screen.findByText("成功 1 篇，失敗 1 篇；失敗項目仍保持選取。")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "選取文章「Post One」" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "選取文章「Post Two」" })).toBeChecked();
+  });
+
+  it("restores a post from the trash view", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(
+      <PostListClient
+        posts={[{ ...mockPosts[0], deletedAt: "2026-01-01T00:00:00.000Z" }] as any}
+        filters={{ deleted: true, sort: "updated-desc", page: 1, pageSize: 20 }}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "復原" }));
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/posts/1", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ restore: true }),
     }));
   });
 
@@ -165,7 +240,7 @@ describe("PostListClient", () => {
 
     // Post One is featured (btn text ★, title "取消精選")
     // Use title to find button
-    const starBtn = screen.getByTitle("取消精選");
+    const starBtn = screen.getByRole("button", { name: "取消精選「Post One」" });
     await userEvent.click(starBtn);
 
     expect(fetchMock).toHaveBeenCalledWith("/api/posts/1", expect.objectContaining({

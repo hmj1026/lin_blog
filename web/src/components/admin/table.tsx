@@ -3,14 +3,20 @@ import { cn } from "@/lib/utils";
 type AdminTableProps = {
   children: React.ReactNode;
   className?: string;
+  ariaLabel?: string;
 };
 
 /**
  * 後台表格容器
  */
-export function AdminTable({ children, className }: AdminTableProps) {
+export function AdminTable({ children, className, ariaLabel }: AdminTableProps) {
   return (
-    <div className={cn("overflow-x-auto rounded-xl border border-line", className)}>
+    <div
+      role={ariaLabel ? "region" : undefined}
+      aria-label={ariaLabel}
+      tabIndex={ariaLabel ? 0 : undefined}
+      className={cn("overflow-x-auto rounded-xl border border-line", className)}
+    >
       <table className="min-w-full text-sm">{children}</table>
     </div>
   );

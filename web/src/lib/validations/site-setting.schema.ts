@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 export const siteSettingSchema = z.object({
-  showBlogLink: z.boolean(),
+  // optional 讓表單可送出真正的 partial payload：僅傳送實際變動的欄位，
+  // 避免分區儲存時無條件覆寫其他管理員剛改過的 showBlogLink。
+  showBlogLink: z.boolean().optional(),
   // 站點基本資訊
   siteName: z.string().nullish(),
   siteTagline: z.string().nullish(),

@@ -85,6 +85,7 @@ export function Pagination({
             <Link
               key={page}
               href={buildUrl(page) as never}
+              aria-current={page === currentPage ? "page" : undefined}
               className={`flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition ${
                 page === currentPage
                   ? "bg-primary text-white dark:bg-base-50"

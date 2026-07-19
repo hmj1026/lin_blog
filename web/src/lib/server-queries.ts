@@ -10,6 +10,7 @@ import { securityAdminUseCases } from "@/modules/security-admin";
 import { discoveryUseCases } from "@/modules/discovery";
 import type { PublicPostSummary } from "@/modules/discovery";
 import { newsletterUseCases } from "@/modules/newsletter";
+import { auditUseCases } from "@/modules/audit";
 import { throwIfDiscoveryFaultInjected } from "@/lib/server/discovery-fault-injection";
 
 const NO_PARAMS_KEY = "__no-params__";
@@ -76,7 +77,7 @@ function cacheByObject<P, R>(fn: (params: P) => Promise<R>) {
 const listPublishedPosts = cacheByOptionalObject(postsUseCases.listPublishedPosts);
 const listPublishedPostsPaginated = cacheByObject(postsUseCases.listPublishedPostsPaginated);
 const searchPosts = cacheByObject(postsUseCases.searchPosts);
-const listAdminPosts = cacheFn(() => postsUseCases.listAdminPosts());
+const listAdminPosts = cacheByObject((params: Parameters<typeof postsUseCases.listAdminPosts>[0]) => postsUseCases.listAdminPosts(params));
 const countPublishedPosts = cacheFn(() => postsUseCases.countPublishedPosts());
 const countActivePosts = cacheFn(() => postsUseCases.countActivePosts());
 const countActiveCategories = cacheFn(() => postsUseCases.countActiveCategories());
@@ -177,7 +178,16 @@ export const siteSettingsQueries = {
 
 // --- Analytics read queries (per-request dedupe) ---
 const getPostSummary = cacheFn((postId: string) => analyticsUseCases.getPostSummary(postId));
-const listPostAnalyticsSummary = cacheByObject((params: { days: number }) => analyticsUseCases.listPostAnalyticsSummary(params));
+type PostAnalyticsSummaryParams = { days: number; categoryId?: string; tagId?: string; publishedFrom?: Date; publishedTo?: Date };
+const listPostAnalyticsSummaryCached = cacheFn((key: string) => {
+  const params = fromCacheKey<PostAnalyticsSummaryParams>(key)!;
+  return analyticsUseCases.listPostAnalyticsSummary({
+    ...params,
+    publishedFrom: params.publishedFrom ? new Date(params.publishedFrom) : undefined,
+    publishedTo: params.publishedTo ? new Date(params.publishedTo) : undefined,
+  });
+});
+const listPostAnalyticsSummary = (params: PostAnalyticsSummaryParams) => listPostAnalyticsSummaryCached(toCacheKey(params));
 const countViews = cacheByObject((params: { days: number }) => analyticsUseCases.countViews(params));
 const getDashboardStats = cacheByObject((params: { days: number }) => analyticsUseCases.getDashboardStats(params));
 
@@ -209,6 +219,7 @@ export const analyticsQueries = {
 
 // --- Media read queries (per-request dedupe) ---
 const listUploads = cacheByObject((params: { search?: string; type?: string; take?: number }) => mediaUseCases.listUploads(params));
+const listUploadsPage = cacheByObject((params: { search?: string; type?: string; page?: number; pageSize?: number }) => mediaUseCases.listUploadsPage(params));
 const getUploadById = cacheFn((id: string) => mediaUseCases.getUploadById(id));
 
 /**
@@ -216,6 +227,7 @@ const getUploadById = cacheFn((id: string) => mediaUseCases.getUploadById(id));
  */
 export const mediaQueries = {
   listUploads,
+  listUploadsPage,
   getUploadById,
 };
 
@@ -306,6 +318,7 @@ export const discoveryQueries = {
 const listSubscribers = cacheByObject(
   (params: { search?: string; page?: number; pageSize?: number }) => newsletterUseCases.listSubscribers(params)
 );
+const countSubscriberGrowth = cacheFn(() => newsletterUseCases.countSubscriberGrowth());
 
 /**
  * Newsletter read queries (per-request dedupe)。後台唯讀訂閱者名單，
@@ -313,4 +326,25 @@ const listSubscribers = cacheByObject(
  */
 export const newsletterQueries = {
   listSubscribers,
+  countSubscriberGrowth,
+};
+
+// --- Audit read queries (per-request dedupe) ---
+type AuditListParams = { page?: number; pageSize?: number; since?: Date; until?: Date; actor?: string; resource?: string };
+// cache key 以 JSON 序列化，Date 會退化為字串，故取回時重建為 Date（與 listPostAnalyticsSummary 同一模式）。
+const listAuditEventsCached = cacheFn((key: string) => {
+  const params = fromCacheKey<AuditListParams>(key)!;
+  return auditUseCases.listAuditEvents({
+    ...params,
+    since: params.since ? new Date(params.since) : undefined,
+    until: params.until ? new Date(params.until) : undefined,
+  });
+});
+const listAuditEvents = (params: AuditListParams) => listAuditEventsCached(toCacheKey(params));
+
+/**
+ * Audit read queries (per-request dedupe)。後台活動紀錄，受 `audit:view` 權限保護。
+ */
+export const auditQueries = {
+  listAuditEvents,
 };

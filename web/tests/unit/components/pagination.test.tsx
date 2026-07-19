@@ -50,4 +50,10 @@ describe("Pagination", () => {
     const page2 = screen.getByRole("link", { name: "2" });
     expect(page2).toHaveAttribute("href", "/blog?q=search&page=2");
   });
+
+  it("announces the current page to assistive technology", () => {
+    render(<Pagination currentPage={3} totalPages={5} baseUrl={baseUrl} />);
+
+    expect(screen.getByRole("link", { name: "3" })).toHaveAttribute("aria-current", "page");
+  });
 });

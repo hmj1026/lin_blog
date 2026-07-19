@@ -1,73 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CoverUploader } from "@/components/admin/post-form/cover-uploader";
 import type { SiteSettingRecord } from "@/modules/site-settings";
 
 type Props = {
   initialSettings: SiteSettingRecord;
-  categories: Array<{
-    id: string;
-    slug: string;
-    name: string;
-    showInNav: boolean;
-    navOrder: number;
-  }>;
 };
 
-type Tab = "general" | "hero" | "sections" | "categories" | "social";
+type Tab = "general" | "hero" | "sections" | "social";
 
-export function SiteSettingsForm({ initialSettings, categories: initialCategories }: Props) {
+const TAB_FIELDS: Record<Tab, ReadonlyArray<keyof SiteSettingRecord>> = {
+  general: ["showBlogLink", "showAbout", "siteName", "siteTagline", "siteDescription", "contactEmail", "copyrightText", "showNewsletter", "newsletterTitle", "newsletterDesc", "showContact", "contactTitle", "contactDesc"],
+  hero: ["heroBadge", "heroTitle", "heroSubtitle", "heroImage", "statsArticles", "statsSubscribers", "statsRating"],
+  sections: ["featuredTitle", "featuredDesc", "categoriesTitle", "categoriesDesc", "latestTitle", "latestDesc", "communityTitle", "communityDesc"],
+  social: ["showFacebook", "facebookUrl", "showInstagram", "instagramUrl", "showThreads", "threadsUrl", "showLine", "lineUrl"],
+};
+
+export function SiteSettingsForm({ initialSettings }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const [settings, setSettings] = useState(initialSettings);
-  const [categories, setCategories] = useState(initialCategories);
+  const savedSettingsRef = useRef(initialSettings);
+  const [dirtyFields, setDirtyFields] = useState<Set<keyof SiteSettingRecord>>(new Set());
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const updateSetting = <K extends keyof SiteSettingRecord>(key: K, value: SiteSettingRecord[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+    setDirtyFields((prev) => {
+      const next = new Set(prev);
+      if (savedSettingsRef.current[key] === value) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
-
-  const sorted = [...categories].sort((a, b) => a.navOrder - b.navOrder || a.name.localeCompare(b.name, "zh-Hant"));
 
   async function save() {
     setSaving(true);
     setMessage(null);
     setError(null);
     try {
+      const sectionKeys = TAB_FIELDS[activeTab].filter((key) => dirtyFields.has(key));
+      const changedSettings = Object.fromEntries(sectionKeys.map((key) => [key, settings[key]]));
+      // 僅送出目前分區實際變動的欄位（真正的 partial payload），
+      // 未變動的 showBlogLink 等欄位不送出，避免覆寫其他管理員的併發變更。
       const settingsRes = await fetch("/api/site-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(changedSettings),
       });
       const settingsJson = await settingsRes.json();
       if (!settingsRes.ok || !settingsJson.success) {
         throw new Error(settingsJson.message || "更新站點設定失敗");
       }
 
-      const results = await Promise.all(
-        categories.map((category) =>
-          fetch(`/api/categories/${category.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              slug: category.slug,
-              name: category.name,
-              showInNav: category.showInNav,
-              navOrder: category.navOrder,
-            }),
-          })
-        )
-      );
-      for (const res of results) {
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.message || "更新分類設定失敗");
-        }
-      }
-      setMessage("已儲存");
+      savedSettingsRef.current = { ...savedSettingsRef.current, ...changedSettings };
+      setDirtyFields((previous) => {
+        const next = new Set(previous);
+        sectionKeys.forEach((key) => next.delete(key));
+        return next;
+      });
+      setMessage(`上次儲存：${new Date().toLocaleTimeString("zh-TW")}`);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "儲存失敗");
     } finally {
@@ -75,13 +71,20 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
     }
   }
 
+  function cancelChanges() {
+    setSettings(savedSettingsRef.current);
+    setDirtyFields(new Set());
+    setError(null);
+    setMessage("已取消未儲存變更");
+  }
+
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "general", label: "一般設定" },
     { id: "hero", label: "Hero 區塊" },
     { id: "sections", label: "首頁區塊" },
-    { id: "categories", label: "分類管理" },
     { id: "social", label: "社群平台" },
   ];
+  const activeSectionDirty = TAB_FIELDS[activeTab].some((key) => dirtyFields.has(key));
 
   return (
     <div className="space-y-6">
@@ -375,66 +378,6 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
           </div>
         )}
 
-        {/* Categories Tab */}
-        {activeTab === "categories" && (
-          <div className="space-y-4">
-            <h2 className="font-semibold text-primary">分類連結</h2>
-            <div className="overflow-hidden rounded-xl border border-line">
-              <table className="min-w-full text-sm">
-                <thead className="bg-base-100 text-left text-base-300">
-                  <tr>
-                    <th className="px-4 py-3">顯示</th>
-                    <th className="px-4 py-3">名稱</th>
-                    <th className="px-4 py-3">排序</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((category) => (
-                    <tr key={category.id} className="border-t border-line">
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-primary"
-                          checked={category.showInNav}
-                          onChange={(e) =>
-                            setCategories((prev) =>
-                              prev.map((c) => (c.id === category.id ? { ...c, showInNav: e.target.checked } : c))
-                            )
-                          }
-                        />
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-primary">{category.name}</td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          className="w-24 rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary"
-                          value={category.navOrder}
-                          onChange={(e) =>
-                            setCategories((prev) =>
-                              prev.map((c) => {
-                                if (c.id !== category.id) return c;
-                                const value = Number(e.target.value);
-                                return { ...c, navOrder: Number.isFinite(value) ? value : 0 };
-                              })
-                            )
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                  {sorted.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-base-300">
-                        目前沒有分類
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* Social Tab */}
         {activeTab === "social" && (
           <div className="space-y-6">
@@ -550,12 +493,23 @@ export function SiteSettingsForm({ initialSettings, categories: initialCategorie
         )}
       </div>
 
+      {previewOpen ? (
+        <div className="grid gap-4 rounded-2xl border border-line bg-base-50 p-4 md:grid-cols-2" aria-label="待儲存設定預覽">
+          <div data-testid="settings-preview-desktop" className="rounded-xl border border-line bg-white p-4"><strong>桌面預覽</strong><div className="mt-2 text-xl">{settings.siteName || "網站名稱"}</div><p>{settings.heroTitle || settings.siteTagline}</p></div>
+          <div data-testid="settings-preview-mobile" className="mx-auto w-full max-w-[375px] rounded-xl border border-line bg-white p-4"><strong>手機預覽</strong><div className="mt-2 text-lg">{settings.siteName || "網站名稱"}</div><p>{settings.heroTitle || settings.siteTagline}</p></div>
+        </div>
+      ) : null}
+
       {/* Actions */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-base-300">{message}</div>
-        <Button onClick={save} disabled={saving}>
-          {saving ? "儲存中..." : "儲存"}
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-base-300">{dirtyFields.size > 0 ? "有未儲存變更" : message}</div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => setPreviewOpen((open) => !open)}>預覽變更</Button>
+          <Button type="button" variant="ghost" onClick={cancelChanges} disabled={dirtyFields.size === 0}>取消變更</Button>
+          <Button onClick={save} disabled={saving || !activeSectionDirty}>
+            {saving ? "儲存中..." : "儲存此區"}
+          </Button>
+        </div>
       </div>
     </div>
   );

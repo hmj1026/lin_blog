@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { AdminFeedback } from "@/components/admin/admin-feedback";
 
 type TrendData = { date: string; count: number }[];
 type TopPost = { postId: string; slug: string; title: string; count: number };
@@ -14,6 +15,9 @@ type DashboardData = {
   devices: DeviceData[];
   browsers: StatItem[];
   os: StatItem[];
+  sources: Array<{ source: string; name: string; count: number }>;
+  comparison: { current: number; previous: number; percentChange: number | null };
+  period: { days: number; timeZone: string };
 };
 
 export function DashboardCharts() {
@@ -21,26 +25,46 @@ export function DashboardCharts() {
   const [days, setDays] = useState(7);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"device" | "browser" | "os">("device");
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let ignore = false;
     fetch(`/api/analytics/stats?days=${days}`)
       .then((response) => response.json())
       .then((json) => {
-        if (!ignore && json.success) setData(json.data);
+        if (!json.success) throw new Error(json.message || "無法載入分析資料");
+        if (!ignore) setData(json.data);
       })
-      .catch(() => console.error("Failed to fetch stats"))
+      .catch(() => {
+        if (!ignore) setError("無法載入分析資料，請稍後再試。");
+      })
       .finally(() => {
         if (!ignore) setLoading(false);
       });
     return () => {
       ignore = true;
     };
-  }, [days]);
+  }, [days, retryKey]);
 
-  if (loading || !data) {
+  if (loading) {
     return <div className="h-64 flex items-center justify-center text-base-300">載入中...</div>;
   }
+  if (error) {
+    return (
+      <AdminFeedback
+        tone="error"
+        message={error}
+        retryLabel="重新載入"
+        onRetry={() => {
+          setLoading(true);
+          setError(null);
+          setRetryKey((value) => value + 1);
+        }}
+      />
+    );
+  }
+  if (!data) return <AdminFeedback tone="info" message="目前沒有分析資料。" />;
 
   const maxCount = Math.max(...data.trend.map((t) => t.count), 1);
 
@@ -57,6 +81,9 @@ export function DashboardCharts() {
   };
 
   const statItems = getStatItems();
+  const comparisonText = data.comparison.percentChange === null
+    ? "較前期為新增流量"
+    : `較前期 ${data.comparison.percentChange >= 0 ? "+" : ""}${data.comparison.percentChange}%`;
 
   return (
     <div className="space-y-6">
@@ -67,7 +94,9 @@ export function DashboardCharts() {
           <button
             key={d}
             onClick={() => {
+              if (d === days) return;
               setLoading(true);
+              setError(null);
               setDays(d);
             }}
             className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
@@ -77,6 +106,19 @@ export function DashboardCharts() {
             {d} 天
           </button>
         ))}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-line bg-white p-5 shadow-card">
+          <div className="text-sm text-base-300">本期瀏覽</div>
+          <div className="mt-1 text-3xl font-semibold text-primary">{data.comparison.current}</div>
+          <div className="mt-1 text-sm text-base-300">{comparisonText}</div>
+        </div>
+        <div className="rounded-2xl border border-line bg-white p-5 shadow-card">
+          <div className="text-sm text-base-300">前期瀏覽</div>
+          <div className="mt-1 text-3xl font-semibold text-primary">{data.comparison.previous}</div>
+          <div className="mt-1 text-sm text-base-300">Asia/Taipei・{data.period.days} 天</div>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -106,6 +148,13 @@ export function DashboardCharts() {
               ))}
             </div>
           </div>
+          <table className="sr-only">
+            <caption>每日瀏覽文字資料</caption>
+            <thead><tr><th>日期</th><th>瀏覽數</th></tr></thead>
+            <tbody>
+              {data.trend.map((row) => <tr key={row.date}><td>{row.date}</td><td>{row.count}</td></tr>)}
+            </tbody>
+          </table>
         </div>
 
         {/* 熱門文章 */}
@@ -176,6 +225,22 @@ export function DashboardCharts() {
                 );
               })}
             </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-line bg-white p-6 shadow-card">
+          <h2 className="mb-4 font-semibold text-primary">流量來源</h2>
+          {data.sources.length === 0 ? (
+            <div className="text-sm text-base-300">暫無數據</div>
+          ) : (
+            <ul className="space-y-3">
+              {data.sources.map((source) => (
+                <li key={source.source} className="flex items-center justify-between text-sm">
+                  <span className="text-primary">{source.name}</span>
+                  <span className="font-semibold text-base-300">{source.count}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

@@ -12,6 +12,13 @@ describe("siteSettingSchema", () => {
     expect(() => siteSettingSchema.parse({ showBlogLink: "nope" })).toThrow();
   });
 
+  it("accepts a partial payload omitting showBlogLink", () => {
+    // 分區儲存只送出變動欄位，showBlogLink 缺席時不應觸發驗證錯誤，
+    // 且解析結果不會夾帶未提供的 showBlogLink。
+    expect(siteSettingSchema.parse({})).toEqual({});
+    expect(siteSettingSchema.parse({ siteName: "Only Name" })).toEqual({ siteName: "Only Name" });
+  });
+
   describe("social platforms", () => {
     it("accepts valid social platform settings", () => {
       const payload = {

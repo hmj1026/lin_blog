@@ -18,6 +18,7 @@ import { ActionBar } from "./post-form/action-bar";
 import { AuthoringPanel } from "./post-form/authoring-panel";
 import { SettingsPanel } from "./post-form/settings-panel";
 import { detectStrippedRichHtml } from "@/lib/utils/detect-rich-html";
+import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 
 type Props = {
   mode: "create" | "edit";
@@ -51,6 +52,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const [pendingSwitchTarget, setPendingSwitchTarget] = useState<AuthoringMode | null>(null);
   // 樂觀鎖 token：載入時的 updatedAt，每次成功儲存後以伺服器回傳值更新，避免同一 session 連續儲存誤判衝突。
   const expectedUpdatedAtRef = useRef<string | null>(initial.updatedAt ?? null);
+  const persistedStatusRef = useRef<PostStatus>(initial.status);
+  const lastAutoSaveCandidateRef = useRef<string | null>(null);
   const [showRawHtmlToc, setShowRawHtmlToc] = useState(initial.showRawHtmlToc ?? false);
   const [status, setStatus] = useState<PostStatus>(initial.status);
   const [publishedAt, setPublishedAt] = useState(initial.publishedAt ?? "");
@@ -68,9 +71,14 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const [timeFormat, setTimeFormat] = useState<"24h" | "12h">("24h");
   const [dirty, setDirty] = useState(false);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
+  const [showLeavePrompt, setShowLeavePrompt] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [validationSummary, setValidationSummary] = useState<string | null>(null);
+  const [versions, setVersions] = useState<Array<{ id: string; title: string; editorName: string; createdAt: string }> | null>(null);
+  const [versionsLoading, setVersionsLoading] = useState(false);
 
   // 表單快照：用來判斷自上次成功儲存以來是否有變更（dirty）
-  function buildSnapshot() {
+  function buildSnapshot(statusOverride: PostStatus = status) {
     return JSON.stringify({
       slug,
       title,
@@ -81,7 +89,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       featured,
       allowRawHtml,
       showRawHtmlToc,
-      status,
+      status: statusOverride,
       publishedAt,
       categoryIds,
       tagIds,
@@ -113,6 +121,16 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     seoDescription,
     ogImage,
   ]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty]);
 
   const canSubmit = useMemo(() => {
     return slug.trim() && title.trim() && excerpt.trim() && content.trim();
@@ -173,7 +191,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   }
 
   // 執行實際儲存（POST/PUT），成功時更新 dirty 快照；不處理導頁或預覽，交由呼叫端決定
-  async function performSave(): Promise<boolean> {
+  async function performSave(kind: "manual" | "auto" = "manual"): Promise<boolean> {
     setSaving(true);
     setMessage(null);
     try {
@@ -181,6 +199,12 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       if (error) throw new Error(error);
 
       if (!allowRawHtml && detectStrippedRichHtml(content)) {
+        // 自動儲存為背景流程，不得彈出阻塞式 window.confirm：偵測到會被剝除的區塊結構或
+        // inline 樣式時，暫停自動儲存並提示使用者改用手動儲存或原始 HTML 模式。
+        if (kind === "auto") {
+          setMessage("偵測到會被剝除的區塊結構或 inline 樣式，已暫停自動儲存；請手動儲存或改用原始 HTML 模式。");
+          return false;
+        }
         const confirmed = window.confirm(
           "一般模式將不可逆地剝除區塊結構與 inline 樣式（<div>/style=/<style>）。確定要以一般模式儲存嗎？改用「原始 HTML 模式」可保留樣式。"
         );
@@ -199,7 +223,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         featured,
         allowRawHtml,
         showRawHtmlToc,
-        status,
+        status: kind === "auto" ? persistedStatusRef.current : status,
         publishedAt: publishedAt ? new Date(publishedAt).toISOString() : null,
         categoryIds,
         tagIds,
@@ -225,13 +249,18 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
 
       const json = await parseJson<unknown>(res);
       if (!res.ok || !json.success) {
+        if (res.status === 409) setConflict(true);
         throw new Error(!json.success ? json.message || "儲存失敗" : "儲存失敗");
       }
       // 以伺服器回傳的新 updatedAt 更新樂觀鎖 token，讓連續儲存不誤判衝突。
       const savedUpdatedAt = (json.data as { updatedAt?: string } | null)?.updatedAt;
       if (savedUpdatedAt) expectedUpdatedAtRef.current = savedUpdatedAt;
-      savedSnapshotRef.current = buildSnapshot();
-      setDirty(false);
+      persistedStatusRef.current = payload.status;
+      savedSnapshotRef.current = buildSnapshot(kind === "auto" ? persistedStatusRef.current : status);
+      setDirty(buildSnapshot() !== savedSnapshotRef.current);
+      const savedAt = new Date();
+      setMessage(kind === "auto" ? `上次自動儲存：${savedAt.toLocaleTimeString("zh-TW")}` : "儲存成功");
+      setValidationSummary(null);
       return true;
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "儲存失敗");
@@ -240,6 +269,19 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       setSaving(false);
     }
   }
+
+  useEffect(() => {
+    if (mode !== "edit" || !postId || !dirty || saving || conflict || persistedStatusRef.current !== "DRAFT") return;
+    const candidate = buildSnapshot();
+    if (candidate === lastAutoSaveCandidateRef.current || validateBeforeSubmit()) return;
+    const timer = window.setTimeout(() => {
+      lastAutoSaveCandidateRef.current = candidate;
+      void performSave("auto");
+    }, 1000);
+    return () => window.clearTimeout(timer);
+    // performSave/buildSnapshot intentionally use the current render snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, postId, dirty, saving, conflict, slug, title, excerpt, content, coverImage, readingTime, featured, authoringMode, showRawHtmlToc, status, publishedAt, categoryIds, tagIds, seoTitle, seoDescription, ogImage]);
 
   async function submit() {
     const success = await performSave();
@@ -270,6 +312,44 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     if (!initial.title && (!slug || slug === slugify(title))) setSlug(slugify(next));
   }
 
+  function handleStatusChange(next: PostStatus) {
+    if (next === "PUBLISHED") {
+      const error = validateBeforeSubmit();
+      if (error) {
+        setValidationSummary(`發布前請修正：${error}`);
+        const fieldId = error.includes("slug") ? "post-slug" : error.includes("標題") ? "post-title" : error.includes("摘要") ? "post-excerpt" : null;
+        if (fieldId) document.getElementById(fieldId)?.focus();
+        return;
+      }
+    }
+    setValidationSummary(null);
+    setStatus(next);
+  }
+
+  async function toggleVersions() {
+    if (versions !== null) {
+      setVersions(null);
+      return;
+    }
+    if (!postId) return;
+    setVersionsLoading(true);
+    try {
+      const response = await fetch(`/api/posts/${postId}/versions`);
+      const json = await parseJson<Array<{ id: string; title: string; editorName: string; createdAt: string }>>(response);
+      if (!response.ok || !json.success) throw new Error(!json.success ? json.message || "版本載入失敗" : "版本載入失敗");
+      setVersions(json.data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "版本載入失敗");
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  const estimatedReadingMinutes = useMemo(() => {
+    const plainText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return Math.max(1, Math.ceil(plainText.length / 400));
+  }, [content]);
+
   function toggleCategory(id: string) {
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
   }
@@ -288,7 +368,22 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         saving={saving}
         canSubmit={Boolean(canSubmit)}
         onSubmit={submit}
+        onBackClick={dirty ? () => setShowLeavePrompt(true) : undefined}
       />
+
+      {validationSummary ? <div role="alert" tabIndex={-1} className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{validationSummary}</div> : null}
+      {conflict ? (
+        <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <p>偵測到版本衝突；自動儲存已停止，請重新載入最新版本後比較本機內容。</p>
+          <Button type="button" size="sm" className="mt-2" onClick={() => window.location.reload()}>重新載入最新版本</Button>
+        </div>
+      ) : null}
+      {mode === "edit" ? (
+        <div className="rounded-xl border border-line bg-white p-3">
+          <Button type="button" size="sm" variant="secondary" onClick={toggleVersions} disabled={versionsLoading}>{versionsLoading ? "載入版本中..." : "版本歷史"}</Button>
+          {versions ? <ul className="mt-3 space-y-2 text-sm">{versions.map((version) => <li key={version.id}><strong>{version.title}</strong><span className="ml-2 text-base-300">{version.editorName} · {new Date(version.createdAt).toLocaleString("zh-TW")}</span></li>)}</ul> : null}
+        </div>
+      ) : null}
 
       {/* 未儲存變更時點擊預覽的提示 */}
       {showSavePrompt && (
@@ -336,7 +431,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         />
         <SettingsPanel
           status={status}
-          onStatusChange={setStatus}
+          onStatusChange={handleStatusChange}
           publishedAt={publishedAt}
           onPublishedAtChange={setPublishedAt}
           publishedAtPreview={formatPublishedAtPreview()}
@@ -361,11 +456,15 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
           onSeoDescriptionChange={setSeoDescription}
           ogImage={ogImage}
           onOgImageChange={setOgImage}
+          previewTitle={title}
+          previewDescription={excerpt}
+          estimatedReadingMinutes={estimatedReadingMinutes}
         />
       </div>
 
       {/* 預覽 Modal */}
       {previewOpen && <PreviewModal slug={slug} onClose={() => setPreviewOpen(false)} />}
+      <ConfirmationDialog open={showLeavePrompt} title="尚有未儲存變更" description="離開後可能遺失尚未安全保存的內容。" confirmLabel="仍要離開" onConfirm={() => router.push("/admin/posts")} onCancel={() => setShowLeavePrompt(false)} />
     </div>
   );
 }

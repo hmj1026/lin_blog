@@ -18,6 +18,12 @@ const mockStats = {
   devices: [{ type: "Desktop", count: 50 }, { type: "Mobile", count: 50 }],
   browsers: [{ name: "Chrome", count: 80 }, { name: "Safari", count: 20 }],
   os: [{ name: "Windows", count: 60 }, { name: "Mac", count: 40 }],
+  sources: [
+    { source: "ORGANIC_SEARCH", name: "自然搜尋", count: 18 },
+    { source: "DIRECT_UNKNOWN", name: "直接／未知", count: 12 },
+  ],
+  comparison: { current: 30, previous: 20, percentChange: 50 },
+  period: { days: 7, timeZone: "Asia/Taipei" },
 };
 
 describe("DashboardCharts", () => {
@@ -54,6 +60,12 @@ describe("DashboardCharts", () => {
 
     expect(screen.getByText("訪客分析")).toBeInTheDocument();
     expect(screen.getByText("Desktop")).toBeInTheDocument();
+    expect(screen.getByText("本期瀏覽")).toBeInTheDocument();
+    expect(screen.getByText("30")).toBeInTheDocument();
+    expect(screen.getByText("較前期 +50%")).toBeInTheDocument();
+    expect(screen.getByText("流量來源")).toBeInTheDocument();
+    expect(screen.getByText("自然搜尋")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "每日瀏覽文字資料" })).toBeInTheDocument();
   });
 
   it("switches tabs in visitor analysis", async () => {
@@ -90,5 +102,22 @@ describe("DashboardCharts", () => {
     await userEvent.click(day30Btn);
 
     expect(fetchMock).toHaveBeenCalledWith("/api/analytics/stats?days=30");
+  });
+
+  it("shows an accessible error and retries the failed request", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, data: mockStats }),
+      });
+
+    render(<DashboardCharts />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("無法載入分析資料");
+    await userEvent.click(screen.getByRole("button", { name: "重新載入" }));
+
+    expect(await screen.findByText("瀏覽趨勢")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

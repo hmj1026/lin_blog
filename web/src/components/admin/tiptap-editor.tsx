@@ -8,6 +8,7 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { ImageCropperModal, cropImageToBlob } from "@/components/admin/image-cropper-modal";
 import { uploadImageBlob } from "@/lib/media/upload-image";
 import {
@@ -69,6 +70,7 @@ export function TiptapEditor({ value, onChange }: Props) {
   const [cropOpen, setCropOpen] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string>("");
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -92,6 +94,7 @@ export function TiptapEditor({ value, onChange }: Props) {
     content: value,
     editorProps: {
       attributes: {
+        "aria-label": "文章內容編輯器",
         class:
           "min-h-[360px] rounded-2xl border border-line bg-white p-6 shadow-card focus:outline-none wysiwyg",
       },
@@ -130,6 +133,7 @@ export function TiptapEditor({ value, onChange }: Props) {
   }
 
   function handleFileSelect(file: File) {
+    setUploadError(null);
     // 清理之前的 URL
     if (selectedImageUrl) URL.revokeObjectURL(selectedImageUrl);
     const url = URL.createObjectURL(file);
@@ -306,10 +310,12 @@ export function TiptapEditor({ value, onChange }: Props) {
         initialAspect={16 / 9}
         onCancel={() => {
           setCropOpen(false);
+          setUploadError(null);
           cleanupSelectedImage();
         }}
         onConfirm={async ({ cropAreaPixels, outputWidth, outputHeight, mimeType }) => {
           if (!selectedImageUrl) return;
+          setUploadError(null);
           setUploading(true);
           try {
             const blob = await cropImageToBlob({
@@ -323,16 +329,28 @@ export function TiptapEditor({ value, onChange }: Props) {
             setCropOpen(false);
             cleanupSelectedImage();
           } catch (error) {
-            console.error("圖片裁切上傳失敗:", error);
-            alert(error instanceof Error ? error.message : "圖片裁切上傳失敗");
+            setCropOpen(false);
+            setUploadError(error instanceof Error ? error.message : "圖片裁切上傳失敗");
           } finally {
             setUploading(false);
           }
         }}
       />
+      {uploadError ? (
+        <AdminFeedback
+          tone="error"
+          message={uploadError}
+          retryLabel="重新開啟裁切"
+          onRetry={() => {
+            setUploadError(null);
+            if (selectedImageUrl) setCropOpen(true);
+          }}
+        />
+      ) : null}
       {mode === "html" ? (
         <div className="space-y-2">
           <textarea
+            aria-label="文章內容 HTML 原始碼"
             className="min-h-[360px] w-full rounded-2xl border border-line bg-white p-6 text-sm text-primary shadow-card focus:outline-none font-mono"
             value={htmlDraft}
             onChange={(e) => setHtmlDraft(e.target.value)}

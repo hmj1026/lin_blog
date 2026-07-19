@@ -4,6 +4,10 @@ import { PUT, DELETE } from "@/app/api/users/[id]/route";
 import { securityAdminUseCases } from "@/modules/security-admin";
 import { requirePermission } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { recordAuditEventSafely } from "@/lib/server/audit-safe";
+
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
 
 // Mock dependencies
 vi.mock("@/modules/security-admin", () => ({
@@ -12,6 +16,7 @@ vi.mock("@/modules/security-admin", () => ({
     createUser: vi.fn(),
     updateUser: vi.fn(),
     softDeleteUser: vi.fn(),
+    getUserAuthSnapshot: vi.fn(),
   },
 }));
 
@@ -27,9 +32,14 @@ vi.mock("@/lib/api-utils", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/auth", () => ({
+  getSession: vi.fn(),
+}));
+
 describe("API: /api/users", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (securityAdminUseCases.getUserAuthSnapshot as any).mockResolvedValue({ roleId: "editor" });
   });
 
   describe("GET", () => {
@@ -82,6 +92,7 @@ describe("API: /api/users/[id]", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (getSession as any).mockResolvedValue({ user: { id: "admin-1" } });
   });
 
   describe("PUT", () => {
@@ -101,6 +112,38 @@ describe("API: /api/users/[id]", () => {
       expect(response.status).toBe(200);
       expect(securityAdminUseCases.updateUser).toHaveBeenCalledWith("1", expect.anything());
     });
+
+    it("audits only fields that actually changed and surfaces password resets", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (securityAdminUseCases.getUserAuthSnapshot as any).mockResolvedValue({
+        email: "same@example.com",
+        name: "Same",
+        roleId: "role-editor",
+      });
+      (securityAdminUseCases.updateUser as any).mockResolvedValue({
+        id: "1",
+        email: "same@example.com",
+        name: "Same",
+        roleId: "role-admin",
+      });
+
+      const request = new Request("http://localhost/api/users/1", {
+        method: "PUT",
+        body: JSON.stringify({ email: "same@example.com", name: "Same", roleId: "role-admin", password: "new-password" }),
+      });
+      await PUT(request, context);
+
+      expect(recordAuditEventSafely).toHaveBeenCalledWith(expect.objectContaining({
+        action: "user.updated",
+        resourceType: "user",
+        resourceId: "1",
+        summary: expect.objectContaining({
+          changedFields: ["roleId", "password"],
+          fromRoleId: "role-editor",
+          toRoleId: "role-admin",
+        }),
+      }));
+    });
   });
 
   describe("DELETE", () => {
@@ -117,7 +160,7 @@ describe("API: /api/users/[id]", () => {
       const json = await response.json();
 
       expect(response.status).toBe(200);
-      expect(securityAdminUseCases.softDeleteUser).toHaveBeenCalledWith("1");
+      expect(securityAdminUseCases.softDeleteUser).toHaveBeenCalledWith("1", { actorId: "admin-1" });
     });
   });
 });

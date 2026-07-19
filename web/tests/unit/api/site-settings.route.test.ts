@@ -5,6 +5,8 @@ import { siteSettingsUseCases } from "@/modules/site-settings";
 import { requirePermission } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
+
 // Mock dependencies
 vi.mock("@/lib/server-queries", () => ({
   siteSettingsQueries: {
