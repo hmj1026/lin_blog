@@ -62,6 +62,21 @@ model PermissionVersion {
   updatedAt DateTime @updatedAt
 }
 
+model AuditEvent {
+  id           String   @id @default(cuid())
+  actorId      String
+  action       String
+  resourceType String
+  resourceId   String
+  summary      Json     @default("{}")
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([resourceType, resourceId, createdAt])
+  @@index([action])
+}
+
 model Post {
   id             String         @id @default(cuid())
   slug           String         @unique

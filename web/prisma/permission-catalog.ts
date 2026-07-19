@@ -22,6 +22,7 @@ export const PERMISSIONS: PermissionDefinition[] = [
   { key: "roles:manage", name: "角色權限管理" },
   { key: "settings:manage", name: "站點設定" },
   { key: "subscribers:view", name: "訂閱者名單" },
+  { key: "audit:view", name: "活動紀錄" },
 ];
 
 /**
