@@ -38,6 +38,16 @@ export type MediaReference = {
 /** 查詢媒體在結構化欄位、文章內容及 Raw HTML 候選中的引用。 */
 export interface MediaReferenceRepository {
   listStructuredReferences(uploadId: string): Promise<MediaReference[]>;
+  /**
+   * 於同一交易內重新確認引用（含垃圾桶文章），僅在無引用時軟刪除該上傳。
+   * 回傳成功、殘留引用清單（referenced），或並行寫入衝突（conflict，應提示重試）。
+   * 關閉「確認無引用後、刪除前新增引用」的競態。
+   */
+  softDeleteUploadIfUnreferenced(uploadId: string): Promise<
+    | { ok: true }
+    | { ok: false; reason: "referenced"; references: MediaReference[] }
+    | { ok: false; reason: "conflict" }
+  >;
 }
 
 /** 圖片處理結果（處理後的內容與 MIME type） */

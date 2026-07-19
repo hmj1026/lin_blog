@@ -35,14 +35,20 @@ describe("mediaUseCases", () => {
   let mockRepo: UploadRepository;
   let mockStorage: StoragePort;
   let mockImageProcessor: ImageProcessorPort;
-  let mockReferences: { listStructuredReferences: ReturnType<typeof vi.fn> };
+  let mockReferences: {
+    listStructuredReferences: ReturnType<typeof vi.fn>;
+    softDeleteUploadIfUnreferenced: ReturnType<typeof vi.fn>;
+  };
   let useCases: ReturnType<typeof createMediaUseCases>;
 
   beforeEach(() => {
     mockRepo = createMockRepo();
     mockStorage = createMockStorage();
     mockImageProcessor = createMockImageProcessor();
-    mockReferences = { listStructuredReferences: vi.fn().mockResolvedValue([]) };
+    mockReferences = {
+      listStructuredReferences: vi.fn().mockResolvedValue([]),
+      softDeleteUploadIfUnreferenced: vi.fn().mockResolvedValue({ ok: true }),
+    };
     useCases = createMediaUseCases({
       uploads: mockRepo,
       storage: mockStorage,
@@ -155,13 +161,13 @@ describe("mediaUseCases", () => {
       });
     });
 
-    it("軟刪除上傳記錄", async () => {
+    it("軟刪除上傳記錄（透過原子性引用重驗）", async () => {
       (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
-      (mockRepo.softDelete as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "upload-1" });
+      mockReferences.softDeleteUploadIfUnreferenced.mockResolvedValue({ ok: true });
 
       const result = await useCases.softDeleteUpload("upload-1");
       expect(result).toEqual({ ok: true });
-      expect(mockRepo.softDelete).toHaveBeenCalledWith("upload-1");
+      expect(mockReferences.softDeleteUploadIfUnreferenced).toHaveBeenCalledWith("upload-1");
     });
 
     it("回傳 not-found 當記錄不存在", async () => {
@@ -169,7 +175,7 @@ describe("mediaUseCases", () => {
 
       const result = await useCases.softDeleteUpload("not-exist");
       expect(result).toEqual({ ok: false, error: "not-found" });
-      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+      expect(mockReferences.softDeleteUploadIfUnreferenced).not.toHaveBeenCalled();
     });
 
     it("回傳 not-found 當記錄已刪除", async () => {
@@ -178,14 +184,16 @@ describe("mediaUseCases", () => {
 
       const result = await useCases.softDeleteUpload("upload-1");
       expect(result).toEqual({ ok: false, error: "not-found" });
-      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+      expect(mockReferences.softDeleteUploadIfUnreferenced).not.toHaveBeenCalled();
     });
 
-    it("阻擋仍被結構化欄位引用的媒體刪除", async () => {
+    it("阻擋仍被結構化欄位引用的媒體刪除（原子重驗回報引用）", async () => {
       (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
-      mockReferences.listStructuredReferences.mockResolvedValue([
-        { resourceType: "post", resourceId: "post-1", field: "coverImage", label: "文章封面" },
-      ]);
+      mockReferences.softDeleteUploadIfUnreferenced.mockResolvedValue({
+        ok: false,
+        reason: "referenced",
+        references: [{ resourceType: "post", resourceId: "post-1", field: "coverImage", label: "文章封面" }],
+      });
 
       const result = await useCases.softDeleteUpload("upload-1");
 
@@ -194,19 +202,28 @@ describe("mediaUseCases", () => {
         error: "referenced",
         references: [{ resourceType: "post", resourceId: "post-1", field: "coverImage", label: "文章封面" }],
       });
-      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it("並行寫入衝突回報 conflict（而非誤稱仍被引用）", async () => {
+      (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
+      mockReferences.softDeleteUploadIfUnreferenced.mockResolvedValue({ ok: false, reason: "conflict" });
+
+      const result = await useCases.softDeleteUpload("upload-1");
+
+      expect(result).toEqual({ ok: false, error: "conflict" });
     });
 
     it("阻擋需人工檢查的 Raw HTML 引用候選", async () => {
       (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
-      mockReferences.listStructuredReferences.mockResolvedValue([
-        { resourceType: "post", resourceId: "post-2", field: "content", certainty: "manual-review", label: "Raw HTML 可能引用：嵌入碼（需人工檢查）" },
-      ]);
+      mockReferences.softDeleteUploadIfUnreferenced.mockResolvedValue({
+        ok: false,
+        reason: "referenced",
+        references: [{ resourceType: "post", resourceId: "post-2", field: "content", certainty: "manual-review", label: "Raw HTML 可能引用：嵌入碼（需人工檢查）" }],
+      });
 
       const result = await useCases.softDeleteUpload("upload-1");
 
       expect(result).toEqual(expect.objectContaining({ ok: false, error: "referenced" }));
-      expect(mockRepo.softDelete).not.toHaveBeenCalled();
     });
   });
 

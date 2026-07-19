@@ -130,11 +130,12 @@ export function createMediaUseCases(deps: {
     softDeleteUpload: async (id: string) => {
       const existing = await deps.uploads.getById(id);
       if (!existing || existing.deletedAt) return { ok: false as const, error: "not-found" as const };
-      const references = await deps.references.listStructuredReferences(id);
-      if (references.length > 0) {
-        return { ok: false as const, error: "referenced" as const, references };
+      // 引用重驗與軟刪除於同一交易內原子執行，避免「檢查與刪除」之間的競態讓仍被引用的媒體被刪除。
+      const result = await deps.references.softDeleteUploadIfUnreferenced(id);
+      if (!result.ok) {
+        if (result.reason === "conflict") return { ok: false as const, error: "conflict" as const };
+        return { ok: false as const, error: "referenced" as const, references: result.references };
       }
-      await deps.uploads.softDelete(id);
       return { ok: true as const };
     },
   };
