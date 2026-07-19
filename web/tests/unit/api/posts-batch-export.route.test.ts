@@ -6,6 +6,8 @@ import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { NextRequest } from "next/server";
 
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
+
 vi.mock("@/lib/api-utils", () => ({
   requirePermission: vi.fn(),
 }));
@@ -59,7 +61,13 @@ describe("Posts Batch/Export API", () => {
 
     it("should handle publish action", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (postsUseCases.batchPostAction as any).mockResolvedValue({ count: 2 });
+      (postsUseCases.batchPostAction as any).mockResolvedValue({
+        count: 1,
+        results: [
+          { id: "1", ok: true },
+          { id: "2", ok: false, error: "not-applicable" },
+        ],
+      });
 
       const req = new NextRequest("http://localhost/api/posts/batch", {
         method: "POST",
@@ -70,7 +78,11 @@ describe("Posts Batch/Export API", () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.count).toBe(2);
+      expect(json.count).toBe(1);
+      expect(json.results).toEqual([
+        { id: "1", ok: true },
+        { id: "2", ok: false, error: "not-applicable" },
+      ]);
     });
 
     it("should handle draft action", async () => {

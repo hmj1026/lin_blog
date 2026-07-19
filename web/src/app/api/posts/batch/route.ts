@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requirePermission } from "@/lib/api-utils";
 import { postsUseCases } from "@/modules/posts";
+import { recordAuditEventSafely } from "@/lib/server/audit-safe";
 
 /**
  * 批次更新文章狀態 API
@@ -23,6 +24,12 @@ export async function POST(request: NextRequest) {
       return Response.json({ success: false, message: "缺少 action 或 postIds" }, { status: 400 });
     }
 
+    // 上限對齊列表單頁最大筆數，避免單次請求觸發過量並發查詢。
+    const MAX_BATCH_SIZE = 100;
+    if (postIds.length > MAX_BATCH_SIZE) {
+      return Response.json({ success: false, message: `單次批次最多 ${MAX_BATCH_SIZE} 篇` }, { status: 400 });
+    }
+
     let result;
 
     switch (action) {
@@ -42,10 +49,18 @@ export async function POST(request: NextRequest) {
         return Response.json({ success: false, message: "不支援的操作" }, { status: 400 });
     }
 
+    await recordAuditEventSafely({
+      action: `posts.batch_${action}`,
+      resourceType: "post",
+      resourceId: "batch",
+      summary: { affectedCount: result.count, referenceIds: postIds.slice(0, 20) },
+    });
+
     return Response.json({
       success: true,
       message: `已${action === "publish" ? "發佈" : action === "draft" ? "設為草稿" : "刪除"} ${result.count} 篇文章`,
       count: result.count,
+      results: result.results,
     });
   } catch (error) {
     console.error("Batch operation error:", error);

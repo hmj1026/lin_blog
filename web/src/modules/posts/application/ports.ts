@@ -20,6 +20,7 @@ export type CategoryRecord = {
   showInNav: boolean;
   navOrder: number;
   deletedAt: Date | null;
+  postCount?: number;
 };
 
 export type TagRecord = {
@@ -27,6 +28,7 @@ export type TagRecord = {
   slug: string;
   name: string;
   deletedAt: Date | null;
+  postCount?: number;
 };
 
 export type PostRecord = {
@@ -78,6 +80,20 @@ export type PaginatedResult<T> = {
   };
 };
 
+export type AdminPostSort = "updated-desc" | "created-desc" | "published-desc" | "title-asc";
+
+export type AdminPostListParams = {
+  query?: string;
+  status?: PostStatus;
+  categoryId?: string;
+  tagId?: string;
+  featured?: boolean;
+  deleted: boolean;
+  sort: AdminPostSort;
+  page: number;
+  pageSize: number;
+};
+
 export interface PostRepository {
   listPublished(params?: { categorySlug?: string; tag?: string; featured?: boolean; take?: number }): Promise<PostListItemRecord[]>;
   listPublishedPaginated(params: {
@@ -87,7 +103,7 @@ export interface PostRepository {
     tag?: string;
   }): Promise<PaginatedResult<PostListItemRecord>>;
   search(params: { query: string; take?: number }): Promise<PostListItemRecord[]>;
-  listForAdmin(): Promise<PostListItemRecord[]>;
+  listForAdmin(params: AdminPostListParams): Promise<PaginatedResult<PostListItemRecord>>;
   countPublished(): Promise<number>;
   countActive(): Promise<number>;
   listPublishedForSitemap(): Promise<Array<{ slug: string; updatedAt: Date; publishedAt: Date | null }>>;
@@ -141,6 +157,7 @@ export interface PostRepository {
     }
   ): Promise<{ id: string }>;
   softDelete(id: string): Promise<{ id: string }>;
+  restore(id: string): Promise<{ id: string }>;
 
   /**
    * 原子地「快照當前文章版本 + 樂觀鎖更新文章」。
@@ -180,7 +197,10 @@ export interface PostRepository {
     };
   }): Promise<{ ok: true; id: string; updatedAt: Date } | { ok: false; reason: "conflict" | "not-found" }>;
 
-  batchAction(params: { action: "publish" | "draft" | "delete"; postIds: string[] }): Promise<{ count: number }>;
+  batchAction(params: { action: "publish" | "draft" | "delete"; postIds: string[] }): Promise<{
+    count: number;
+    results: Array<{ id: string; ok: boolean; error?: "not-applicable" }>;
+  }>;
   publishDueScheduled(now: Date): Promise<{ count: number; published: Array<{ id: string; slug: string; publishedAt: Date | null }> }>;
   listForExport(params: { ids?: string[]; orderBy?: "createdAtDesc" }): Promise<
     Array<{
@@ -231,6 +251,9 @@ export interface CategoryRepository {
     data: { slug: string; name: string; showInNav?: boolean; navOrder?: number; deletedAt?: Date | null }
   ): Promise<{ id: string }>;
   softDelete(id: string): Promise<{ id: string }>;
+  restore(id: string): Promise<{ id: string }>;
+  countPostsByCategory(categoryId: string): Promise<number>;
+  merge(sourceId: string, targetId: string): Promise<{ id: string; movedPosts: number }>;
 }
 
 export interface TagRepository {
@@ -241,4 +264,6 @@ export interface TagRepository {
   create(data: { slug: string; name: string }): Promise<{ id: string }>;
   update(id: string, data: { slug: string; name: string; deletedAt?: Date | null }): Promise<{ id: string }>;
   softDelete(id: string): Promise<{ id: string }>;
+  restore(id: string): Promise<{ id: string }>;
+  merge(sourceId: string, targetId: string): Promise<{ id: string; movedPosts: number }>;
 }

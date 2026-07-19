@@ -1,5 +1,6 @@
 import { jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { postsUseCases } from "@/modules/posts";
+import { recordAuditEventSafely } from "@/lib/server/audit-safe";
 
 type ImportPost = {
   slug: string;
@@ -41,6 +42,18 @@ export async function POST(request: Request) {
     }
 
     const results = await postsUseCases.importPosts({ posts, mode });
+    if (mode === "overwrite") {
+      await recordAuditEventSafely({
+        action: "posts.import_overwrite",
+        resourceType: "post",
+        resourceId: "import",
+        summary: {
+          affectedCount: results.created + results.updated,
+          scope: mode,
+          referenceIds: posts.slice(0, 20).map((post) => post.slug),
+        },
+      });
+    }
 
     return jsonOk({
       message: `匯入完成：${results.created} 新增，${results.updated} 更新，${results.skipped} 略過`,

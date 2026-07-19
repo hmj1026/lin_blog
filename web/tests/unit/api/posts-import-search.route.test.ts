@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
 import { POST } from "@/app/api/posts/import/route";
 import { GET } from "@/app/api/search/route";
 import { requirePermission, jsonOk, jsonError } from "@/lib/api-utils";

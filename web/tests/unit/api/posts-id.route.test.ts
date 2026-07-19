@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
 import { GET, PUT, PATCH, DELETE } from "@/app/api/posts/[id]/route";
 import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
@@ -17,6 +18,7 @@ vi.mock("@/modules/posts", () => ({
     updatePostWithVersion: vi.fn(),
     updatePost: vi.fn(),
     removePost: vi.fn(),
+    restorePost: vi.fn(),
   },
 }));
 
@@ -222,6 +224,22 @@ describe("API: /api/posts/[id]", () => {
   });
 
   describe("PATCH", () => {
+    it("restores a soft-deleted post", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+
+      const req = new NextRequest("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ restore: true }),
+      });
+
+      const res = await PATCH(req, context);
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.data.restored).toBe(true);
+      expect(postsUseCases.restorePost).toHaveBeenCalledWith("post-1");
+    });
+
     it("updates featured status", async () => {
       (requirePermission as any).mockResolvedValue(null);
       (postsQueries.getPostById as any).mockResolvedValue({ 

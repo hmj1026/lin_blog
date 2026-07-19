@@ -50,12 +50,6 @@ function toScalarUpdateData(data: {
  */
 const MAX_LIST_TAKE = 100;
 
-/**
- * admin 文章列表上限。admin 端目前尚無分頁 UI（一次載入全部文章），
- * 故採較寬鬆的上限以避免靜默截斷；若未來文章量接近此值，應改為分頁查詢。
- */
-const MAX_ADMIN_LIST_TAKE = 1000;
-
 const postListItemSelect = {
   id: true,
   slug: true,
@@ -192,14 +186,43 @@ export const postRepositoryPrisma: PostRepository = {
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },
-  async listForAdmin() {
-    const posts = await prisma.post.findMany({
-      where: { deletedAt: null },
-      orderBy: { updatedAt: "desc" },
-      select: postListItemSelect,
-      take: MAX_ADMIN_LIST_TAKE,
-    });
-    return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
+  async listForAdmin(params) {
+    const page = Math.max(1, Math.min(params.page, 10_000));
+    const pageSize = Math.max(1, Math.min(params.pageSize, 100));
+    const query = params.query?.trim();
+    const where = {
+      deletedAt: params.deleted ? { not: null } : null,
+      status: params.status ? mapPostStatusToPrisma(params.status) : undefined,
+      featured: params.featured,
+      categories: params.categoryId ? { some: { id: params.categoryId } } : undefined,
+      tags: params.tagId ? { some: { id: params.tagId } } : undefined,
+      OR: query ? [
+        { title: { contains: query, mode: "insensitive" as const } },
+        { slug: { contains: query, mode: "insensitive" as const } },
+      ] : undefined,
+    };
+    const primaryOrderBy = params.sort === "title-asc"
+      ? { title: "asc" as const }
+      : params.sort === "created-desc"
+        ? { createdAt: "desc" as const }
+        : params.sort === "published-desc"
+          ? { publishedAt: { sort: "desc" as const, nulls: "last" as const } }
+          : { updatedAt: "desc" as const };
+    const orderBy = [primaryOrderBy, { id: "desc" as const }];
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        orderBy,
+        select: postListItemSelect,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.post.count({ where }),
+    ]);
+    return {
+      data: posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) })),
+      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
   },
   async countPublished() {
     return prisma.post.count({
@@ -354,28 +377,22 @@ export const postRepositoryPrisma: PostRepository = {
   async softDelete(id) {
     return prisma.post.update({ where: { id }, data: { deletedAt: new Date() }, select: { id: true } });
   },
+  async restore(id) {
+    return prisma.post.update({ where: { id }, data: { deletedAt: null }, select: { id: true } });
+  },
 
   async batchAction(params) {
-    if (params.postIds.length === 0) return { count: 0 };
-    if (params.action === "publish") {
-      const result = await prisma.post.updateMany({
-        where: { id: { in: params.postIds }, deletedAt: null, status: PostStatus.DRAFT },
-        data: { status: PostStatus.PUBLISHED },
-      });
-      return { count: result.count };
-    }
-    if (params.action === "draft") {
-      const result = await prisma.post.updateMany({
-        where: { id: { in: params.postIds }, deletedAt: null, status: PostStatus.PUBLISHED },
-        data: { status: PostStatus.DRAFT },
-      });
-      return { count: result.count };
-    }
-    const result = await prisma.post.updateMany({
-      where: { id: { in: params.postIds }, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
-    return { count: result.count };
+    const results = await Promise.all(params.postIds.map(async (id) => {
+      const result = params.action === "publish"
+        ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.DRAFT }, data: { status: PostStatus.PUBLISHED } })
+        : params.action === "draft"
+          ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.PUBLISHED }, data: { status: PostStatus.DRAFT } })
+          : await prisma.post.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+      return result.count > 0
+        ? { id, ok: true as const }
+        : { id, ok: false as const, error: "not-applicable" as const };
+    }));
+    return { count: results.filter((result) => result.ok).length, results };
   },
 
   async publishDueScheduled(now) {

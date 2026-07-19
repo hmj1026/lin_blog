@@ -3,12 +3,13 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { sessionHasPermission } from "@/lib/rbac";
 import { postsQueries } from "@/lib/server-queries";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 
 export default async function AdminCategoriesPage() {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!sessionHasPermission(session, "categories:manage")) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!sessionHasPermission(session, "categories:manage")) return <AdminAccessDenied />;
 
   const categories = await postsQueries.listAllCategories();
   return (
@@ -21,6 +22,7 @@ export default async function AdminCategoriesPage() {
           name: c.name,
           showInNav: c.showInNav,
           navOrder: c.navOrder,
+          postCount: c.postCount ?? 0,
           deletedAt: c.deletedAt ? c.deletedAt.toISOString() : null,
         }))}
       />

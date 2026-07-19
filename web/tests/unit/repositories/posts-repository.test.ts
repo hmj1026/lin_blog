@@ -186,14 +186,11 @@ describe("postRepositoryPrisma", () => {
         action: "publish",
         postIds: ["p1", "p2", "p3"],
       });
-      expect(prisma.post.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            id: { in: ["p1", "p2", "p3"] },
-          }),
-          data: expect.objectContaining({ status: "PUBLISHED" }),
-        })
-      );
+      expect(prisma.post.updateMany).toHaveBeenCalledTimes(3);
+      expect(prisma.post.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: "p1", deletedAt: null, status: "DRAFT" },
+        data: { status: "PUBLISHED" },
+      });
     });
 
     it("deletes multiple posts (soft delete)", async () => {
@@ -207,6 +204,20 @@ describe("postRepositoryPrisma", () => {
           data: expect.objectContaining({ deletedAt: expect.any(Date) }),
         })
       );
+    });
+
+    it("returns per-post success and failure details", async () => {
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+      const result = await postRepositoryPrisma.batchAction({ action: "draft", postIds: ["p1", "missing"] });
+      expect(result).toEqual({
+        count: 1,
+        results: [
+          { id: "p1", ok: true },
+          { id: "missing", ok: false, error: "not-applicable" },
+        ],
+      });
     });
   });
 
@@ -357,25 +368,60 @@ describe("postRepositoryPrisma", () => {
   });
 
   describe("listForAdmin", () => {
-    it("returns non-deleted posts ordered by update time", async () => {
+    it("applies bounded URL filters, sorting and pagination", async () => {
       (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-      await postRepositoryPrisma.listForAdmin();
+      (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(55);
+      const result = await postRepositoryPrisma.listForAdmin({
+        query: "launch",
+        status: "DRAFT",
+        categoryId: "cat-1",
+        tagId: "tag-1",
+        featured: true,
+        deleted: false,
+        sort: "title-asc",
+        page: 2,
+        pageSize: 25,
+      });
       expect(prisma.post.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { deletedAt: null },
-          orderBy: { updatedAt: "desc" },
+          where: expect.objectContaining({
+            deletedAt: null,
+            status: "DRAFT",
+            featured: true,
+            categories: { some: { id: "cat-1" } },
+            tags: { some: { id: "tag-1" } },
+            OR: expect.arrayContaining([
+              { title: { contains: "launch", mode: "insensitive" } },
+              { slug: { contains: "launch", mode: "insensitive" } },
+            ]),
+          }),
+          orderBy: [{ title: "asc" }, { id: "desc" }],
+          skip: 25,
+          take: 25,
         })
       );
+      expect(result.pagination).toEqual({ page: 2, pageSize: 25, total: 55, totalPages: 3 });
     });
 
-    it("bounds the admin query with a defined take (admin cap, still bounded)", async () => {
+    it("queries the trash explicitly instead of mixing deleted posts", async () => {
       (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-      await postRepositoryPrisma.listForAdmin();
-      const call = (prisma.post.findMany as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-      expect(call.take).toBeDefined();
-      // admin 端無分頁 UI，採較寬鬆上限避免靜默截斷，但仍為有界查詢
-      expect(call.take).toBeGreaterThan(0);
-      expect(call.take).toBeLessThanOrEqual(1000);
+      (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      await postRepositoryPrisma.listForAdmin({ deleted: true, sort: "updated-desc", page: 1, pageSize: 20 });
+      expect(prisma.post.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ deletedAt: { not: null } }), take: 20 })
+      );
+    });
+  });
+
+  describe("restore", () => {
+    it("clears the deletion timestamp", async () => {
+      (prisma.post.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.restore("p1");
+      expect(prisma.post.update).toHaveBeenCalledWith({
+        where: { id: "p1" },
+        data: { deletedAt: null },
+        select: { id: true },
+      });
     });
   });
 

@@ -3,12 +3,13 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
 import { postsQueries } from "@/lib/server-queries";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 
 export default async function AdminTagsPage() {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "tags:manage"))) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!(await roleHasPermission(session.user.roleId, "tags:manage"))) return <AdminAccessDenied />;
 
   const tags = await postsQueries.listAllTags();
   return (
@@ -19,6 +20,7 @@ export default async function AdminTagsPage() {
           id: t.id,
           slug: t.slug,
           name: t.name,
+          postCount: t.postCount ?? 0,
           deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null,
         }))}
       />
