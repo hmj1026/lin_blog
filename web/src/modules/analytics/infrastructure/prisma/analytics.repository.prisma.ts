@@ -61,9 +61,8 @@ export const analyticsRepositoryPrisma: AnalyticsRepository = {
         AND e."viewedAt" < ${params.until}
         ${postFilter}
       GROUP BY p."id", p."slug", p."title"
-      HAVING COUNT(*) FILTER (
-        WHERE e."viewedAt" >= ${params.since} AND e."viewedAt" < ${params.until}
-      ) > 0
+      -- 不以「本期 count > 0」過濾：前期有流量、本期降為零的文章仍須納入衰退／比較報表。
+      -- WHERE 已限定事件落在 [previousSince, until)，每個分組必有前期或本期事件，無需額外 HAVING。
       ORDER BY "views" DESC, "uniqueCount" DESC, p."id" ASC
     `;
 

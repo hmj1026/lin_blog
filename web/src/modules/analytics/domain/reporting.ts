@@ -112,11 +112,29 @@ export function calculatePercentChange(current: number, previous: number): numbe
   return Math.round(((current - previous) / previous) * 100);
 }
 
-/** 判斷 hostname 是否符合已知主機片段或 suffix。 */
+// 常見的二級公用後綴（供 google.co.jp / google.com.tw 之類多段 TLD 的網域邊界判斷）。
+const SECOND_LEVEL_PUBLIC_SUFFIXES = new Set(["co", "com", "org", "net", "gov", "edu", "ac", "ne", "or", "go"]);
+
+/**
+ * 以真正的網域邊界判斷 hostname 是否屬於已知主機。
+ *
+ * - 完整網域樣式（如 "bing.com"）：需 host 等於該網域或為其子網域（host 以 ".bing.com" 結尾），
+ *   避免 "notbing.com" 之類的部分字串誤判。
+ * - 以 "." 結尾的樣式（如 "google."）：代表「註冊網域的 SLD 為 google，涵蓋各國 TLD」，
+ *   以 label 邊界比對，讓 "google.com"/"google.co.jp" 命中，而 "notgoogle.com"/"google.evil.example" 不命中。
+ */
 function isKnownHost(host: string, patterns: string[]): boolean {
-  return patterns.some((pattern) =>
-    pattern.endsWith(".")
-      ? host.includes(pattern)
-      : host === pattern || host.endsWith(`.${pattern}`)
-  );
+  const labels = host.split(".");
+  const len = labels.length;
+  return patterns.some((pattern) => {
+    if (pattern.endsWith(".")) {
+      const sld = pattern.slice(0, -1);
+      // google.com / www.google.com / google.de → SLD 為倒數第二段。
+      if (len >= 2 && labels[len - 2] === sld) return true;
+      // google.co.jp / google.com.tw → SLD 為倒數第三段，且倒數第二段為已知二級後綴。
+      if (len >= 3 && labels[len - 3] === sld && SECOND_LEVEL_PUBLIC_SUFFIXES.has(labels[len - 2])) return true;
+      return false;
+    }
+    return host === pattern || host.endsWith(`.${pattern}`);
+  });
 }

@@ -50,8 +50,12 @@ describe("analytics reporting domain", () => {
     ["/blog/post", "INTERNAL"],
     ["https://blog.example.com/post", "INTERNAL"],
     ["https://www.google.com/search?q=blog", "ORGANIC_SEARCH"],
+    ["https://www.google.co.jp/search", "ORGANIC_SEARCH"],
     ["https://www.facebook.com/post", "SOCIAL"],
     ["https://news.example.net/story", "REFERRAL"],
+    // 網域邊界：部分字串命中不得誤判為自然搜尋。
+    ["https://notgoogle.com/x", "REFERRAL"],
+    ["https://google.evil.example/x", "REFERRAL"],
   ] as const)("classifies %s as %s", (referer, expected) => {
     expect(classifyTrafficSource(referer, { internalHosts: ["blog.example.com"] })).toBe(expected);
   });
