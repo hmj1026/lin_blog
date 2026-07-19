@@ -16,10 +16,14 @@ describe("recordAuditEventSafely", () => {
     vi.mocked(auditUseCases.purgeExpiredAuditEvents).mockResolvedValue(0);
   });
 
-  it("使用目前 session actor 寫入並在成功後清理過期事件", async () => {
+  it("使用目前 session actor 寫入事件", async () => {
     await expect(recordAuditEventSafely({ action: "role.updated", resourceType: "role", resourceId: "role-1", summary: { changedFields: ["permissions"] } })).resolves.toBe(true);
     expect(auditUseCases.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({ actorId: "actor-1" }));
-    expect(auditUseCases.purgeExpiredAuditEvents).toHaveBeenCalled();
+  });
+
+  it("保留清理已與事件寫入解耦，不在寫入路徑觸發 purge", async () => {
+    await recordAuditEventSafely({ action: "role.updated", resourceType: "role", resourceId: "role-1", summary: {} });
+    expect(auditUseCases.purgeExpiredAuditEvents).not.toHaveBeenCalled();
   });
 
   it("寫入失敗不拋錯，維運紀錄不包含摘要、例外訊息或 stack", async () => {

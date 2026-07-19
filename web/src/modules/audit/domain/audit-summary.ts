@@ -1,3 +1,5 @@
+import { siteSettingSchema, aboutContentSchema } from "@/lib/validations/site-setting.schema";
+
 export type AuditSummaryValue = string | number | boolean | null | string[];
 export type AuditSummary = Record<string, AuditSummaryValue>;
 
@@ -13,9 +15,18 @@ const ALLOWED_KEYS = new Set([
   "referenceIds",
 ]);
 
+// 站點設定與 About 的欄位名皆為非敏感識別字（值不會進 changedFields），
+// 以 schema shape 作為單一事實來源，讓稽核可記錄實際變更的設定欄位。
+const SITE_SETTING_FIELD_KEYS = [
+  ...Object.keys(siteSettingSchema.shape),
+  ...Object.keys(aboutContentSchema.shape),
+];
+
 const ALLOWED_CHANGED_FIELDS = new Set([
   "email",
   "name",
+  // 角色識別鍵；僅記錄欄位名而非內容。
+  "key",
   "roleId",
   // 僅記錄「密碼曾被重設」的事實，不儲存任何密碼內容。
   "password",
@@ -24,6 +35,7 @@ const ALLOWED_CHANGED_FIELDS = new Set([
   "visibility",
   "navigation",
   "metadata",
+  ...SITE_SETTING_FIELD_KEYS,
 ]);
 
 /** 將 audit 摘要縮減為有界且不含密碼、token 或完整內容的白名單資料。 */

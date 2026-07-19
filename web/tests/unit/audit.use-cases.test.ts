@@ -23,4 +23,13 @@ describe("audit use cases", () => {
     await useCases.listAuditEvents({ page: -2, pageSize: 999, actor: " actor ", resource: " role " }, new Date("2026-07-19T00:00:00.000Z"));
     expect(repo.listPage).toHaveBeenCalledWith({ since: new Date("2025-07-19T00:00:00.000Z"), until: undefined, actor: "actor", resource: "role", skip: 0, take: 100 });
   });
+
+  it("將過大的 page clamp 至上界，避免巨大 OFFSET 或整數溢位", async () => {
+    const repo = { create: vi.fn(), deleteBefore: vi.fn(), listPage: vi.fn().mockResolvedValue({ total: 0, items: [] }) };
+    const useCases = createAuditUseCases({ repo: repo as never });
+    const result = await useCases.listAuditEvents({ page: 1_000_000_000, pageSize: 20 }, new Date("2026-07-19T00:00:00.000Z"));
+    // page 被 clamp 到 100000，skip = (100000 - 1) * 20 = 1999980（有界），而非 ~2e10。
+    expect(result.page).toBe(100_000);
+    expect(repo.listPage).toHaveBeenCalledWith(expect.objectContaining({ skip: 1_999_980, take: 20 }));
+  });
 });

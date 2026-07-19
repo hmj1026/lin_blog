@@ -19,6 +19,14 @@ describe("sanitizeAuditSummary", () => {
     });
   });
 
+  it("允許站點設定欄位名，仍拒絕 token 與 content", () => {
+    expect(sanitizeAuditSummary({
+      changedFields: ["siteName", "showBlogLink", "aboutContent", "token", "content"],
+    })).toEqual({
+      changedFields: ["siteName", "showBlogLink", "aboutContent"],
+    });
+  });
+
   it("限制字串、陣列與數值摘要的大小", () => {
     expect(sanitizeAuditSummary({
       scope: "x".repeat(500),

@@ -2,6 +2,9 @@ import { sanitizeAuditSummary } from "../domain/audit-summary";
 import type { AuditRepository } from "./ports";
 
 export const AUDIT_RETENTION_DAYS = 365;
+// 分頁上界：避免任意大的 page 造成巨大 OFFSET、資料庫成本或超出整數範圍。
+// 保留期 365 天內的高風險事件遠低於此上界，實務不會受限。
+export const MAX_AUDIT_PAGE = 100_000;
 
 /** 建立 audit 寫入與 365 天資料保存政策的應用層操作。 */
 export function createAuditUseCases({ repo }: { repo: AuditRepository }) {
@@ -31,7 +34,8 @@ export function createAuditUseCases({ repo }: { repo: AuditRepository }) {
       actor?: string;
       resource?: string;
     }, now = new Date()) => {
-      const page = Number.isInteger(input.page) && (input.page ?? 0) > 0 ? input.page! : 1;
+      const requestedPage = Number.isInteger(input.page) && (input.page ?? 0) > 0 ? input.page! : 1;
+      const page = Math.min(requestedPage, MAX_AUDIT_PAGE);
       const pageSize = Number.isInteger(input.pageSize) && (input.pageSize ?? 0) > 0
         ? Math.min(input.pageSize!, 100)
         : 20;

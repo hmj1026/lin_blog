@@ -13,7 +13,7 @@ import { DELETE as deleteUpload } from "@/app/api/uploads/[id]/route";
 import { PUT as updateSettings } from "@/app/api/site-settings/route";
 import { POST as batchPosts } from "@/app/api/posts/batch/route";
 import { POST as importPosts } from "@/app/api/posts/import/route";
-import { DELETE as deletePost } from "@/app/api/posts/[id]/route";
+import { DELETE as deletePost, PATCH as patchPost } from "@/app/api/posts/[id]/route";
 import { DELETE as deleteCategory, PATCH as patchCategory } from "@/app/api/categories/[id]/route";
 import { DELETE as deleteTag, PATCH as patchTag } from "@/app/api/tags/[id]/route";
 import { PUT as updateAbout } from "@/app/api/site-settings/about/route";
@@ -24,14 +24,18 @@ vi.mock("@/lib/api-utils", () => ({
   jsonError: vi.fn((message, status) => Response.json({ success: false, message }, { status })),
   handleApiError: vi.fn(() => Response.json({ success: false }, { status: 500 })),
 }));
-vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn() }));
+vi.mock("@/lib/server/audit-safe", () => ({
+  recordAuditEventSafely: vi.fn(),
+  changedFieldNames: (payload: unknown) =>
+    payload && typeof payload === "object" && !Array.isArray(payload) ? Object.keys(payload) : [],
+}));
 vi.mock("@/lib/auth", () => ({ getSession: vi.fn().mockResolvedValue({ user: { id: "actor-1" } }) }));
 vi.mock("@/lib/server-queries", () => ({ securityAdminQueries: {}, siteSettingsQueries: {} }));
-vi.mock("@/modules/security-admin", () => ({ securityAdminUseCases: { createUser: vi.fn(), updateUser: vi.fn(), softDeleteUser: vi.fn(), getUserAuthSnapshot: vi.fn(), createRole: vi.fn(), updateRole: vi.fn(), softDeleteRole: vi.fn(), listRolePermissions: vi.fn() } }));
+vi.mock("@/modules/security-admin", () => ({ securityAdminUseCases: { createUser: vi.fn(), updateUser: vi.fn(), softDeleteUser: vi.fn(), getUserAuthSnapshot: vi.fn(), createRole: vi.fn(), updateRole: vi.fn(), softDeleteRole: vi.fn(), listRolePermissions: vi.fn(), getRoleAuditState: vi.fn() } }));
 vi.mock("@/modules/security-admin/presentation/dto", () => ({ toUserAdminRowDto: vi.fn((value) => value), toRoleDto: vi.fn((value) => value), toPermissionDto: vi.fn((value) => value) }));
 vi.mock("@/modules/media", () => ({ mediaUseCases: { softDeleteUpload: vi.fn() } }));
 vi.mock("@/modules/site-settings", () => ({ siteSettingsUseCases: { updateDefault: vi.fn(), updateAboutContent: vi.fn() } }));
-vi.mock("@/modules/posts", () => ({ postsUseCases: { batchPostAction: vi.fn(), importPosts: vi.fn(), removePost: vi.fn(), removeCategory: vi.fn(), mergeCategory: vi.fn(), restoreCategory: vi.fn(), removeTag: vi.fn(), mergeTag: vi.fn(), restoreTag: vi.fn() } }));
+vi.mock("@/modules/posts", () => ({ postsUseCases: { batchPostAction: vi.fn(), importPosts: vi.fn(), removePost: vi.fn(), restorePost: vi.fn(), removeCategory: vi.fn(), mergeCategory: vi.fn(), restoreCategory: vi.fn(), removeTag: vi.fn(), mergeTag: vi.fn(), restoreTag: vi.fn() } }));
 
 describe("高風險 mutation audit", () => {
   beforeEach(() => {
@@ -61,7 +65,7 @@ describe("高風險 mutation audit", () => {
   });
 
   it("角色權限實際變更時記錄 name 與 permissions", async () => {
-    vi.mocked(securityAdminUseCases.listRolePermissions).mockResolvedValue(["admin:access"]);
+    vi.mocked(securityAdminUseCases.getRoleAuditState).mockResolvedValue({ key: "ADMIN", name: "舊名稱", permissionKeys: ["admin:access"] });
     vi.mocked(securityAdminUseCases.updateRole).mockResolvedValue({ id: "role-1" } as never);
     await updateRole(new Request("http://local/api/roles/role-1", { method: "PUT", body: JSON.stringify({ key: "ADMIN", name: "管理員", permissionKeys: ["admin:access", "audit:view"] }) }), { params: Promise.resolve({ id: "role-1" }) });
     expect(recordAuditEventSafely).toHaveBeenCalledWith({ action: "role.updated", resourceType: "role", resourceId: "role-1", summary: { changedFields: ["name", "permissions"], affectedCount: 2 } });
@@ -69,7 +73,7 @@ describe("高風險 mutation audit", () => {
 
   it("角色權限未變更時不誤記 permissions", async () => {
     // 更新前後權限集合相同（僅順序不同）→ 只應記錄 name，不得無條件宣稱 permissions 變更。
-    vi.mocked(securityAdminUseCases.listRolePermissions).mockResolvedValue(["admin:access", "audit:view"]);
+    vi.mocked(securityAdminUseCases.getRoleAuditState).mockResolvedValue({ key: "ADMIN", name: "舊名稱", permissionKeys: ["admin:access", "audit:view"] });
     vi.mocked(securityAdminUseCases.updateRole).mockResolvedValue({ id: "role-1" } as never);
     await updateRole(new Request("http://local/api/roles/role-1", { method: "PUT", body: JSON.stringify({ key: "ADMIN", name: "新名稱", permissionKeys: ["audit:view", "admin:access"] }) }), { params: Promise.resolve({ id: "role-1" }) });
     expect(recordAuditEventSafely).toHaveBeenCalledWith({ action: "role.updated", resourceType: "role", resourceId: "role-1", summary: { changedFields: ["name"], affectedCount: 2 } });
@@ -77,10 +81,18 @@ describe("高風險 mutation audit", () => {
 
   it("重複的 permissionKeys 在集合相同時不誤記 permissions", async () => {
     // payload 送出重複 key，但去重後與更新前集合相同 → 只記 name，affectedCount 取去重後數量。
-    vi.mocked(securityAdminUseCases.listRolePermissions).mockResolvedValue(["admin:access"]);
+    vi.mocked(securityAdminUseCases.getRoleAuditState).mockResolvedValue({ key: "ADMIN", name: "舊名稱", permissionKeys: ["admin:access"] });
     vi.mocked(securityAdminUseCases.updateRole).mockResolvedValue({ id: "role-1" } as never);
     await updateRole(new Request("http://local/api/roles/role-1", { method: "PUT", body: JSON.stringify({ key: "ADMIN", name: "新名稱", permissionKeys: ["admin:access", "admin:access"] }) }), { params: Promise.resolve({ id: "role-1" }) });
     expect(recordAuditEventSafely).toHaveBeenCalledWith({ action: "role.updated", resourceType: "role", resourceId: "role-1", summary: { changedFields: ["name"], affectedCount: 1 } });
+  });
+
+  it("角色 key 變更時記錄 key，name 未變更則不記", async () => {
+    // 僅識別鍵 key 變更（ADMIN → ADMINISTRATOR），name/permissions 與更新前相同。
+    vi.mocked(securityAdminUseCases.getRoleAuditState).mockResolvedValue({ key: "ADMIN", name: "管理員", permissionKeys: ["admin:access"] });
+    vi.mocked(securityAdminUseCases.updateRole).mockResolvedValue({ id: "role-1" } as never);
+    await updateRole(new Request("http://local/api/roles/role-1", { method: "PUT", body: JSON.stringify({ key: "ADMINISTRATOR", name: "管理員", permissionKeys: ["admin:access"] }) }), { params: Promise.resolve({ id: "role-1" }) });
+    expect(recordAuditEventSafely).toHaveBeenCalledWith({ action: "role.updated", resourceType: "role", resourceId: "role-1", summary: { changedFields: ["key"], affectedCount: 1 } });
   });
 
   it("媒體刪除、設定更新與文章批次成功後寫入有界摘要", async () => {
@@ -88,11 +100,22 @@ describe("高風險 mutation audit", () => {
     vi.mocked(siteSettingsUseCases.updateDefault).mockResolvedValue({} as never);
     vi.mocked(postsUseCases.batchPostAction).mockResolvedValue({ count: 2, results: [] } as never);
     await deleteUpload(new Request("http://local/api/uploads/file-1", { method: "DELETE" }), { params: Promise.resolve({ id: "file-1" }) });
-    await updateSettings(new Request("http://local/api/site-settings", { method: "PUT", body: JSON.stringify({ siteName: "新名稱", aboutContent: "完整秘密內容" }) }));
+    await updateSettings(new Request("http://local/api/site-settings", { method: "PUT", body: JSON.stringify({ siteName: "新名稱", showBlogLink: false }) }));
     await batchPosts(new NextRequest("http://local/api/posts/batch", { method: "POST", body: JSON.stringify({ action: "publish", postIds: ["post-1", "post-2"] }) }));
     expect(recordAuditEventSafely).toHaveBeenNthCalledWith(1, { action: "media.deleted", resourceType: "upload", resourceId: "file-1", summary: {} });
-    expect(recordAuditEventSafely).toHaveBeenNthCalledWith(2, { action: "settings.updated", resourceType: "site-settings", resourceId: "default", summary: { changedFields: ["metadata"] } });
+    // 記錄實際變更的設定欄位名（僅欄位名，非值），而非固定的 "metadata"。
+    expect(recordAuditEventSafely).toHaveBeenNthCalledWith(2, { action: "settings.updated", resourceType: "site-settings", resourceId: "default", summary: { changedFields: ["siteName", "showBlogLink"] } });
     expect(recordAuditEventSafely).toHaveBeenNthCalledWith(3, { action: "posts.batch_publish", resourceType: "post", resourceId: "batch", summary: { affectedCount: 2, referenceIds: ["post-1", "post-2"] } });
+  });
+
+  it("還原文章、分類與標籤成功後皆寫入 audit", async () => {
+    vi.mocked(postsUseCases.restorePost).mockResolvedValue({} as never);
+    vi.mocked(postsUseCases.restoreCategory).mockResolvedValue({ id: "category-1" } as never);
+    vi.mocked(postsUseCases.restoreTag).mockResolvedValue({ id: "tag-1" } as never);
+    await patchPost(new Request("http://local/api/posts/post-1", { method: "PATCH", body: JSON.stringify({ restore: true }) }), { params: Promise.resolve({ id: "post-1" }) });
+    await patchCategory(new Request("http://local/api/categories/category-1", { method: "PATCH", body: JSON.stringify({}) }), { params: Promise.resolve({ id: "category-1" }) });
+    await patchTag(new Request("http://local/api/tags/tag-1", { method: "PATCH", body: JSON.stringify({}) }), { params: Promise.resolve({ id: "tag-1" }) });
+    expect(vi.mocked(recordAuditEventSafely).mock.calls.map(([event]) => event.action)).toEqual(["post.restored", "category.restored", "tag.restored"]);
   });
 
   it("audit 寫入失敗不改變主要 mutation 的成功回應", async () => {
