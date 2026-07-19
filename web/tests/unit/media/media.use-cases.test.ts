@@ -5,6 +5,7 @@ import type { UploadRepository, UploadRecord, StoragePort, ImageProcessorPort } 
 // Mock repository
 const createMockRepo = (): UploadRepository => ({
   list: vi.fn(),
+  listPage: vi.fn(),
   getById: vi.fn(),
   create: vi.fn(),
   softDelete: vi.fn(),
@@ -34,13 +35,20 @@ describe("mediaUseCases", () => {
   let mockRepo: UploadRepository;
   let mockStorage: StoragePort;
   let mockImageProcessor: ImageProcessorPort;
+  let mockReferences: { listStructuredReferences: ReturnType<typeof vi.fn> };
   let useCases: ReturnType<typeof createMediaUseCases>;
 
   beforeEach(() => {
     mockRepo = createMockRepo();
     mockStorage = createMockStorage();
     mockImageProcessor = createMockImageProcessor();
-    useCases = createMediaUseCases({ uploads: mockRepo, storage: mockStorage, imageProcessor: mockImageProcessor });
+    mockReferences = { listStructuredReferences: vi.fn().mockResolvedValue([]) };
+    useCases = createMediaUseCases({
+      uploads: mockRepo,
+      storage: mockStorage,
+      imageProcessor: mockImageProcessor,
+      references: mockReferences,
+    } as any);
   });
 
   describe("listUploads", () => {
@@ -71,6 +79,30 @@ describe("mediaUseCases", () => {
 
       await useCases.listUploads({ search: "test", type: "image", take: 50 });
       expect(mockRepo.list).toHaveBeenCalledWith({ search: "test", type: "image", take: 50 });
+    });
+  });
+
+  describe("listUploadsPage", () => {
+    it("以有界分頁參數查詢媒體", async () => {
+      (mockRepo.listPage as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [mockUpload], total: 21 });
+
+      const result = await useCases.listUploadsPage({ search: " hero ", type: "image/", page: 2, pageSize: 10 });
+
+      expect(mockRepo.listPage).toHaveBeenCalledWith({ search: "hero", type: "image/", page: 2, pageSize: 10 });
+      expect(result).toEqual({ items: [mockUpload], page: 2, pageSize: 10, total: 21, totalPages: 3 });
+    });
+
+    it("限制頁碼、每頁筆數與媒體類型", async () => {
+      (mockRepo.listPage as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+
+      await useCases.listUploadsPage({ search: "x".repeat(150), type: "text/html", page: 0, pageSize: 500 });
+
+      expect(mockRepo.listPage).toHaveBeenCalledWith({
+        search: "x".repeat(100),
+        type: undefined,
+        page: 1,
+        pageSize: 100,
+      });
     });
   });
 
@@ -110,6 +142,19 @@ describe("mediaUseCases", () => {
   });
 
   describe("softDeleteUpload", () => {
+    it("returns structured deletion impact before confirmation", async () => {
+      (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
+      mockReferences.listStructuredReferences.mockResolvedValue([
+        { resourceType: "post", resourceId: "post-1", field: "ogImage", label: "文章 OG 圖片" },
+      ]);
+
+      await expect(useCases.getUploadDeletionImpact("upload-1")).resolves.toEqual({
+        ok: true,
+        upload: mockUpload,
+        references: [{ resourceType: "post", resourceId: "post-1", field: "ogImage", label: "文章 OG 圖片" }],
+      });
+    });
+
     it("軟刪除上傳記錄", async () => {
       (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
       (mockRepo.softDelete as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "upload-1" });
@@ -133,6 +178,34 @@ describe("mediaUseCases", () => {
 
       const result = await useCases.softDeleteUpload("upload-1");
       expect(result).toEqual({ ok: false, error: "not-found" });
+      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it("阻擋仍被結構化欄位引用的媒體刪除", async () => {
+      (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
+      mockReferences.listStructuredReferences.mockResolvedValue([
+        { resourceType: "post", resourceId: "post-1", field: "coverImage", label: "文章封面" },
+      ]);
+
+      const result = await useCases.softDeleteUpload("upload-1");
+
+      expect(result).toEqual({
+        ok: false,
+        error: "referenced",
+        references: [{ resourceType: "post", resourceId: "post-1", field: "coverImage", label: "文章封面" }],
+      });
+      expect(mockRepo.softDelete).not.toHaveBeenCalled();
+    });
+
+    it("阻擋需人工檢查的 Raw HTML 引用候選", async () => {
+      (mockRepo.getById as ReturnType<typeof vi.fn>).mockResolvedValue(mockUpload);
+      mockReferences.listStructuredReferences.mockResolvedValue([
+        { resourceType: "post", resourceId: "post-2", field: "content", certainty: "manual-review", label: "Raw HTML 可能引用：嵌入碼（需人工檢查）" },
+      ]);
+
+      const result = await useCases.softDeleteUpload("upload-1");
+
+      expect(result).toEqual(expect.objectContaining({ ok: false, error: "referenced" }));
       expect(mockRepo.softDelete).not.toHaveBeenCalled();
     });
   });

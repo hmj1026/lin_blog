@@ -11,31 +11,44 @@ function mapVisibilityFromPrisma(value: PrismaUploadVisibility): UploadVisibilit
   return value === PrismaUploadVisibility.PRIVATE ? "PRIVATE" : "PUBLIC";
 }
 
+function buildListWhere(params: { search?: string; type?: string }) {
+  return {
+    deletedAt: null,
+    ...(params.search ? { originalName: { contains: params.search, mode: "insensitive" as const } } : {}),
+    ...(params.type ? { mimeType: { startsWith: params.type } } : {}),
+  };
+}
+
+function mapUpload(u: Awaited<ReturnType<typeof prisma.upload.findMany>>[number]) {
+  return {
+    id: u.id,
+    originalName: u.originalName,
+    storageKey: u.storageKey,
+    mimeType: u.mimeType,
+    size: u.size,
+    visibility: mapVisibilityFromPrisma(u.visibility),
+    deletedAt: u.deletedAt,
+    createdAt: u.createdAt,
+  };
+}
+
 export const uploadRepositoryPrisma: UploadRepository = {
   async list(params) {
     const uploads = await prisma.upload.findMany({
-      where: {
-        deletedAt: null,
-        ...(params.search
-          ? {
-              originalName: { contains: params.search, mode: "insensitive" },
-            }
-          : {}),
-        ...(params.type ? { mimeType: { startsWith: params.type } } : {}),
-      },
+      where: buildListWhere(params),
       orderBy: { createdAt: "desc" },
       take: params.take,
     });
-    return uploads.map((u) => ({
-      id: u.id,
-      originalName: u.originalName,
-      storageKey: u.storageKey,
-      mimeType: u.mimeType,
-      size: u.size,
-      visibility: mapVisibilityFromPrisma(u.visibility),
-      deletedAt: u.deletedAt,
-      createdAt: u.createdAt,
-    }));
+    return uploads.map(mapUpload);
+  },
+
+  async listPage(params) {
+    const where = buildListWhere(params);
+    const [uploads, total] = await Promise.all([
+      prisma.upload.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: (params.page - 1) * params.pageSize, take: params.pageSize }),
+      prisma.upload.count({ where }),
+    ]);
+    return { items: uploads.map(mapUpload), total };
   },
 
   async getById(id) {
@@ -70,4 +83,3 @@ export const uploadRepositoryPrisma: UploadRepository = {
     return prisma.upload.update({ where: { id }, data: { deletedAt: new Date() }, select: { id: true } });
   },
 };
-

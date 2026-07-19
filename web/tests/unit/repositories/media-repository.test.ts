@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     upload: {
       findMany: vi.fn(),
+      count: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -80,6 +81,25 @@ describe("uploadRepositoryPrisma", () => {
           }),
         })
       );
+    });
+  });
+
+  describe("listPage", () => {
+    it("同時回傳符合篩選的資料與總數", async () => {
+      (prisma.upload.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([mockUpload]);
+      (prisma.upload.count as ReturnType<typeof vi.fn>).mockResolvedValue(11);
+
+      const result = await uploadRepositoryPrisma.listPage({ search: "hero", type: "image/", page: 2, pageSize: 10 });
+
+      expect(result).toEqual({ items: [expect.objectContaining({ id: mockUpload.id })], total: 11 });
+      expect(prisma.upload.findMany).toHaveBeenCalledWith(expect.objectContaining({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip: 10, take: 10 }));
+      expect(prisma.upload.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          deletedAt: null,
+          originalName: { contains: "hero", mode: "insensitive" },
+          mimeType: { startsWith: "image/" },
+        }),
+      });
     });
   });
 

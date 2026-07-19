@@ -1,7 +1,6 @@
 import { jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 import { mediaUseCases } from "@/modules/media";
-import { mediaQueries } from "@/lib/server-queries";
 import { toUploadListItemDto } from "@/modules/media/presentation/dto";
 import { env } from "@/env";
 
@@ -19,12 +18,14 @@ export async function GET(request: NextRequest) {
   if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search") || "";
-  const type = searchParams.get("type") || "";
+  const result = await mediaUseCases.listUploadsPage({
+    search: searchParams.get("q") ?? searchParams.get("search") ?? undefined,
+    type: searchParams.get("type") ?? undefined,
+    page: Number(searchParams.get("page") ?? 1),
+    pageSize: Number(searchParams.get("pageSize") ?? 20),
+  });
 
-  const uploads = await mediaQueries.listUploads({ search, type, take: 100 });
-
-  return jsonOk(uploads.map(toUploadListItemDto));
+  return jsonOk({ ...result, items: result.items.map(toUploadListItemDto) });
 }
 
 /**

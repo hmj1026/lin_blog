@@ -1,9 +1,15 @@
 import { randomUUID } from "crypto";
 import path from "path";
-import type { UploadRepository, StoragePort, ImageProcessorPort } from "./ports";
+import type { UploadRepository, StoragePort, ImageProcessorPort, MediaReferenceRepository } from "./ports";
 import type { UploadVisibility } from "../domain";
 
 const MAX_LIST_TAKE = 200;
+const MEDIA_TYPES = new Set(["image/", "video/", "application/pdf"]);
+
+function boundedInteger(value: number | undefined, fallback: number, min: number, max: number) {
+  const normalized = Number.isFinite(value) ? Math.trunc(value as number) : fallback;
+  return Math.max(min, Math.min(normalized, max));
+}
 
 export type MediaUseCases = ReturnType<typeof createMediaUseCases>;
 
@@ -17,6 +23,7 @@ export function createMediaUseCases(deps: {
   uploads: UploadRepository;
   storage: StoragePort;
   imageProcessor: ImageProcessorPort;
+  references: MediaReferenceRepository;
 }) {
   return {
     /**
@@ -25,6 +32,22 @@ export function createMediaUseCases(deps: {
     listUploads: async (params: { search?: string; type?: string; take?: number }) => {
       const take = Math.max(1, Math.min(params.take ?? 100, MAX_LIST_TAKE));
       return deps.uploads.list({ search: params.search, type: params.type, take });
+    },
+
+    /** 以有界參數取得管理端媒體分頁，避免無限制查詢。 */
+    listUploadsPage: async (params: { search?: string; type?: string; page?: number; pageSize?: number }) => {
+      const search = params.search?.trim().slice(0, 100) || undefined;
+      const type = params.type && MEDIA_TYPES.has(params.type) ? params.type : undefined;
+      const page = boundedInteger(params.page, 1, 1, 10_000);
+      const pageSize = boundedInteger(params.pageSize, 20, 1, 100);
+      const result = await deps.uploads.listPage({ search, type, page, pageSize });
+      return {
+        items: result.items,
+        page,
+        pageSize,
+        total: result.total,
+        totalPages: Math.max(1, Math.ceil(result.total / pageSize)),
+      };
     },
 
     /**
@@ -93,12 +116,24 @@ export function createMediaUseCases(deps: {
      */
     openFileStream: (storageKey: string) => deps.storage.getObjectStream({ key: storageKey }),
 
+    /** 取得刪除確認所需的檔案與結構化引用摘要。 */
+    getUploadDeletionImpact: async (id: string) => {
+      const upload = await deps.uploads.getById(id);
+      if (!upload || upload.deletedAt) return { ok: false as const, error: "not-found" as const };
+      const references = await deps.references.listStructuredReferences(id);
+      return { ok: true as const, upload, references };
+    },
+
     /**
      * 軟刪除上傳記錄。若檔案不存在或已刪除，回傳 error: "not-found"
      */
     softDeleteUpload: async (id: string) => {
       const existing = await deps.uploads.getById(id);
       if (!existing || existing.deletedAt) return { ok: false as const, error: "not-found" as const };
+      const references = await deps.references.listStructuredReferences(id);
+      if (references.length > 0) {
+        return { ok: false as const, error: "referenced" as const, references };
+      }
       await deps.uploads.softDelete(id);
       return { ok: true as const };
     },
