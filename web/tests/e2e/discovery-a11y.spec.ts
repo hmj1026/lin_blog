@@ -202,16 +202,14 @@ test.describe("discovery-a11y", () => {
     // 第一頁時「上一頁」正確地停用（disabled 元素本就不可聚焦，這是正確的鍵盤
     // 行為，不是缺陷）；改驗證「下一頁」——若有下一頁則應可鍵盤聚焦並具可見樣式，
     // 否則兩者皆停用也視為合法（只有一頁資料時沒有可操作的分頁按鈕）。
-    const prevButton = page.getByRole("button", { name: "上一頁" });
-    await expect(prevButton).toBeDisabled();
+    const prevControl = page.getByText("上一頁", { exact: true });
+    await expect(prevControl).toBeVisible();
+    expect(await prevControl.evaluate((element) => element.tagName)).toBe("SPAN");
 
-    const nextButton = page.getByRole("button", { name: "下一頁" });
-    const nextDisabled = await nextButton.isDisabled();
-    if (!nextDisabled) {
-      await expect(nextButton).toBeEnabled();
-      await nextButton.focus();
-      await expect(nextButton).toBeFocused();
-      expect(await hasVisibleFocusStyle(nextButton)).toBe(true);
-    }
+    const nextLink = page.getByRole("link", { name: "下一頁" });
+    await expect(nextLink).toBeVisible();
+    await nextLink.focus();
+    await expect(nextLink).toBeFocused();
+    expect(await hasVisibleFocusStyle(nextLink)).toBe(true);
   });
 });

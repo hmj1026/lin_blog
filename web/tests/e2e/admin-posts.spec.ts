@@ -122,7 +122,7 @@ test.describe("編輯文章流程", () => {
 
     const fixtureRow = page.locator("tbody tr", { hasText: title }).first();
     await expect(fixtureRow).toBeVisible();
-    await fixtureRow.getByRole("button", { name: "編輯" }).click();
+    await fixtureRow.getByRole("link", { name: "編輯" }).click();
 
     // 驗證進入編輯頁面
     await page.waitForURL("**/posts/**");

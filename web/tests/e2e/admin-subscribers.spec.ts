@@ -112,9 +112,10 @@ test.describe("admin-subscribers", () => {
       await expect(row.locator("td").nth(2)).not.toHaveText("");
 
       // Non-Goals：不得出現匯出／刪除／群發等寫入操作入口（依可存取名稱檢查）。
+      const main = page.getByRole("main");
       for (const name of [/匯出/, /export/i, /刪除/, /delete/i, /群發/, /寄信/, /broadcast/i]) {
-        await expect(page.getByRole("button", { name })).toHaveCount(0);
-        await expect(page.getByRole("link", { name })).toHaveCount(0);
+        await expect(main.getByRole("button", { name })).toHaveCount(0);
+        await expect(main.getByRole("link", { name })).toHaveCount(0);
       }
     });
 
@@ -128,10 +129,11 @@ test.describe("admin-subscribers", () => {
       await expect(searchInput).toHaveValue(searchableEmail);
     });
 
-    test("分頁控制項可操作（第一頁上一頁停用）", async ({ page }) => {
+    test("分頁控制項保留 URL 查詢（第一頁上一頁不可操作）", async ({ page }) => {
       await gotoSettled(page, "/admin/subscribers");
       await expect(page.getByText(searchableEmail)).toBeVisible({ timeout: 15000 });
-      await expect(page.getByRole("button", { name: "上一頁" })).toBeDisabled();
+      await expect(page.getByText("上一頁", { exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: "上一頁" })).toHaveCount(0);
     });
   });
 
@@ -140,11 +142,12 @@ test.describe("admin-subscribers", () => {
     // admin storageState，再各自用 EDITOR 帳號登入，避免沿用 admin 身分。
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test("開啟後台訂閱者頁面被導向，畫面不閃現訂閱者資料", async ({ page }) => {
+    test("開啟後台訂閱者頁面顯示 403 安全狀態，畫面不閃現訂閱者資料", async ({ page }) => {
       await login(page, editorEmail, editorPassword);
 
       await gotoSettled(page, "/admin/subscribers");
-      await page.waitForURL(/\/admin(?!\/subscribers)/, { timeout: 15000 });
+      await expect(page).toHaveURL(/\/admin\/subscribers/);
+      await expect(page.getByRole("heading", { name: "無法存取此頁面" })).toBeVisible();
       await expect(page.getByText(searchableEmail)).toHaveCount(0);
     });
 
@@ -157,6 +160,18 @@ test.describe("admin-subscribers", () => {
       expect(text).not.toContain(searchableEmail);
       expect(text).not.toContain(searchableName);
       expect(text).not.toMatch(/"total"/);
+    });
+
+    test("可讀彙總分析但看不到敏感事件稽核與系統管理入口", async ({ page }) => {
+      await login(page, editorEmail, editorPassword);
+      await page.setViewportSize({ width: 1024, height: 900 });
+      await gotoSettled(page, "/admin/analytics/posts");
+
+      await expect(page.getByRole("heading", { name: "文章統計" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "進階稽核" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "使用者管理" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "角色權限" })).toHaveCount(0);
+      await expect(page.getByText("編輯", { exact: true })).toBeVisible();
     });
   });
 
