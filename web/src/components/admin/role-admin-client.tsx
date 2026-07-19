@@ -65,6 +65,18 @@ function uniq(values: string[]) {
   return Array.from(new Set(values));
 }
 
+/**
+ * 產生不與現有角色衝突的 key：base 未被占用即回傳，否則附加遞增序號（base_2、base_3…）。
+ * 讓連續複製同一角色（base 為 `${key}_COPY`）不會撞唯一 key 而導致第二次複製失敗。
+ */
+export function uniqueRoleKey(existingKeys: string[], base: string): string {
+  const existing = new Set(existingKeys);
+  if (!existing.has(base)) return base;
+  let suffix = 2;
+  while (existing.has(`${base}_${suffix}`)) suffix += 1;
+  return `${base}_${suffix}`;
+}
+
 export function RoleAdminClient({
   permissions,
   initialRoles,
@@ -88,8 +100,8 @@ export function RoleAdminClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(template
-          ? { key: `${template.key}_COPY`, name: `${template.name} 複本`, permissionKeys: template.permissionKeys }
-          : { key: "NEW_ROLE", name: "新角色", permissionKeys: [] }),
+          ? { key: uniqueRoleKey(roles.map((role) => role.key), `${template.key}_COPY`), name: `${template.name} 複本`, permissionKeys: template.permissionKeys }
+          : { key: uniqueRoleKey(roles.map((role) => role.key), "NEW_ROLE"), name: "新角色", permissionKeys: [] }),
       });
       const json = await parseApiResponse<RoleRow>(res);
       if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");

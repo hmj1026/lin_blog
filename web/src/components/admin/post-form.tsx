@@ -54,6 +54,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const expectedUpdatedAtRef = useRef<string | null>(initial.updatedAt ?? null);
   const persistedStatusRef = useRef<PostStatus>(initial.status);
   const lastAutoSaveCandidateRef = useRef<string | null>(null);
+  // 自動儲存失敗後遞增此 nonce 以強制重新觸發自動儲存 effect，讓相同內容得以重試。
+  const [autoSaveRetryNonce, setAutoSaveRetryNonce] = useState(0);
   const [showRawHtmlToc, setShowRawHtmlToc] = useState(initial.showRawHtmlToc ?? false);
   const [status, setStatus] = useState<PostStatus>(initial.status);
   const [publishedAt, setPublishedAt] = useState(initial.publishedAt ?? "");
@@ -99,9 +101,13 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     });
   }
   const savedSnapshotRef = useRef(buildSnapshot());
+  // 永遠反映「最新一次 render 的表單快照」，讓儲存完成時能以請求期間可能產生的最新編輯重算 dirty，
+  // 而非請求送出當下的舊快照（避免請求期間的新編輯被誤清 dirty 而遺失）。
+  const latestSnapshotRef = useRef(buildSnapshot());
 
   useEffect(() => {
-    setDirty(buildSnapshot() !== savedSnapshotRef.current);
+    latestSnapshotRef.current = buildSnapshot();
+    setDirty(latestSnapshotRef.current !== savedSnapshotRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     slug,
@@ -256,14 +262,22 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       const savedUpdatedAt = (json.data as { updatedAt?: string } | null)?.updatedAt;
       if (savedUpdatedAt) expectedUpdatedAtRef.current = savedUpdatedAt;
       persistedStatusRef.current = payload.status;
+      // savedSnapshotRef 記錄「實際送出並儲存的快照」；dirty 則以最新快照（含請求期間的新編輯）重算，
+      // 讓請求進行中產生的變更仍保持 dirty、續發自動儲存與離開警告，不會被舊快照誤清。
       savedSnapshotRef.current = buildSnapshot(kind === "auto" ? persistedStatusRef.current : status);
-      setDirty(buildSnapshot() !== savedSnapshotRef.current);
+      setDirty(latestSnapshotRef.current !== savedSnapshotRef.current);
       const savedAt = new Date();
       setMessage(kind === "auto" ? `上次自動儲存：${savedAt.toLocaleTimeString("zh-TW")}` : "儲存成功");
       setValidationSummary(null);
       return true;
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "儲存失敗");
+      // 自動儲存失敗（網路/5xx）時清除 candidate 並遞增 nonce 以重新觸發 effect，讓相同內容得以重試；
+      // 版本衝突（409）另由 conflict 旗標阻擋自動儲存，不會在此重試。
+      if (kind === "auto") {
+        lastAutoSaveCandidateRef.current = null;
+        setAutoSaveRetryNonce((nonce) => nonce + 1);
+      }
       return false;
     } finally {
       setSaving(false);
@@ -280,8 +294,9 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     }, 1000);
     return () => window.clearTimeout(timer);
     // performSave/buildSnapshot intentionally use the current render snapshot.
+    // autoSaveRetryNonce 讓失敗後（表單欄位未變、saving 因批次淨值不變）仍能重新觸發此 effect 排程重試。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, postId, dirty, saving, conflict, slug, title, excerpt, content, coverImage, readingTime, featured, authoringMode, showRawHtmlToc, status, publishedAt, categoryIds, tagIds, seoTitle, seoDescription, ogImage]);
+  }, [mode, postId, dirty, saving, conflict, autoSaveRetryNonce, slug, title, excerpt, content, coverImage, readingTime, featured, authoringMode, showRawHtmlToc, status, publishedAt, categoryIds, tagIds, seoTitle, seoDescription, ogImage]);
 
   async function submit() {
     const success = await performSave();

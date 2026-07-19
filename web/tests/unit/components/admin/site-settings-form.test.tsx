@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SiteSettingsForm } from "@/components/admin/site-settings-form";
 
@@ -177,6 +177,35 @@ describe("SiteSettingsForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "儲存此區" }));
 
     expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)).toEqual({ showBlogLink: false });
+  });
+
+  it("儲存請求進行中再次修改同欄位時，新值仍維持 dirty（不被誤標為已儲存）", async () => {
+    let resolveSave: (value: unknown) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+    const input = screen.getByDisplayValue("Test Site");
+    await userEvent.clear(input);
+    await userEvent.type(input, "First");
+
+    // 送出儲存（請求 pending）。
+    await userEvent.click(screen.getByRole("button", { name: "儲存此區" }));
+
+    // 請求尚未回應時再次把同一欄位改成不同值。
+    await userEvent.clear(input);
+    await userEvent.type(input, "Second");
+
+    // 解析儲存請求（回傳的是送出當下的舊值 "First"）。
+    await act(async () => {
+      resolveSave({ ok: true, json: async () => ({ success: true }) });
+    });
+
+    // 新值 "Second" 必須仍為 dirty：儲存鈕啟用、顯示未儲存變更、輸入維持新值，不被誤標為已儲存。
+    await waitFor(() => expect(screen.getByRole("button", { name: "儲存此區" })).toBeEnabled());
+    expect(screen.getByText("有未儲存變更")).toBeInTheDocument();
+    expect(input).toHaveValue("Second");
   });
 
   it("shows dirty state, can cancel changes, and previews pending desktop/mobile values", async () => {

@@ -55,4 +55,28 @@ describe("AdminDashboardPage", () => {
     const children = ui.props.children as Array<{ props?: Record<string, unknown> } | null>;
     expect(children.some((child) => child?.props ? "drafts" in child.props : false)).toBe(false);
   });
+
+  it("僅有 admin:access 時不查詢任何領域統計卡數據", async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { permissions: ["admin:access"] } } as never);
+
+    await AdminDashboardPage();
+
+    // 統計卡查詢須依各自權限；無任何領域權限時完全不觸發，避免洩露未授予領域的統計。
+    expect(postsQueries.countActivePosts).not.toHaveBeenCalled();
+    expect(postsQueries.countActiveCategories).not.toHaveBeenCalled();
+    expect(postsQueries.countActiveTags).not.toHaveBeenCalled();
+    expect(securityAdminQueries.countActiveUsers).not.toHaveBeenCalled();
+    expect(analyticsQueries.countViews).not.toHaveBeenCalled();
+  });
+
+  it("僅具 posts:write 時只查詢文章統計，不查其他領域", async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { permissions: ["admin:access", "posts:write"] } } as never);
+
+    await AdminDashboardPage();
+
+    expect(postsQueries.countActivePosts).toHaveBeenCalledTimes(1);
+    expect(postsQueries.countActiveCategories).not.toHaveBeenCalled();
+    expect(securityAdminQueries.countActiveUsers).not.toHaveBeenCalled();
+    expect(analyticsQueries.countViews).not.toHaveBeenCalled();
+  });
 });

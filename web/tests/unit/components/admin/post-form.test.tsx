@@ -946,6 +946,60 @@ describe("AdminPostForm", () => {
       }
     });
 
+    it("儲存請求進行中的新編輯仍保持 dirty 並續發自動儲存（不遺失）", async () => {
+      vi.useFakeTimers();
+      let resolveFirst: (value: unknown) => void = () => {};
+      const firstResponse = new Promise((resolve) => {
+        resolveFirst = resolve;
+      });
+      fetchMock
+        .mockReturnValueOnce(firstResponse)
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:02:00.000Z" } }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "First edit" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // 首次儲存尚未回應時再次修改另一欄位。
+        fireEvent.change(screen.getByLabelText("摘要"), { target: { value: "Edited during save" } });
+
+        // 解析首次請求（回傳送出當下的舊快照）。
+        await act(async () => {
+          resolveFirst({ ok: true, json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:01:00.000Z" } }) });
+        });
+
+        // 請求期間的新編輯不得被誤清 dirty → 應對含新摘要的內容續發第二次自動儲存。
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const secondBody = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string);
+        expect(secondBody.excerpt).toBe("Edited during save");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("自動儲存失敗後（使用者未再輸入）仍會對相同內容重試", async () => {
+      vi.useFakeTimers();
+      fetchMock
+        .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ success: false, message: "伺服器錯誤" }) })
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:01:00.000Z" } }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Retry title" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // 失敗後不再輸入，時間前進應對相同內容重試並最終成功。
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("上次自動儲存");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("自動儲存偵測到會被剝除的 HTML 時暫停並提示，不觸發阻塞式確認", async () => {
       vi.useFakeTimers();
       const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CoverUploader } from "@/components/admin/post-form/cover-uploader";
 import type { SiteSettingRecord } from "@/modules/site-settings";
@@ -22,6 +22,11 @@ export function SiteSettingsForm({ initialSettings }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const [settings, setSettings] = useState(initialSettings);
   const savedSettingsRef = useRef(initialSettings);
+  // 永遠反映最新的 settings，供儲存完成時比對「請求期間是否被再次修改」。
+  const settingsRef = useRef(initialSettings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
   const [dirtyFields, setDirtyFields] = useState<Set<keyof SiteSettingRecord>>(new Set());
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -60,7 +65,11 @@ export function SiteSettingsForm({ initialSettings }: Props) {
       savedSettingsRef.current = { ...savedSettingsRef.current, ...changedSettings };
       setDirtyFields((previous) => {
         const next = new Set(previous);
-        sectionKeys.forEach((key) => next.delete(key));
+        // 僅在該欄位最新值等於剛儲存的值時才清除 dirty；請求期間被再次改成不同值者維持 dirty，
+        // 避免新值被誤標為已儲存（儲存鈕停用、取消變更反而還原成舊值）。
+        sectionKeys.forEach((key) => {
+          if (settingsRef.current[key] === savedSettingsRef.current[key]) next.delete(key);
+        });
         return next;
       });
       setMessage(`上次儲存：${new Date().toLocaleTimeString("zh-TW")}`);

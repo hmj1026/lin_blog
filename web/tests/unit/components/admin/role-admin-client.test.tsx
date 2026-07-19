@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RoleAdminClient } from "@/components/admin/role-admin-client";
+import { RoleAdminClient, uniqueRoleKey } from "@/components/admin/role-admin-client";
 
 // Mock fetch
 const fetchMock = vi.fn();
@@ -154,5 +154,18 @@ describe("RoleAdminClient", () => {
     await waitFor(() => {
       expect(screen.queryByDisplayValue("Role One")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("uniqueRoleKey", () => {
+  it("base 未被占用時直接回傳", () => {
+    expect(uniqueRoleKey(["ROLE_ONE"], "ROLE_ONE_COPY")).toBe("ROLE_ONE_COPY");
+  });
+
+  it("連續複製同一角色時產生遞增且不衝突的 key", () => {
+    // 第一個複本 ROLE_ONE_COPY，第二個應避開已存在者改為 ROLE_ONE_COPY_2、再來 _3。
+    expect(uniqueRoleKey(["ROLE_ONE"], "ROLE_ONE_COPY")).toBe("ROLE_ONE_COPY");
+    expect(uniqueRoleKey(["ROLE_ONE", "ROLE_ONE_COPY"], "ROLE_ONE_COPY")).toBe("ROLE_ONE_COPY_2");
+    expect(uniqueRoleKey(["ROLE_ONE", "ROLE_ONE_COPY", "ROLE_ONE_COPY_2"], "ROLE_ONE_COPY")).toBe("ROLE_ONE_COPY_3");
   });
 });
