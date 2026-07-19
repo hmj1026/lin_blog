@@ -5,7 +5,8 @@ import type { DeviceType } from "@/modules/analytics/domain";
 describe("analytics use cases", () => {
   const analytics = {
     getPostSummary: vi.fn(),
-    listEventsSince: vi.fn(),
+    listPostAnalyticsSummaries: vi.fn(),
+    listRefererCounts: vi.fn(),
     countViewEventsSince: vi.fn(),
     findRecentViewEvent: vi.fn(),
     createViewEvent: vi.fn(),
@@ -46,33 +47,40 @@ describe("analytics use cases", () => {
   });
 
   describe("listPostAnalyticsSummary", () => {
-    it("calls repo with since and max take", async () => {
-      analytics.listEventsSince.mockResolvedValue([]);
-      await useCases.listPostAnalyticsSummary({ days: 999 });
-      const call = analytics.listEventsSince.mock.calls[0]?.[0];
-      expect(call.take).toBe(5000);
-      expect(call.since).toBeInstanceOf(Date);
+    it("returns complete database aggregates above the former 5,000-event cap", async () => {
+      analytics.listPostAnalyticsSummaries.mockResolvedValue([
+        {
+          postId: "p1",
+          slug: "s1",
+          title: "T1",
+          views: 6001,
+          uniqueCount: 5100,
+          previousViews: 3000,
+          previousUniqueCount: 2800,
+          lastViewedAt: new Date("2026-07-18T12:00:00Z"),
+        },
+      ]);
+      analytics.listRefererCounts.mockResolvedValue([]);
+
+      const result = await useCases.listPostAnalyticsSummary({ days: 7 });
+
+      expect(result[0]).toEqual(expect.objectContaining({ views: 6001, uniqueCount: 5100, previousViews: 3000 }));
+      expect(analytics.listPostAnalyticsSummaries).toHaveBeenCalledWith(expect.objectContaining({
+        since: expect.any(Date),
+        until: expect.any(Date),
+        previousSince: expect.any(Date),
+        previousUntil: expect.any(Date),
+      }));
     });
 
-    it("aggregates events by postId", async () => {
-      analytics.listEventsSince.mockResolvedValue([
-        { postId: "p1", fingerprint: "fp1", viewedAt: new Date(), post: { slug: "s1", title: "T1", deletedAt: null } },
-        { postId: "p1", fingerprint: "fp2", viewedAt: new Date(), post: { slug: "s1", title: "T1", deletedAt: null } },
-        { postId: "p2", fingerprint: "fp3", viewedAt: new Date(), post: { slug: "s2", title: "T2", deletedAt: null } },
-      ]);
-      const result = await useCases.listPostAnalyticsSummary({ days: 7 });
-      expect(result).toHaveLength(2);
-      const p1 = result.find((r) => r.postId === "p1");
-      expect(p1?.views).toBe(2);
-      expect(p1?.uniqueCount).toBe(2);
-    });
+    it("將分類、標籤與發布期間交給 repository，來源只查同批文章", async () => {
+      analytics.listPostAnalyticsSummaries.mockResolvedValue([{ postId: "p1", slug: "s", title: "T", views: 2, uniqueCount: 2, previousViews: 1, previousUniqueCount: 1, lastViewedAt: null }]);
+      analytics.listRefererCounts.mockResolvedValue([]);
 
-    it("excludes deleted posts", async () => {
-      analytics.listEventsSince.mockResolvedValue([
-        { postId: "p1", fingerprint: "fp1", viewedAt: new Date(), post: { slug: "s1", title: "T1", deletedAt: new Date() } },
-      ]);
-      const result = await useCases.listPostAnalyticsSummary({ days: 7 });
-      expect(result).toHaveLength(0);
+      await useCases.listPostAnalyticsSummary({ days: 30, categoryId: "cat-1", tagId: "tag-1", publishedFrom: new Date("2026-01-01"), publishedTo: new Date("2026-07-01") });
+
+      expect(analytics.listPostAnalyticsSummaries).toHaveBeenCalledWith(expect.objectContaining({ categoryId: "cat-1", tagId: "tag-1", publishedFrom: expect.any(Date), publishedTo: expect.any(Date) }));
+      expect(analytics.listRefererCounts).toHaveBeenCalledWith(expect.objectContaining({ postIds: ["p1"] }));
     });
   });
 
@@ -176,9 +184,12 @@ describe("analytics use cases", () => {
   describe("getDashboardStats", () => {
     it("parses user agents into browser/os stats", async () => {
       analytics.getDashboardStats.mockResolvedValue({
-        trend: [],
+        trend: [{ date: "2026-07-17", count: 3 }],
         topPosts: [],
         devices: [],
+        referers: [],
+        totalViews: 3,
+        previousTotalViews: 2,
         userAgents: [
           // 完整的 Chrome on Windows UA
           { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", count: 10 },
@@ -188,7 +199,15 @@ describe("analytics use cases", () => {
           { userAgent: "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36", count: 3 },
         ],
       });
-      const result = await useCases.getDashboardStats({ days: 7 });
+      const fixedUseCases = createAnalyticsUseCases({
+        analytics,
+        now: () => new Date("2026-07-18T12:00:00.000Z"),
+      });
+      const result = await fixedUseCases.getDashboardStats({ days: 7 });
+      expect(result.trend).toHaveLength(7);
+      expect(result.trend).toContainEqual({ date: "2026-07-17", count: 3 });
+      expect(result.trend).toContainEqual({ date: "2026-07-12", count: 0 });
+      expect(result.comparison).toEqual({ current: 3, previous: 2, percentChange: 50 });
       expect(result.browsers).toContainEqual(expect.objectContaining({ name: "Chrome" }));
       expect(result.browsers).toContainEqual(expect.objectContaining({ name: "Safari" }));
       expect(result.os).toContainEqual(expect.objectContaining({ name: "Windows" }));

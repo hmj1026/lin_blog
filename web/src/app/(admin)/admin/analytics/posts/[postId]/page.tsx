@@ -3,11 +3,13 @@ import { getSession } from "@/lib/auth";
 import { sessionHasPermission } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 import { analyticsQueries } from "@/lib/server-queries";
-import { DEVICE_TYPES, isDeviceType, type DeviceType } from "@/modules/analytics";
+import { DEVICE_TYPES, isDeviceType, maskIpAddress, type DeviceType } from "@/modules/analytics";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { DaysFilter } from "@/components/admin/days-filter";
 import { Field } from "@/components/admin/field";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
+import { AdminDataTable } from "@/components/admin/admin-data-table";
 
 type Props = {
   params: Promise<{ postId: string }>;
@@ -34,8 +36,8 @@ export const deriveDefaultFromDate = (days: number): Date =>
 export default async function AdminPostEventBrowserPage({ params, searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!sessionHasPermission(session, "analytics:view_sensitive")) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!sessionHasPermission(session, "analytics:view_sensitive")) return <AdminAccessDenied />;
 
   const { postId } = await params;
   const sp = await searchParams;
@@ -91,7 +93,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="font-display text-3xl text-primary">事件明細</h1>
+          <h1 className="font-display text-3xl text-primary">進階事件稽核</h1>
           <div className="text-sm text-base-300">
             <span className="font-semibold text-primary">{post.title}</span>
             <span className="mx-2">•</span>
@@ -180,8 +182,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
         </form>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-card">
-        <table className="min-w-full text-sm">
+      <AdminDataTable ariaLabel="進階事件稽核資料表" className="rounded-2xl bg-white shadow-card">
           <thead className="bg-base-100 text-left text-base-300">
             <tr>
               <th className="px-4 py-3">時間</th>
@@ -196,7 +197,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
               <tr key={e.id} className="border-t border-line">
                 <td className="px-4 py-3 text-base-300">{formatDateTime(e.viewedAt)}</td>
                 <td className="px-4 py-3 font-semibold text-primary">{e.deviceType}</td>
-                <td className="px-4 py-3 font-mono text-xs text-primary">{e.ip}</td>
+                <td className="px-4 py-3 font-mono text-xs text-primary">{maskIpAddress(e.ip)}</td>
                 <td className="px-4 py-3">
                   <div className="max-w-[520px] truncate text-base-300" title={e.userAgent}>
                     {e.userAgent}
@@ -217,8 +218,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
               </tr>
             )}
           </tbody>
-        </table>
-      </div>
+      </AdminDataTable>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold">
         <div className="text-base-300">
