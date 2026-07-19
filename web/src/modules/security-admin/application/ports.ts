@@ -40,6 +40,8 @@ export type AdminUserRecord = {
 export interface SecurityAdminRepository {
   getRoleAccessState(roleId: string): Promise<RoleAccessState | null>;
   listRolePermissionKeys(roleId: string): Promise<string[]>;
+  /** 更新前的角色識別鍵、名稱與權限快照，供稽核比對實際變更的欄位。 */
+  getRoleAuditState(roleId: string): Promise<{ key: string; name: string; permissionKeys: string[] } | null>;
 
   listRolesWithPermissions(): Promise<RoleRecord[]>;
   listPermissions(): Promise<PermissionRecord[]>;

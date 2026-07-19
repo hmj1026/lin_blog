@@ -6,6 +6,13 @@ import { ApiResponse } from "@/types/api";
 import { logger } from "./logger";
 
 /**
+ * 後台存取門檻：所有後台 API 一律要求此權限，作為與 (admin) layout 對齊的共用門檻。
+ * 避免僅授予單一領域權限（如 posts:write / uploads:write）卻缺後台存取權的角色，
+ * 繞過 UI 守門直接呼叫 API。
+ */
+const ADMIN_ACCESS_PERMISSION = "admin:access";
+
+/**
  * 建立成功的 JSON 回應
  *
  * @param data - 回應的資料內容
@@ -79,7 +86,10 @@ export async function requirePermission(permissionKey: string) {
   const roleId = session.user.roleId;
   if (!roleId) return jsonError("禁止存取", 403);
 
-  if (!session.user.permissions?.includes(permissionKey)) return jsonError("禁止存取", 403);
+  const permissions = session.user.permissions ?? [];
+  // 先驗共用後台存取門檻，再驗目標權限，兩者缺一即拒絕。
+  if (!permissions.includes(ADMIN_ACCESS_PERMISSION)) return jsonError("禁止存取", 403);
+  if (!permissions.includes(permissionKey)) return jsonError("禁止存取", 403);
   return null;
 }
 
@@ -95,6 +105,8 @@ export async function requireAnyPermission(permissionKeys: string[]) {
   const roleId = session.user.roleId;
   if (!roleId) return jsonError("禁止存取", 403);
 
-  if (!permissionKeys.some((k) => session.user!.permissions?.includes(k))) return jsonError("禁止存取", 403);
+  const permissions = session.user.permissions ?? [];
+  if (!permissions.includes(ADMIN_ACCESS_PERMISSION)) return jsonError("禁止存取", 403);
+  if (!permissionKeys.some((k) => permissions.includes(k))) return jsonError("禁止存取", 403);
   return null;
 }

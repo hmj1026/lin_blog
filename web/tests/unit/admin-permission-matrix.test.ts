@@ -141,4 +141,15 @@ describe("admin permission matrix", () => {
 
     expect(result?.status).toBe(401);
   });
+
+  it("拒絕擁有領域權限但缺 admin:access 的角色（403）", async () => {
+    // 角色被授予 posts:write 卻沒有 admin:access → 不得直接呼叫後台 API。
+    vi.mocked(getSession).mockResolvedValueOnce({
+      user: { id: "no-access", roleId: "no-access-role", permissions: ["posts:write", "uploads:write"] },
+    } as never);
+
+    const result = await requirePermission("posts:write");
+
+    expect(result?.status).toBe(403);
+  });
 });

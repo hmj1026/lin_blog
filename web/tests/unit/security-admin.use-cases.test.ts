@@ -5,6 +5,7 @@ describe("security-admin use cases", () => {
   const repo = {
     getRoleAccessState: vi.fn(),
     listRolePermissionKeys: vi.fn(),
+    getRoleAuditState: vi.fn(),
     listRolesWithPermissions: vi.fn(),
     listPermissions: vi.fn(),
     createRole: vi.fn(),

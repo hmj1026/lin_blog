@@ -45,6 +45,8 @@ export function createSecurityAdminUseCases(deps: { repo: SecurityAdminRepositor
       roleHasAnyPermissionRule(await deps.repo.getRoleAccessState(roleId), permissionKeys),
     /** 列出角色的所有權限 key */
     listRolePermissions: (roleId: string) => deps.repo.listRolePermissionKeys(roleId),
+    /** 取得更新前的角色 key/name/權限快照，供稽核比對實際變更欄位。 */
+    getRoleAuditState: (roleId: string) => deps.repo.getRoleAuditState(roleId),
 
     /**
      * 取得所有角色與權限列表 (用於權限管理介面)

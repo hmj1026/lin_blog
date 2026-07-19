@@ -62,6 +62,7 @@ export async function PATCH(request: Request, context: Context) {
     // 支援局部更新（如切換 featured）
     if (raw.restore === true) {
       await postsUseCases.restorePost(id);
+      await recordAuditEventSafely({ action: "post.restored", resourceType: "post", resourceId: id, summary: {} });
       return jsonOk({ ok: true, restored: true });
     }
 

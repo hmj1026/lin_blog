@@ -60,7 +60,9 @@ export async function PATCH(request: Request, context: Context) {
       await recordAuditEventSafely({ action: "tag.merged", resourceType: "tag", resourceId: id, summary: { affectedCount: result.movedPosts, referenceIds: [targetId] } });
       return jsonOk(result);
     }
-    return jsonOk(await postsUseCases.restoreTag(id));
+    const restored = await postsUseCases.restoreTag(id);
+    await recordAuditEventSafely({ action: "tag.restored", resourceType: "tag", resourceId: id, summary: {} });
+    return jsonOk(restored);
   } catch (error: unknown) {
     return handleApiError(error);
   }

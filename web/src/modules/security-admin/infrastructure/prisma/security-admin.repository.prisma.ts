@@ -68,6 +68,15 @@ export const securityAdminRepositoryPrisma: SecurityAdminRepository = {
     return perms.map((p) => p.permissionKey);
   },
 
+  async getRoleAuditState(roleId) {
+    const role = await prisma.role.findUnique({
+      where: { id: roleId },
+      select: { key: true, name: true, perms: { select: { permissionKey: true } } },
+    });
+    if (!role) return null;
+    return { key: role.key, name: role.name, permissionKeys: role.perms.map((p) => p.permissionKey) };
+  },
+
   async listRolesWithPermissions() {
     const roles = await prisma.role.findMany({
       where: { deletedAt: null },
@@ -138,11 +147,28 @@ export const securityAdminRepositoryPrisma: SecurityAdminRepository = {
   },
 
   async softDeleteRole(id) {
-    return prisma.$transaction(async (tx) => {
-      const role = await tx.role.update({ where: { id }, data: { deletedAt: new Date() }, select: { id: true } });
-      await bumpVersion(tx);
-      return { id: role.id };
-    });
+    // 於可序列化交易內重新計算指派中的使用者，關閉「計數後、刪除前把使用者指派到此角色」的競態；
+    // 並行指派會與此讀取序列化衝突（P2034），落敗方轉譯為衝突錯誤提示重試，
+    // 避免留下 active user 指向已刪除角色導致其登入／權限解析失敗。
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const assignedUserCount = await tx.user.count({ where: { roleId: id, deletedAt: null } });
+          if (assignedUserCount > 0) {
+            throw conflict(`此角色仍有 ${assignedUserCount} 位啟用中的使用者，請先重新指派`);
+          }
+          const role = await tx.role.update({ where: { id }, data: { deletedAt: new Date() }, select: { id: true } });
+          await bumpVersion(tx);
+          return { id: role.id };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === SERIALIZATION_FAILURE) {
+        throw conflict("操作發生並行衝突，請重試");
+      }
+      throw error;
+    }
   },
 
   countActiveUsersForRole: (roleId) =>

@@ -72,7 +72,9 @@ export async function PATCH(request: Request, context: Context) {
       await recordAuditEventSafely({ action: "category.merged", resourceType: "category", resourceId: id, summary: { affectedCount: result.movedPosts, referenceIds: [targetId] } });
       return jsonOk(result);
     }
-    return jsonOk(await postsUseCases.restoreCategory(id));
+    const restored = await postsUseCases.restoreCategory(id);
+    await recordAuditEventSafely({ action: "category.restored", resourceType: "category", resourceId: id, summary: {} });
+    return jsonOk(restored);
   } catch (error: unknown) {
     return handleApiError(error);
   }

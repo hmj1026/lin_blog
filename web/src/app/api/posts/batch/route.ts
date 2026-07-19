@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ success: false, message: "缺少 action 或 postIds" }, { status: 400 });
     }
 
+    // 逐一驗證每個 id 為非空字串，拒絕 [validId, null] 之類的異質陣列，避免無效 id 進入資料庫查詢。
+    if (!postIds.every((postId) => typeof postId === "string" && postId.trim().length > 0)) {
+      return Response.json({ success: false, message: "postIds 需為非空字串陣列" }, { status: 400 });
+    }
+
     // 上限對齊列表單頁最大筆數，避免單次請求觸發過量並發查詢。
     const MAX_BATCH_SIZE = 100;
     if (postIds.length > MAX_BATCH_SIZE) {

@@ -5,7 +5,11 @@ import { siteSettingsUseCases } from "@/modules/site-settings";
 import { requirePermission } from "@/lib/api-utils";
 import { NextResponse } from "next/server";
 
-vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
+vi.mock("@/lib/server/audit-safe", () => ({
+  recordAuditEventSafely: vi.fn().mockResolvedValue(true),
+  changedFieldNames: (payload: unknown) =>
+    payload && typeof payload === "object" && !Array.isArray(payload) ? Object.keys(payload) : [],
+}));
 
 // Mock dependencies
 vi.mock("@/lib/server-queries", () => ({

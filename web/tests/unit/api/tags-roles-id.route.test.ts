@@ -29,6 +29,7 @@ vi.mock("@/modules/security-admin", () => ({
     updateRole: vi.fn(),
     softDeleteRole: vi.fn(),
     listRolePermissions: vi.fn().mockResolvedValue([]),
+    getRoleAuditState: vi.fn().mockResolvedValue({ key: "ROLE", name: "Role", permissionKeys: [] }),
   },
 }));
 

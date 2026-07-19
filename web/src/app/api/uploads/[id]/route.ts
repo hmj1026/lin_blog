@@ -30,6 +30,9 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!deleted.ok && deleted.error === "referenced") {
     return jsonError(`檔案仍被引用：${deleted.references.map((reference) => reference.label).join("、")}`, 409);
   }
+  if (!deleted.ok && deleted.error === "conflict") {
+    return jsonError("刪除發生並行衝突，請重試", 409);
+  }
   if (!deleted.ok) return jsonError("檔案不存在", 404);
 
   await recordAuditEventSafely({ action: "media.deleted", resourceType: "upload", resourceId: id, summary: {} });
