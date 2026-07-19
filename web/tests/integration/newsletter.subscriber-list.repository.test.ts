@@ -106,4 +106,18 @@ describe("subscriberListRepositoryPrisma.list", () => {
     expect(Object.keys(result.items[0]).sort()).toEqual(["createdAt", "email", "id", "name"]);
     expect(result.items[0]).not.toHaveProperty("updatedAt");
   });
+
+  it("以 aggregate count 計算近 7 與 30 天成長", async () => {
+    const now = new Date("2026-07-19T00:00:00.000Z");
+    await prisma.subscriber.createMany({ data: [
+      { name: "Recent", email: "recent@example.com", createdAt: new Date("2026-07-18T00:00:00.000Z") },
+      { name: "Month", email: "month@example.com", createdAt: new Date("2026-07-01T00:00:00.000Z") },
+      { name: "Old", email: "old@example.com", createdAt: new Date("2026-05-01T00:00:00.000Z") },
+    ] });
+
+    await expect(subscriberListRepositoryPrisma.countGrowth!({
+      since7Days: new Date(now.getTime() - 7 * 86_400_000),
+      since30Days: new Date(now.getTime() - 30 * 86_400_000),
+    })).resolves.toEqual({ last7Days: 1, last30Days: 2 });
+  });
 });

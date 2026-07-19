@@ -159,6 +159,7 @@ describe("newsletter use cases: subscribe()", () => {
 describe("newsletter use cases: listSubscribers()", () => {
   const listRepo = {
     list: vi.fn(),
+    countGrowth: vi.fn(),
   };
   const writeRepo = { findByEmail: vi.fn(), create: vi.fn() };
   const captchaVerifier = { verify: vi.fn() };
@@ -243,5 +244,16 @@ describe("newsletter use cases: listSubscribers()", () => {
     expect(result.items).toEqual([{ id: "sub-1", name: "Reader", email: "reader@example.com", createdAt }]);
     expect(result.total).toBe(1);
     expect(Object.keys(result.items[0])).toEqual(["id", "name", "email", "createdAt"]);
+  });
+
+  it("以同一基準時間查詢近 7 與 30 天 aggregate growth", async () => {
+    listRepo.countGrowth.mockResolvedValue({ last7Days: 3, last30Days: 10 });
+    const now = new Date("2026-07-19T00:00:00.000Z");
+
+    await expect(useCases.countSubscriberGrowth(now)).resolves.toEqual({ last7Days: 3, last30Days: 10 });
+    expect(listRepo.countGrowth).toHaveBeenCalledWith({
+      since7Days: new Date("2026-07-12T00:00:00.000Z"),
+      since30Days: new Date("2026-06-19T00:00:00.000Z"),
+    });
   });
 });

@@ -130,5 +130,16 @@ export function createNewsletterUseCases(deps: {
         pageSize,
       };
     },
+
+    /** 計算近 7／30 天新增訂閱者 aggregate，不回傳任何訂閱者個資。 */
+    async countSubscriberGrowth(now = new Date()) {
+      if (!deps.listRepo?.countGrowth) {
+        throw new Error("countGrowth is not configured for this NewsletterUseCases instance");
+      }
+      return deps.listRepo.countGrowth({
+        since7Days: new Date(now.getTime() - 7 * 86_400_000),
+        since30Days: new Date(now.getTime() - 30 * 86_400_000),
+      });
+    },
   };
 }
