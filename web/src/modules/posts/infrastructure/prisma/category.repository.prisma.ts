@@ -43,7 +43,10 @@ export const categoryRepositoryPrisma: CategoryRepository = {
     return prisma.$transaction(async (tx) => {
       if (sourceId === targetId) throw new Error("分類不能合併到自身");
       const [source, target] = await Promise.all([
-        tx.category.findUnique({ where: { id: sourceId }, select: { deletedAt: true, posts: { select: { id: true } } } }),
+        tx.category.findUnique({
+          where: { id: sourceId },
+          select: { deletedAt: true, posts: { select: { id: true, deletedAt: true, categories: { where: { id: targetId }, select: { id: true } } } } },
+        }),
         tx.category.findUnique({ where: { id: targetId }, select: { deletedAt: true } }),
       ]);
       if (!source || source.deletedAt) throw new Error("來源分類不存在或已刪除");
@@ -57,7 +60,9 @@ export const categoryRepositoryPrisma: CategoryRepository = {
         where: { id: sourceId },
         data: { deletedAt: new Date(), showInNav: false, ...(postIds.length > 0 ? { posts: { disconnect: postIds } } : {}) },
       });
-      return { id: sourceId, movedPosts: source.posts.length };
+      // movedPosts 僅計「未刪除且尚未連結目標」的來源文章：垃圾桶文章與重複關聯不得灌水目標的 active postCount。
+      const movedPosts = source.posts.filter((post) => !post.deletedAt && post.categories.length === 0).length;
+      return { id: sourceId, movedPosts };
     });
   },
 };

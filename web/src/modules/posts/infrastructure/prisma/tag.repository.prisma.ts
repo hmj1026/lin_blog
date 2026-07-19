@@ -34,7 +34,10 @@ export const tagRepositoryPrisma: TagRepository = {
     return prisma.$transaction(async (tx) => {
       if (sourceId === targetId) throw new Error("標籤不能合併到自身");
       const [source, target] = await Promise.all([
-        tx.tag.findUnique({ where: { id: sourceId }, select: { deletedAt: true, posts: { select: { id: true } } } }),
+        tx.tag.findUnique({
+          where: { id: sourceId },
+          select: { deletedAt: true, posts: { select: { id: true, deletedAt: true, tags: { where: { id: targetId }, select: { id: true } } } } },
+        }),
         tx.tag.findUnique({ where: { id: targetId }, select: { deletedAt: true } }),
       ]);
       if (!source || source.deletedAt) throw new Error("來源標籤不存在或已刪除");
@@ -48,7 +51,9 @@ export const tagRepositoryPrisma: TagRepository = {
         where: { id: sourceId },
         data: { deletedAt: new Date(), ...(postIds.length > 0 ? { posts: { disconnect: postIds } } : {}) },
       });
-      return { id: sourceId, movedPosts: source.posts.length };
+      // movedPosts 僅計「未刪除且尚未連結目標」的來源文章：垃圾桶文章與重複關聯不得灌水目標計數。
+      const movedPosts = source.posts.filter((post) => !post.deletedAt && post.tags.length === 0).length;
+      return { id: sourceId, movedPosts };
     });
   },
 };

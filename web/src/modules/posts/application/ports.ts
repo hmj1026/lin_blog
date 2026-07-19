@@ -199,7 +199,7 @@ export interface PostRepository {
 
   batchAction(params: { action: "publish" | "draft" | "delete"; postIds: string[] }): Promise<{
     count: number;
-    results: Array<{ id: string; ok: boolean; error?: "not-applicable" }>;
+    results: Array<{ id: string; ok: boolean; error?: "not-applicable" | "failed" }>;
   }>;
   publishDueScheduled(now: Date): Promise<{ count: number; published: Array<{ id: string; slug: string; publishedAt: Date | null }> }>;
   listForExport(params: { ids?: string[]; orderBy?: "createdAtDesc" }): Promise<

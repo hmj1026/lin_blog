@@ -32,7 +32,7 @@ describe("taxonomy repositories", () => {
     const tx = {
       category: {
         findUnique: vi.fn()
-          .mockResolvedValueOnce({ deletedAt: null, posts: [{ id: "p1" }, { id: "p2" }] })
+          .mockResolvedValueOnce({ deletedAt: null, posts: [{ id: "p1", deletedAt: null, categories: [] }, { id: "p2", deletedAt: null, categories: [] }] })
           .mockResolvedValueOnce({ deletedAt: null }),
         update: vi.fn().mockResolvedValue({ id: "c1" }),
       },
@@ -51,6 +51,26 @@ describe("taxonomy repositories", () => {
       where: { id: "c1" },
       data: expect.objectContaining({ showInNav: false, deletedAt: expect.any(Date), posts: { disconnect: [{ id: "p1" }, { id: "p2" }] } }),
     }));
+  });
+
+  it("movedPosts 排除垃圾桶文章與已連結目標的重複關聯", async () => {
+    const tx = {
+      category: {
+        findUnique: vi.fn()
+          .mockResolvedValueOnce({ deletedAt: null, posts: [
+            { id: "p1", deletedAt: null, categories: [] },              // 有效新增
+            { id: "p2", deletedAt: new Date(), categories: [] },        // 垃圾桶 → 不計
+            { id: "p3", deletedAt: null, categories: [{ id: "c2" }] },  // 已連結目標 → 不計
+          ] })
+          .mockResolvedValueOnce({ deletedAt: null }),
+        update: vi.fn().mockResolvedValue({ id: "c1" }),
+      },
+      post: { update: vi.fn() },
+    };
+    prismaMock.$transaction.mockImplementation((callback) => callback(tx));
+
+    // 三篇來源文章但只有 1 篇為有效新增關聯，movedPosts 應為 1（而非總數 3）。
+    await expect(categoryRepositoryPrisma.merge("c1", "c2")).resolves.toEqual({ id: "c1", movedPosts: 1 });
   });
 
   it("does not mutate when the tag merge target is deleted", async () => {

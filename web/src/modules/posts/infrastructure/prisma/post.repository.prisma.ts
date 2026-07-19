@@ -382,15 +382,21 @@ export const postRepositoryPrisma: PostRepository = {
   },
 
   async batchAction(params) {
+    // 逐筆隔離：單筆資料庫更新失敗只讓該筆回報 failed，不使整批 reject，
+    // 讓管理員能明確得知哪些成功、哪些失敗，而非整體 500 且已提交部分更新卻無從得知。
     const results = await Promise.all(params.postIds.map(async (id) => {
-      const result = params.action === "publish"
-        ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.DRAFT }, data: { status: PostStatus.PUBLISHED } })
-        : params.action === "draft"
-          ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.PUBLISHED }, data: { status: PostStatus.DRAFT } })
-          : await prisma.post.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
-      return result.count > 0
-        ? { id, ok: true as const }
-        : { id, ok: false as const, error: "not-applicable" as const };
+      try {
+        const result = params.action === "publish"
+          ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.DRAFT }, data: { status: PostStatus.PUBLISHED } })
+          : params.action === "draft"
+            ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.PUBLISHED }, data: { status: PostStatus.DRAFT } })
+            : await prisma.post.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+        return result.count > 0
+          ? { id, ok: true as const }
+          : { id, ok: false as const, error: "not-applicable" as const };
+      } catch {
+        return { id, ok: false as const, error: "failed" as const };
+      }
     }));
     return { count: results.filter((result) => result.ok).length, results };
   },
