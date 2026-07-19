@@ -6,6 +6,8 @@ import { postsQueries, securityAdminQueries } from "@/lib/server-queries";
 import { securityAdminUseCases } from "@/modules/security-admin";
 import { toPermissionDto, toRoleDto } from "@/modules/security-admin/presentation/dto";
 
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
+
 vi.mock("@/lib/api-utils", () => ({
   requirePermission: vi.fn(),
   jsonOk: vi.fn((data) => Response.json({ success: true, data })),

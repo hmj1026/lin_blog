@@ -10,12 +10,15 @@ describe("security-admin use cases", () => {
     createRole: vi.fn(),
     updateRole: vi.fn(),
     softDeleteRole: vi.fn(),
+    countActiveUsersForRole: vi.fn(),
     listActiveRoles: vi.fn(),
     listUsersWithRoles: vi.fn(),
     createUser: vi.fn(),
     updateUser: vi.fn(),
     softDeleteUser: vi.fn(),
     countActiveUsers: vi.fn(),
+    userHasPermission: vi.fn(),
+    countActiveUsersWithPermission: vi.fn(),
     getPermissionsVersion: vi.fn(),
     getUserAuthSnapshot: vi.fn(),
   };
@@ -81,6 +84,7 @@ describe("security-admin use cases", () => {
     });
 
     it("updateRole() validates and updates role", async () => {
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: null, permissionKeys: ["posts:read"] });
       repo.updateRole.mockResolvedValue({ id: "role-1" });
       await useCases.updateRole("role-1", {
         key: "EDITOR",
@@ -92,13 +96,74 @@ describe("security-admin use cases", () => {
         key: "EDITOR",
         name: "編輯者 Updated",
         permissionKeys: ["posts:read"],
+        enforceAdminFloor: false,
       });
     });
 
+    it("updateRole() preserves the last administrator permission", async () => {
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: null, permissionKeys: ["admin:access"] });
+      repo.countActiveUsersForRole.mockResolvedValue(1);
+      repo.countActiveUsersWithPermission.mockResolvedValue(1);
+
+      await expect(
+        useCases.updateRole("role-1", {
+          key: "ADMIN",
+          name: "管理員",
+          permissionKeys: ["posts:write"],
+        })
+      ).rejects.toThrow("至少需要保留一位啟用中的管理者");
+      expect(repo.updateRole).not.toHaveBeenCalled();
+    });
+
+    it("createRole() rejects analytics:view_sensitive without its dependency analytics:view", async () => {
+      expect(() =>
+        useCases.createRole({
+          key: "AUDITOR",
+          name: "稽核者",
+          permissionKeys: ["admin:access", "analytics:view_sensitive"],
+        })
+      ).toThrow("權限相依性不完整");
+      expect(repo.createRole).not.toHaveBeenCalled();
+    });
+
+    it("updateRole() rejects analytics:view_sensitive without its dependency analytics:view", async () => {
+      await expect(
+        useCases.updateRole("role-1", {
+          key: "AUDITOR",
+          name: "稽核者",
+          permissionKeys: ["admin:access", "analytics:view_sensitive"],
+        })
+      ).rejects.toThrow("權限相依性不完整");
+      expect(repo.getRoleAccessState).not.toHaveBeenCalled();
+      expect(repo.updateRole).not.toHaveBeenCalled();
+    });
+
+    it("createRole() accepts analytics:view_sensitive when all dependencies are present", async () => {
+      repo.createRole.mockResolvedValue({ id: "auditor-role" });
+      await useCases.createRole({
+        key: "AUDITOR",
+        name: "稽核者",
+        permissionKeys: ["admin:access", "analytics:view", "analytics:view_sensitive"],
+      });
+      expect(repo.createRole).toHaveBeenCalledWith(
+        expect.objectContaining({
+          permissionKeys: ["admin:access", "analytics:view", "analytics:view_sensitive"],
+        })
+      );
+    });
+
     it("softDeleteRole() delegates to repo", async () => {
+      repo.countActiveUsersForRole.mockResolvedValue(0);
       repo.softDeleteRole.mockResolvedValue(undefined);
       await useCases.softDeleteRole("role-1");
       expect(repo.softDeleteRole).toHaveBeenCalledWith("role-1");
+    });
+
+    it("softDeleteRole() rejects a role still assigned to active users", async () => {
+      repo.countActiveUsersForRole.mockResolvedValue(2);
+
+      await expect(useCases.softDeleteRole("role-1")).rejects.toThrow("仍有 2 位啟用中的使用者");
+      expect(repo.softDeleteRole).not.toHaveBeenCalled();
     });
 
     it("listActiveRoles() delegates to repo", async () => {
@@ -145,6 +210,7 @@ describe("security-admin use cases", () => {
     });
 
     it("updateUser() updates without password when not provided", async () => {
+      repo.userHasPermission.mockResolvedValue(false);
       repo.updateUser.mockResolvedValue({ id: "user-1" });
       await useCases.updateUser("user-1", {
         email: "updated@example.com",
@@ -157,10 +223,12 @@ describe("security-admin use cases", () => {
         name: "Updated Name",
         roleId: "clyxxxxxxxxxxxxxxxxxxxxxx2",
         passwordHash: undefined,
+        enforceAdminFloor: false,
       });
     });
 
     it("updateUser() hashes password when provided", async () => {
+      repo.userHasPermission.mockResolvedValue(false);
       repo.updateUser.mockResolvedValue({ id: "user-1" });
       await useCases.updateUser("user-1", {
         email: "updated@example.com",
@@ -173,10 +241,70 @@ describe("security-admin use cases", () => {
       expect(call.passwordHash.startsWith("$2")).toBe(true);
     });
 
+    it("updateUser() flags enforceAdminFloor when demoting a non-last administrator", async () => {
+      repo.userHasPermission.mockResolvedValue(true);
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: null, permissionKeys: ["posts:write"] });
+      repo.countActiveUsersWithPermission.mockResolvedValue(2);
+      repo.updateUser.mockResolvedValue({ id: "admin-1" });
+
+      await useCases.updateUser("admin-1", {
+        email: "admin@example.com",
+        name: "Admin",
+        roleId: "clyxxxxxxxxxxxxxxxxxxxxxx2",
+      });
+
+      expect(repo.updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "admin-1", enforceAdminFloor: true })
+      );
+    });
+
+    it("updateUser() prevents moving the last administrator to a non-admin role", async () => {
+      repo.userHasPermission.mockResolvedValueOnce(true);
+      repo.getRoleAccessState.mockResolvedValue({ deletedAt: null, permissionKeys: ["posts:write"] });
+      repo.countActiveUsersWithPermission.mockResolvedValue(1);
+
+      await expect(
+        useCases.updateUser("admin-1", {
+          email: "admin@example.com",
+          name: "Admin",
+          roleId: "clyxxxxxxxxxxxxxxxxxxxxxx2",
+        })
+      ).rejects.toThrow("至少需要保留一位啟用中的管理者");
+      expect(repo.updateUser).not.toHaveBeenCalled();
+    });
+
     it("softDeleteUser() delegates to repo", async () => {
+      repo.userHasPermission.mockResolvedValue(false);
       repo.softDeleteUser.mockResolvedValue(undefined);
-      await useCases.softDeleteUser("user-1");
-      expect(repo.softDeleteUser).toHaveBeenCalledWith("user-1");
+      await useCases.softDeleteUser("user-1", { actorId: "admin-2" });
+      expect(repo.softDeleteUser).toHaveBeenCalledWith("user-1", { enforceAdminFloor: false });
+    });
+
+    it("softDeleteUser() rejects self-deactivation", async () => {
+      await expect(useCases.softDeleteUser("user-1", { actorId: "user-1" })).rejects.toThrow(
+        "無法停用目前登入的帳號"
+      );
+      expect(repo.softDeleteUser).not.toHaveBeenCalled();
+    });
+
+    it("softDeleteUser() flags enforceAdminFloor when disabling a non-last administrator", async () => {
+      repo.userHasPermission.mockResolvedValue(true);
+      repo.countActiveUsersWithPermission.mockResolvedValue(2);
+      repo.softDeleteUser.mockResolvedValue({ id: "admin-1" });
+
+      await useCases.softDeleteUser("admin-1", { actorId: "admin-2" });
+
+      expect(repo.softDeleteUser).toHaveBeenCalledWith("admin-1", { enforceAdminFloor: true });
+    });
+
+    it("softDeleteUser() preserves the last active administrator", async () => {
+      repo.userHasPermission.mockResolvedValue(true);
+      repo.countActiveUsersWithPermission.mockResolvedValue(1);
+
+      await expect(useCases.softDeleteUser("admin-1", { actorId: "admin-2" })).rejects.toThrow(
+        "至少需要保留一位啟用中的管理者"
+      );
+      expect(repo.softDeleteUser).not.toHaveBeenCalled();
     });
 
     it("countActiveUsers() delegates to repo", async () => {
