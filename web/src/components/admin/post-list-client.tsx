@@ -107,15 +107,20 @@ export function PostListClient({
       });
       const json = await response.json();
       if (!response.ok || !json.success) throw new Error(json.message || "操作失敗");
-      const results = (json.results ?? []) as Array<{ id: string; ok: boolean }>;
-      const failed = results.filter((result) => !result.ok).map((result) => result.id);
+      const results = (json.results ?? []) as Array<{ id: string; ok: boolean; error?: "not-applicable" | "failed" }>;
+      // 依 API 回傳三分：已達目標狀態（not-applicable）視為「略過」而非失敗，僅真正失敗保留勾選。
+      const failed = results.filter((result) => !result.ok && result.error !== "not-applicable").map((result) => result.id);
+      const skipped = results.filter((result) => !result.ok && result.error === "not-applicable").length;
+      const changed = results.filter((result) => result.ok).length;
       setSelected(new Set(failed));
-      setFeedback({
-        tone: failed.length ? "info" : "success",
-        message: failed.length
-          ? `成功 ${json.count} 篇，失敗 ${failed.length} 篇；失敗項目仍保持選取。`
-          : json.message || `已完成 ${json.count ?? selected.size} 篇文章。`,
-      });
+      if (results.length === 0) {
+        setFeedback({ tone: "success", message: json.message || `已完成 ${json.count ?? selected.size} 篇文章。` });
+      } else {
+        const parts = [`成功 ${changed} 篇`];
+        if (skipped > 0) parts.push(`略過 ${skipped} 篇`);
+        if (failed.length > 0) parts.push(`失敗 ${failed.length} 篇；失敗項目仍保持選取`);
+        setFeedback({ tone: failed.length > 0 ? "error" : "info", message: `${parts.join("，")}。` });
+      }
       router.refresh();
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "操作失敗" });
@@ -201,7 +206,7 @@ export function PostListClient({
 
       <p className="text-sm text-base-300">共 {pagination.total} 篇</p>
       <AdminDataTable ariaLabel="文章列表資料表" className="rounded-2xl bg-white shadow-card">
-        <thead className="bg-base-100 text-left text-base-300"><tr><th className="w-10 px-4 py-3"><input type="checkbox" aria-label="選取目前篩選的全部文章" checked={allSelected} onChange={toggleAll} /></th><th className="px-4 py-3">精選</th><th className="px-4 py-3">標題</th><th className="px-4 py-3">分類 / 標籤</th><th className="px-4 py-3">狀態</th><th className="px-4 py-3">發布時間</th><th className="px-4 py-3">更新時間</th><th className="px-4 py-3">動作</th></tr></thead>
+        <thead className="bg-base-100 text-left text-base-300"><tr><th className="w-10 px-4 py-3"><input type="checkbox" aria-label="選取本頁全部文章" checked={allSelected} onChange={toggleAll} /></th><th className="px-4 py-3">精選</th><th className="px-4 py-3">標題</th><th className="px-4 py-3">分類 / 標籤</th><th className="px-4 py-3">狀態</th><th className="px-4 py-3">發布時間</th><th className="px-4 py-3">更新時間</th><th className="px-4 py-3">動作</th></tr></thead>
         <tbody>
           {posts.map((post) => (
             <tr key={post.id} className={`border-t border-line ${selected.has(post.id) ? "bg-accent-500/5" : ""}`}>

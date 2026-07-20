@@ -205,12 +205,49 @@ describe("PostListClient", () => {
     });
     render(<PostListClient posts={mockPosts as any} />);
 
-    await userEvent.click(screen.getByRole("checkbox", { name: "選取目前篩選的全部文章" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "選取本頁全部文章" }));
     await userEvent.click(screen.getByText("批次發佈"));
 
     expect(await screen.findByText("成功 1 篇，失敗 1 篇；失敗項目仍保持選取。")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "選取文章「Post One」" })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: "選取文章「Post Two」" })).toBeChecked();
+  });
+
+  it("treats already-in-target-state items as skipped, not failed (C2)", async () => {
+    // 批次發佈：Post One 已是 PUBLISHED → 回傳 not-applicable（未變更/略過）；
+    // Post Two 為 DRAFT → ok:true（成功發佈）。not-applicable 不得計入失敗桶，
+    // 成功項與略過項皆不得殘留勾選。
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        count: 1,
+        results: [
+          { id: "1", ok: false, error: "not-applicable" },
+          { id: "2", ok: true },
+        ],
+      }),
+    });
+    render(<PostListClient posts={mockPosts as any} />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "選取文章「Post One」" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "選取文章「Post Two」" }));
+    await userEvent.click(screen.getByText("批次發佈"));
+
+    // 略過項併入「略過」文案，不出現「失敗」；
+    expect(await screen.findByText("成功 1 篇，略過 1 篇。")).toBeInTheDocument();
+    // 略過項（not-applicable）不算失敗、不殘留勾選；
+    expect(screen.getByRole("checkbox", { name: "選取文章「Post One」" })).not.toBeChecked();
+    // 成功項不殘留勾選。
+    expect(screen.getByRole("checkbox", { name: "選取文章「Post Two」" })).not.toBeChecked();
+  });
+
+  it("labels the select-all checkbox with current-page scope (C8)", () => {
+    // 表頭全選僅作用於本頁（toggleAll 只選 posts），accessible name 需描述「本頁」範圍，
+    // 不得宣稱涵蓋目前篩選的全部結果。
+    render(<PostListClient posts={mockPosts as any} />);
+    const selectAll = screen.getAllByRole("checkbox")[0];
+    expect(selectAll).toHaveAccessibleName(/本頁/);
   });
 
   it("restores a post from the trash view", async () => {
