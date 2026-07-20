@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
-import { parseApiResponse } from "@/lib/api-client";
+import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 import { PERMISSION_DEPENDENCIES, permissionDependencyViolations } from "@/modules/security-admin/client";
 
 type Permission = { key: string; name: string };
@@ -104,7 +104,7 @@ export function RoleAdminClient({
           : { key: uniqueRoleKey(roles.map((role) => role.key), "NEW_ROLE"), name: "新角色", permissionKeys: [] }),
       });
       const json = await parseApiResponse<RoleRow>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "新增失敗"));
       setRoles((prev) => [{ ...json.data, activeUserCount: 0 }, ...prev]);
       setMessage("已新增");
     } catch (error: unknown) {
@@ -129,7 +129,7 @@ export function RoleAdminClient({
         }),
       });
       const json = await parseApiResponse<RoleRow>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "儲存失敗" : "儲存失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "儲存失敗"));
       setRoles((prev) => prev.map((r) => (r.id === role.id ? { ...json.data, activeUserCount: role.activeUserCount } : r)));
       setMessage("已儲存");
     } catch (error: unknown) {
@@ -145,7 +145,7 @@ export function RoleAdminClient({
     try {
       const res = await fetch(`/api/roles/${id}`, { method: "DELETE" });
       const json = await parseApiResponse<{ ok: boolean }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "刪除失敗" : "刪除失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "刪除失敗"));
       setRoles((prev) => prev.filter((r) => r.id !== id));
       setMessage("已刪除");
     } catch (error: unknown) {

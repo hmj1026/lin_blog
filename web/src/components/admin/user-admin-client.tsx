@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
-import { parseApiResponse } from "@/lib/api-client";
+import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 
 type Row = { id: string; email: string; name: string | null; roleId: string; roleKey: string; roleName: string; deletedAt: string | null };
 type Role = { id: string; key: string; name: string };
@@ -52,7 +52,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
       if (newPassword.length < 6) throw new Error("密碼至少 6 字");
       const response = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: newEmail.trim(), name: newName.trim() || undefined, roleId: newRoleId, password: newPassword }) });
       const json = await parseApiResponse<Row>(response);
-      if (!response.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
+      if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "新增失敗"));
       setRows((current) => [json.data, ...current]);
       setNewEmail(""); setNewName(""); setNewPassword("");
       setMessage("已新增使用者");
@@ -82,7 +82,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
       }
       const response = await fetch(`/api/users/${draft.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const json = await parseApiResponse<Row>(response);
-      if (!response.ok || !json.success) throw new Error(!json.success ? json.message || "更新失敗" : "更新失敗");
+      if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "更新失敗"));
       const next = { ...draft, ...json.data };
       setRows((current) => current.map((row) => row.id === next.id ? next : row));
       setSelected(next); setDraft(next); setNewPasswordForSelected("");
@@ -100,7 +100,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
     try {
       const response = await fetch(`/api/users/${pendingDisable.id}`, { method: "DELETE" });
       const json = await parseApiResponse<Row>(response);
-      if (!response.ok || !json.success) throw new Error(!json.success ? json.message || "停用失敗" : "停用失敗");
+      if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "停用失敗"));
       const deletedAt = json.data.deletedAt ?? new Date().toISOString();
       setRows((current) => current.map((row) => row.id === pendingDisable.id ? { ...row, deletedAt } : row));
       setSelected(null); setDraft(null); setMessage("帳號已停用");

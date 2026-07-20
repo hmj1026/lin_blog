@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 import {
   type PostStatus,
   type CategoryOption,
@@ -254,9 +255,9 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
             });
 
       const json = await parseJson<unknown>(res);
-      if (!res.ok || !json.success) {
+      if (!isApiSuccess(res, json)) {
         if (res.status === 409) setConflict(true);
-        throw new Error(!json.success ? json.message || "儲存失敗" : "儲存失敗");
+        throw new Error(getApiErrorMessage(json, "儲存失敗"));
       }
       // 以伺服器回傳的新 updatedAt 更新樂觀鎖 token，讓連續儲存不誤判衝突。
       const savedUpdatedAt = (json.data as { updatedAt?: string } | null)?.updatedAt;
@@ -351,7 +352,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     try {
       const response = await fetch(`/api/posts/${postId}/versions`);
       const json = await parseJson<Array<{ id: string; title: string; editorName: string; createdAt: string }>>(response);
-      if (!response.ok || !json.success) throw new Error(!json.success ? json.message || "版本載入失敗" : "版本載入失敗");
+      if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "版本載入失敗"));
       setVersions(json.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "版本載入失敗");

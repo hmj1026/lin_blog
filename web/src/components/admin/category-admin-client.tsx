@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { parseApiResponse } from "@/lib/api-client";
+import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
@@ -52,7 +52,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         body: JSON.stringify({ slug: newSlug.trim(), name: newName.trim(), showInNav: false, navOrder: 0 }),
       });
       const json = await parseApiResponse<Row>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "新增失敗"));
       setRows((prev) => [{ ...json.data, postCount: 0, deletedAt: null }, ...prev]);
       setNewSlug("");
       setNewName("");
@@ -77,7 +77,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         body: JSON.stringify({ slug: row.slug, name: row.name, showInNav: row.showInNav, navOrder: row.navOrder }),
       });
       const json = await parseApiResponse<Row>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "更新失敗" : "更新失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "更新失敗"));
       setMessage("已更新");
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "更新失敗");
@@ -92,7 +92,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
     try {
       const res = await fetch(`/api/categories/${row.id}`, { method: "GET" });
       const json = await parseApiResponse<{ affectedPosts: number }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "無法取得刪除影響" : "無法取得刪除影響");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "無法取得刪除影響"));
       setPendingDelete({ row, affectedPosts: json.data.affectedPosts });
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "無法取得刪除影響");
@@ -108,7 +108,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
     try {
       const res = await fetch(`/api/categories/${pendingDelete.row.id}`, { method: "DELETE" });
       const json = await parseApiResponse<Row & { affectedPosts: number }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "刪除失敗" : "刪除失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "刪除失敗"));
       setRows((prev) => prev.map((r) => (r.id === pendingDelete.row.id ? { ...r, deletedAt: new Date().toISOString() } : r)));
       setDeletedFeedback({ row: pendingDelete.row, affectedPosts: json.data.affectedPosts });
       setPendingDelete(null);
@@ -125,7 +125,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
     try {
       const res = await fetch(`/api/categories/${row.id}`, { method: "PATCH" });
       const json = await parseApiResponse<{ id: string }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "復原失敗" : "復原失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "復原失敗"));
       setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, deletedAt: null } : item)));
       setDeletedFeedback(null);
       setMessage("已復原分類");
@@ -146,7 +146,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         body: JSON.stringify({ mergeIntoId: pendingMerge.target.id }),
       });
       const json = await parseApiResponse<{ id: string; movedPosts: number }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "合併失敗" : "合併失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "合併失敗"));
       setRows((previous) => previous.map((row) => row.id === pendingMerge.source.id
         ? { ...row, deletedAt: new Date().toISOString(), showInNav: false }
         : row.id === pendingMerge.target.id ? { ...row, postCount: row.postCount + json.data.movedPosts } : row));

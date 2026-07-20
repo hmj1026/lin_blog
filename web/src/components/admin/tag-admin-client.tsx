@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
-import { parseApiResponse } from "@/lib/api-client";
+import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 
 type Row = {
   id: string;
@@ -44,7 +44,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
         body: JSON.stringify({ slug: newSlug.trim(), name: newName.trim() }),
       });
       const json = await parseApiResponse<Row>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "新增失敗" : "新增失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "新增失敗"));
       setRows((prev) => [{ ...json.data, postCount: 0, deletedAt: null }, ...prev]);
       setNewSlug("");
       setNewName("");
@@ -69,7 +69,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
         body: JSON.stringify({ slug: row.slug, name: row.name }),
       });
       const json = await parseApiResponse<Row>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "更新失敗" : "更新失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "更新失敗"));
       setMessage("已更新");
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "更新失敗");
@@ -84,7 +84,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
     try {
       const res = await fetch(`/api/tags/${id}`, { method: "DELETE" });
       const json = await parseApiResponse<Row>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "刪除失敗" : "刪除失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "刪除失敗"));
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, deletedAt: new Date().toISOString() } : r)));
       setMessage("已刪除");
     } catch (error: unknown) {
@@ -100,7 +100,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
     try {
       const res = await fetch(`/api/tags/${row.id}`, { method: "PATCH" });
       const json = await parseApiResponse<{ id: string }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "復原失敗" : "復原失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "復原失敗"));
       setRows((previous) => previous.map((item) => item.id === row.id ? { ...item, deletedAt: null } : item));
       setMessage("已復原標籤");
     } catch (error) {
@@ -116,7 +116,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
     try {
       const res = await fetch(`/api/tags/${pendingMerge.source.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mergeIntoId: pendingMerge.target.id }) });
       const json = await parseApiResponse<{ id: string; movedPosts: number }>(res);
-      if (!res.ok || !json.success) throw new Error(!json.success ? json.message || "合併失敗" : "合併失敗");
+      if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "合併失敗"));
       setRows((previous) => previous.map((row) => row.id === pendingMerge.source.id
         ? { ...row, deletedAt: new Date().toISOString() }
         : row.id === pendingMerge.target.id ? { ...row, postCount: row.postCount + json.data.movedPosts } : row));
