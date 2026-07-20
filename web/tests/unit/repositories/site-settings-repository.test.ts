@@ -2,15 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { prisma } from "@/lib/db";
 
 // Mock Prisma
-vi.mock("@/lib/db", () => ({
-  prisma: {
+vi.mock("@/lib/db", () => {
+  const prisma: any = {
     siteSetting: {
       findUnique: vi.fn(),
       create: vi.fn(),
       upsert: vi.fn(),
     },
-  },
-}));
+    $executeRaw: vi.fn(),
+  };
+  // 以 mocked prisma 自身作為 transaction client（tx），讓 upsert 內的鎖與寫入落在同一組 mock 上。
+  prisma.$transaction = vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prisma));
+  return { prisma };
+});
 
 // Import after mock
 import { siteSettingsRepositoryPrisma } from "@/modules/site-settings/infrastructure/prisma/site-settings.repository.prisma";
@@ -106,6 +110,20 @@ describe("siteSettingsRepositoryPrisma", () => {
           update: expect.objectContaining({ siteName: "Updated Name" }),
           create: expect.objectContaining({ siteName: "New Name" }),
         })
+      );
+    });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再寫入設定", async () => {
+      // Hero/About 內容可能引用媒體；與媒體刪除的排他鎖互斥，避免寫入指向已軟刪除媒體。
+      (prisma.siteSetting.upsert as ReturnType<typeof vi.fn>).mockResolvedValue(mockSettings);
+
+      await siteSettingsRepositoryPrisma.upsert({ key: "default", create: {}, update: { heroImage: "/api/files/up-1" } });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call: unknown[]) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.siteSetting.upsert as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
       );
     });
   });

@@ -3,15 +3,19 @@ import { siteSettingsUseCases } from "@/modules/site-settings";
 import { prisma } from "@/lib/db";
 
 // Mock Prisma
-vi.mock("@/lib/db", () => ({
-  prisma: {
+vi.mock("@/lib/db", () => {
+  const prisma: any = {
     siteSetting: {
       findUnique: vi.fn(),
       create: vi.fn(),
       upsert: vi.fn(),
     },
-  },
-}));
+    $executeRaw: vi.fn(),
+  };
+  // repository 的 upsert 會在交易內先取媒體引用共享 advisory lock；以 mock 自身作為 tx。
+  prisma.$transaction = vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prisma));
+  return { prisma };
+});
 
 // SiteSetting 資料表的完整欄位（與 use-cases.ts 的 defaultRecord 對齊），
 // 供 mock upsert/findUnique 回傳值使用，避免 toRecord() 讀取到 undefined 欄位。

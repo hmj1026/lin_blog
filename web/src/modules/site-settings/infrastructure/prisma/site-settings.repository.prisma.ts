@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { SiteSettingsRepository, SiteSettingRecord } from "../../application/ports";
+import { lockMediaReferencesShared } from "@/lib/media-reference-lock";
 
 /**
  * 將 Prisma 結果轉換為 SiteSettingRecord
@@ -103,7 +104,10 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
   },
 
   async upsert(params) {
-    const result = await prisma.siteSetting.upsert({
+    // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+    const result = await prisma.$transaction(async (tx) => {
+      await lockMediaReferencesShared(tx);
+      return tx.siteSetting.upsert({
       where: { key: params.key },
       create: {
         key: params.key,
@@ -190,6 +194,7 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
         aboutAllowRawHtml: params.update.aboutAllowRawHtml,
         aboutShowRawHtmlToc: params.update.aboutShowRawHtmlToc,
       },
+      });
     });
     return toRecord(result);
   },
