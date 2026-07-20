@@ -30,7 +30,7 @@ export interface UploadRepository {
 export type MediaReference = {
   resourceType: "post" | "site-setting";
   resourceId: string;
-  field: "coverImage" | "ogImage" | "heroImage" | "content";
+  field: "coverImage" | "ogImage" | "heroImage" | "content" | "aboutContent";
   certainty: "exact" | "manual-review";
   label: string;
 };

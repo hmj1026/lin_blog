@@ -25,8 +25,8 @@ async function collectReferences(
       select: { id: true, title: true, coverImage: true, ogImage: true, content: true, allowRawHtml: true },
     }),
     client.siteSetting.findMany({
-      where: { heroImage: src },
-      select: { key: true },
+      where: { OR: [{ heroImage: src }, { aboutContent: { contains: uploadId } }] },
+      select: { key: true, heroImage: true, aboutContent: true },
     }),
   ]);
 
@@ -52,7 +52,19 @@ async function collectReferences(
     }
   }
   for (const setting of settings) {
-    references.push({ resourceType: "site-setting", resourceId: setting.key, field: "heroImage", certainty: "exact", label: "站點 Hero 圖片" });
+    if (setting.heroImage === src) {
+      references.push({ resourceType: "site-setting", resourceId: setting.key, field: "heroImage", certainty: "exact", label: "站點 Hero 圖片" });
+    }
+    if (setting.aboutContent?.includes(uploadId)) {
+      const exact = setting.aboutContent.includes(src);
+      references.push({
+        resourceType: "site-setting",
+        resourceId: setting.key,
+        field: "aboutContent",
+        certainty: exact ? "exact" : "manual-review",
+        label: exact ? "關於頁面內容" : "關於頁面內容可能引用（需人工檢查）",
+      });
+    }
   }
   return references;
 }

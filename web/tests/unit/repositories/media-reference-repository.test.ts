@@ -58,6 +58,34 @@ describe("mediaReferenceRepositoryPrisma", () => {
     expect(whereArg).not.toHaveProperty("deletedAt");
   });
 
+  it("回傳站點 Hero 與關於頁內容的媒體引用", async () => {
+    // aboutContent 內嵌圖片與 heroImage 同屬站點設定引用，刪除前都必須納入檢查，
+    // 否則公開 /about 引用的 /api/files/<id> 會在刪除後 404。
+    (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.siteSetting.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { key: "default", heroImage: "/api/files/up-1", aboutContent: '<img src="/api/files/up-1">' },
+    ]);
+
+    const result = await mediaReferenceRepositoryPrisma.listStructuredReferences("up-1");
+
+    expect(result).toContainEqual(expect.objectContaining({ resourceType: "site-setting", field: "heroImage", certainty: "exact" }));
+    expect(result).toContainEqual(expect.objectContaining({ resourceType: "site-setting", field: "aboutContent", certainty: "exact" }));
+    expect(prisma.siteSetting.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { OR: [{ heroImage: "/api/files/up-1" }, { aboutContent: { contains: "up-1" } }] },
+    }));
+  });
+
+  it("關於頁內容僅含裸媒體 ID 時標示為需人工檢查", async () => {
+    (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.siteSetting.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { key: "default", heroImage: null, aboutContent: 'ref: up-1' },
+    ]);
+
+    await expect(mediaReferenceRepositoryPrisma.listStructuredReferences("up-1")).resolves.toContainEqual(
+      expect.objectContaining({ field: "aboutContent", certainty: "manual-review" }),
+    );
+  });
+
   it("softDeleteUploadIfUnreferenced 於無引用時在交易內軟刪除", async () => {
     (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (prisma.siteSetting.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
