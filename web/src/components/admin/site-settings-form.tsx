@@ -11,13 +11,6 @@ type Props = {
 
 type Tab = "general" | "hero" | "sections" | "social";
 
-const TAB_FIELDS: Record<Tab, ReadonlyArray<keyof SiteSettingRecord>> = {
-  general: ["showBlogLink", "showAbout", "siteName", "siteTagline", "siteDescription", "contactEmail", "copyrightText", "showNewsletter", "newsletterTitle", "newsletterDesc", "showContact", "contactTitle", "contactDesc"],
-  hero: ["heroBadge", "heroTitle", "heroSubtitle", "heroImage", "statsArticles", "statsSubscribers", "statsRating"],
-  sections: ["featuredTitle", "featuredDesc", "categoriesTitle", "categoriesDesc", "latestTitle", "latestDesc", "communityTitle", "communityDesc"],
-  social: ["showFacebook", "facebookUrl", "showInstagram", "instagramUrl", "showThreads", "threadsUrl", "showLine", "lineUrl"],
-};
-
 export function SiteSettingsForm({ initialSettings }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const [settings, setSettings] = useState(initialSettings);
@@ -48,10 +41,10 @@ export function SiteSettingsForm({ initialSettings }: Props) {
     setMessage(null);
     setError(null);
     try {
-      const sectionKeys = TAB_FIELDS[activeTab].filter((key) => dirtyFields.has(key));
+      const sectionKeys = [...dirtyFields];
       const changedSettings = Object.fromEntries(sectionKeys.map((key) => [key, settings[key]]));
-      // 僅送出目前分區實際變動的欄位（真正的 partial payload），
-      // 未變動的 showBlogLink 等欄位不送出，避免覆寫其他管理員的併發變更。
+      // 送出所有分頁實際變動的欄位（真正的 partial payload），使單次儲存能持久化跨分頁的編輯；
+      // 未變動的欄位一律不送出，避免覆寫其他管理員的併發變更。
       const settingsRes = await fetch("/api/site-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -93,7 +86,7 @@ export function SiteSettingsForm({ initialSettings }: Props) {
     { id: "sections", label: "首頁區塊" },
     { id: "social", label: "社群平台" },
   ];
-  const activeSectionDirty = TAB_FIELDS[activeTab].some((key) => dirtyFields.has(key));
+  const hasDirtyFields = dirtyFields.size > 0;
 
   return (
     <div className="space-y-6">
@@ -515,8 +508,8 @@ export function SiteSettingsForm({ initialSettings }: Props) {
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" onClick={() => setPreviewOpen((open) => !open)}>預覽變更</Button>
           <Button type="button" variant="ghost" onClick={cancelChanges} disabled={dirtyFields.size === 0}>取消變更</Button>
-          <Button onClick={save} disabled={saving || !activeSectionDirty}>
-            {saving ? "儲存中..." : "儲存此區"}
+          <Button onClick={save} disabled={saving || !hasDirtyFields}>
+            {saving ? "儲存中..." : "儲存變更"}
           </Button>
         </div>
       </div>

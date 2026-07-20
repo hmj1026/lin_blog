@@ -84,7 +84,7 @@ test.describe("站點設定", () => {
     // getByLabel 會因 strict violation 卡死（見 upgrade-nextjs-16 證據）
     const checkbox = page.getByRole("checkbox", { name: "顯示 Newsletter 訂閱區塊" });
     await expect(checkbox).toBeVisible();
-    const saveButton = page.getByRole("button", { name: "儲存此區", exact: true });
+    const saveButton = page.getByRole("button", { name: "儲存變更", exact: true });
     const homepageHeading = page.getByRole("heading", { name: "訂閱電子報", level: 3 });
 
     const originalChecked = await checkbox.isChecked();

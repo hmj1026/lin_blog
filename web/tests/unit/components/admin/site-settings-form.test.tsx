@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SiteSettingsForm } from "@/components/admin/site-settings-form";
 
@@ -84,7 +84,7 @@ describe("SiteSettingsForm", () => {
     await userEvent.type(input, "Saved Site");
 
     // Click save
-    const saveButton = screen.getByRole("button", { name: "儲存此區" });
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     await userEvent.click(saveButton);
 
     expect(fetchMock).toHaveBeenCalledWith("/api/site-settings", expect.objectContaining({
@@ -106,7 +106,7 @@ describe("SiteSettingsForm", () => {
     render(<SiteSettingsForm initialSettings={mockSettings} />);
     
     await userEvent.type(screen.getByDisplayValue("Test Site"), " unsaved");
-    const saveButton = screen.getByRole("button", { name: "儲存此區" });
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     await userEvent.click(saveButton);
 
     await waitFor(() => {
@@ -135,7 +135,7 @@ describe("SiteSettingsForm", () => {
     await userEvent.click(checkbox);
     expect(checkbox).toBeChecked();
 
-    const saveButton = screen.getByRole("button", { name: "儲存此區" });
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     await userEvent.click(saveButton);
 
     expect(fetchMock).toHaveBeenCalledWith("/api/site-settings", expect.objectContaining({
@@ -149,7 +149,7 @@ describe("SiteSettingsForm", () => {
     render(<SiteSettingsForm initialSettings={mockSettings} />);
 
     await userEvent.click(screen.getByLabelText("顯示「關於我」"));
-    const saveButton = screen.getByRole("button", { name: "儲存此區" });
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     expect(saveButton).toBeEnabled();
     await userEvent.click(saveButton);
 
@@ -165,7 +165,7 @@ describe("SiteSettingsForm", () => {
     const heroTitle = screen.getByDisplayValue("Hero Title");
     await userEvent.clear(heroTitle);
     await userEvent.type(heroTitle, "New Hero");
-    await userEvent.click(screen.getByRole("button", { name: "儲存此區" }));
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
 
     const heroBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
     expect(heroBody).toEqual({ heroTitle: "New Hero" });
@@ -174,7 +174,7 @@ describe("SiteSettingsForm", () => {
     // 實際切換 showBlogLink 後儲存：payload 才會帶上該欄位。
     await userEvent.click(screen.getByText("一般設定"));
     await userEvent.click(screen.getByLabelText("顯示「部落格」連結"));
-    await userEvent.click(screen.getByRole("button", { name: "儲存此區" }));
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
 
     expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)).toEqual({ showBlogLink: false });
   });
@@ -191,7 +191,7 @@ describe("SiteSettingsForm", () => {
     await userEvent.type(input, "First");
 
     // 送出儲存（請求 pending）。
-    await userEvent.click(screen.getByRole("button", { name: "儲存此區" }));
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
 
     // 請求尚未回應時再次把同一欄位改成不同值。
     await userEvent.clear(input);
@@ -203,15 +203,55 @@ describe("SiteSettingsForm", () => {
     });
 
     // 新值 "Second" 必須仍為 dirty：儲存鈕啟用、顯示未儲存變更、輸入維持新值，不被誤標為已儲存。
-    await waitFor(() => expect(screen.getByRole("button", { name: "儲存此區" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "儲存變更" })).toBeEnabled());
     expect(screen.getByText("有未儲存變更")).toBeInTheDocument();
     expect(input).toHaveValue("Second");
+  });
+
+  it("跨分頁編輯後單次儲存持久化所有分頁的 dirty 欄位 (C1)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+
+    // 於一般設定分頁改站點名稱。
+    const siteName = screen.getByDisplayValue("Test Site");
+    await userEvent.clear(siteName);
+    await userEvent.type(siteName, "Cross Tab Site");
+
+    // 切到 Hero 分頁改主標題（跨分頁的 dirty 欄位）。
+    await userEvent.click(screen.getByText("Hero 區塊"));
+    const heroTitle = screen.getByDisplayValue("Hero Title");
+    await userEvent.clear(heroTitle);
+    await userEvent.type(heroTitle, "Cross Tab Hero");
+
+    // 單次儲存須同時持久化兩個分頁的變更，而非僅目前分頁。
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body).toEqual({ siteName: "Cross Tab Site", heroTitle: "Cross Tab Hero" });
+  });
+
+  it("跨分頁尚有 dirty 欄位時，即使目前分頁未變動仍可儲存 (C1)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+
+    // 只在一般設定分頁改值，再切到未變動的 Hero 分頁。
+    const siteName = screen.getByDisplayValue("Test Site");
+    await userEvent.clear(siteName);
+    await userEvent.type(siteName, "Only General");
+    await userEvent.click(screen.getByText("Hero 區塊"));
+
+    // 儲存鈕須因整體仍有 dirty 而啟用，並送出一般設定的變更。
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
+    expect(saveButton).toBeEnabled();
+    await userEvent.click(saveButton);
+
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({ siteName: "Only General" });
   });
 
   it("shows dirty state, can cancel changes, and previews pending desktop/mobile values", async () => {
     render(<SiteSettingsForm initialSettings={mockSettings} />);
     const input = screen.getByDisplayValue("Test Site");
-    expect(screen.getByRole("button", { name: "儲存此區" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "儲存變更" })).toBeDisabled();
 
     await userEvent.clear(input);
     await userEvent.type(input, "Pending Site");
