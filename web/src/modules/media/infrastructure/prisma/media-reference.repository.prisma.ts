@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { lockMediaReferencesExclusive } from "@/lib/media-reference-lock";
 import type { MediaReference, MediaReferenceRepository } from "../../application/ports";
 
 /** Prisma 交易在可序列化隔離下遇到寫入衝突時回傳的錯誤碼。 */
@@ -78,9 +79,13 @@ export const mediaReferenceRepositoryPrisma: MediaReferenceRepository = {
   async softDeleteUploadIfUnreferenced(uploadId) {
     // 於同一可序列化交易內重新確認引用後才軟刪除，關閉「確認無引用後、刪除前另一管理員新增引用」的競態；
     // 並行的文章儲存會與此讀取序列化衝突（P2034），落敗方保守視為衝突而不刪除。
+    // 另以 advisory lock 涵蓋走預設隔離層級（非 Serializable）的引用寫入方，確保與刪除方互斥。
+    // 注意：Serializable 與 advisory lock 防護的交易類別不同（前者對其他 Serializable 交易、
+    // 後者對取共享鎖的預設隔離寫入方），兩者互補、不可視為冗餘而移除其一。
     try {
       return await prisma.$transaction(
         async (tx) => {
+          await lockMediaReferencesExclusive(tx);
           const references = await collectReferences(tx, uploadId);
           // 僅高確定性 exact 引用（作用中封面/OG/Hero、內文含完整 URL）硬阻擋；
           // 低確定性 manual-review 候選由 UI 覆寫路徑確認後放行，不在交易層阻擋。

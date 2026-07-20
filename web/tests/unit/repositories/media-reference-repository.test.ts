@@ -8,6 +8,7 @@ vi.mock("@/lib/db", () => {
     post: { findMany: vi.fn() },
     siteSetting: { findMany: vi.fn() },
     upload: { update: vi.fn() },
+    $executeRaw: vi.fn(),
   };
   return {
     prisma: {
@@ -120,6 +121,23 @@ describe("mediaReferenceRepositoryPrisma", () => {
 
     expect(result).toEqual({ ok: true });
     expect(prisma.upload.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "up-1" } }));
+  });
+
+  it("softDeleteUploadIfUnreferenced 於引用查詢前先取得排他 advisory lock", async () => {
+    // 引用寫入方（文章／站點設定）只走預設隔離層級，不參與 SSI；
+    // 刪除方必須先取得排他 advisory lock，與引用寫入方的共享鎖互斥，關閉競態。
+    (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.siteSetting.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.upload.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "up-1" });
+
+    await mediaReferenceRepositoryPrisma.softDeleteUploadIfUnreferenced("up-1");
+
+    const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+    const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+    expect(sql).toContain("pg_advisory_xact_lock(");
+    expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+    );
   });
 
   it("softDeleteUploadIfUnreferenced 於並行寫入衝突（P2034）回報 conflict", async () => {
