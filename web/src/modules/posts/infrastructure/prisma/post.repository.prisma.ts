@@ -209,7 +209,8 @@ export const postRepositoryPrisma: PostRepository = {
           ? { publishedAt: { sort: "desc" as const, nulls: "last" as const } }
           : { updatedAt: "desc" as const };
     const orderBy = [primaryOrderBy, { id: "desc" as const }];
-    const [posts, total] = await Promise.all([
+    // eslint-disable-next-line prefer-const -- posts 在頁碼夾限重查時會被重新指派
+    let [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,
         orderBy,
@@ -219,9 +220,23 @@ export const postRepositoryPrisma: PostRepository = {
       }),
       prisma.post.count({ where }),
     ]);
+    // 請求頁碼可能超過刪除後縮減的總頁數（例如第 2 頁唯一一篇被刪），
+    // 此時以實際最後一頁重查，避免回傳空列表且分頁元件無法導回。
+    let effectivePage = page;
+    const totalPages = Math.ceil(total / pageSize);
+    if (posts.length === 0 && total > 0 && page > totalPages) {
+      effectivePage = Math.max(1, totalPages);
+      posts = await prisma.post.findMany({
+        where,
+        orderBy,
+        select: postListItemSelect,
+        skip: (effectivePage - 1) * pageSize,
+        take: pageSize,
+      });
+    }
     return {
       data: posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) })),
-      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      pagination: { page: effectivePage, pageSize, total, totalPages },
     };
   },
   async countPublished() {

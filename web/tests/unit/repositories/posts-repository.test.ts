@@ -403,6 +403,23 @@ describe("postRepositoryPrisma", () => {
       expect(result.pagination).toEqual({ page: 2, pageSize: 25, total: 55, totalPages: 3 });
     });
 
+    it("clamps the page to the actual last page when the requested page is now empty", async () => {
+      // 刪文後總頁數縮減時，仍以原頁碼查詢會回傳空列表且分頁元件無法導回，需以最後一頁重查。
+      (prisma.post.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: "p-1", status: "DRAFT" }]);
+      (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(21);
+
+      const result = await postRepositoryPrisma.listForAdmin({ deleted: false, sort: "updated-desc", page: 5, pageSize: 20 });
+
+      expect(prisma.post.findMany).toHaveBeenCalledTimes(2);
+      expect((prisma.post.findMany as ReturnType<typeof vi.fn>).mock.calls[1][0]).toEqual(
+        expect.objectContaining({ skip: 20, take: 20 })
+      );
+      expect(result.pagination).toEqual({ page: 2, pageSize: 20, total: 21, totalPages: 2 });
+      expect(result.data).toHaveLength(1);
+    });
+
     it("queries the trash explicitly instead of mixing deleted posts", async () => {
       (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
       (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
