@@ -132,7 +132,9 @@ export const analyticsRepositoryPrisma: AnalyticsRepository = {
 
   async getDashboardStats(params) {
     // viewedAt 為無時區 timestamp（UTC 值）：先標記為 UTC 再轉台北，才能取得正確的台北日曆日。
-    const viewsByDay = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
+    // 五筆聚合與兩筆 count 彼此獨立，合併為單一 Promise.all 平行查詢以降低整體延遲。
+    const [viewsByDay, topPosts, deviceStats, uaStats, refererStats, totalViews, previousTotalViews] = await Promise.all([
+      prisma.$queryRaw<{ date: string; count: bigint }[]>`
       SELECT DATE(("viewedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Taipei') as date, COUNT(*) as count
       FROM "PostViewEvent"
       WHERE "deletedAt" IS NULL
@@ -140,42 +142,29 @@ export const analyticsRepositoryPrisma: AnalyticsRepository = {
         AND "viewedAt" < ${params.until}
       GROUP BY DATE(("viewedAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Taipei')
       ORDER BY date ASC
-    `;
-
-    const topPosts = await prisma.postViewEvent.groupBy({
-      by: ["postId", "slug"],
-      where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
-      _count: { id: true },
-      orderBy: { _count: { id: "desc" } },
-      take: params.takeTopPosts,
-    });
-
-    const postIds = topPosts.map((p) => p.postId);
-    const posts = await prisma.post.findMany({
-      where: { id: { in: postIds } },
-      select: { id: true, title: true },
-    });
-    const postMap = new Map(posts.map((p) => [p.id, p.title]));
-
-    const deviceStats = await prisma.postViewEvent.groupBy({
-      by: ["deviceType"],
-      where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
-      _count: { id: true },
-    });
-
-    const uaStats = await prisma.postViewEvent.groupBy({
-      by: ["userAgent"],
-      where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
-      _count: { id: true },
-    });
-
-    const refererStats = await prisma.postViewEvent.groupBy({
-      by: ["referer"],
-      where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
-      _count: { id: true },
-    });
-
-    const [totalViews, previousTotalViews] = await Promise.all([
+    `,
+      prisma.postViewEvent.groupBy({
+        by: ["postId", "slug"],
+        where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: params.takeTopPosts,
+      }),
+      prisma.postViewEvent.groupBy({
+        by: ["deviceType"],
+        where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
+        _count: { id: true },
+      }),
+      prisma.postViewEvent.groupBy({
+        by: ["userAgent"],
+        where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
+        _count: { id: true },
+      }),
+      prisma.postViewEvent.groupBy({
+        by: ["referer"],
+        where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
+        _count: { id: true },
+      }),
       prisma.postViewEvent.count({
         where: { deletedAt: null, viewedAt: { gte: params.since, lt: params.until } },
       }),
@@ -183,6 +172,14 @@ export const analyticsRepositoryPrisma: AnalyticsRepository = {
         where: { deletedAt: null, viewedAt: { gte: params.previousSince, lt: params.previousUntil } },
       }),
     ]);
+
+    // posts 需先取得 topPosts 的 postId，故在平行聚合之後再查詢。
+    const postIds = topPosts.map((p) => p.postId);
+    const posts = await prisma.post.findMany({
+      where: { id: { in: postIds } },
+      select: { id: true, title: true },
+    });
+    const postMap = new Map(posts.map((p) => [p.id, p.title]));
 
     return {
       trend: viewsByDay.map((v) => ({ date: normalizeSqlDate(v.date), count: Number(v.count) })),
