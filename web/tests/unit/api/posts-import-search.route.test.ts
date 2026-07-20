@@ -60,6 +60,23 @@ describe("Posts Import API", () => {
       expect(res.status).toBe(400);
     });
 
+    it("rejects unexpected mode values before invoking the use case", async () => {
+      // importPosts 將任何非 skip 值視為覆寫，未驗證會造成實際覆寫卻無 import_overwrite 稽核。
+      (requirePermission as any).mockResolvedValue(null);
+
+      const req = new Request("http://localhost/api/posts/import", {
+        method: "POST",
+        body: JSON.stringify({
+          posts: [{ slug: "a", title: "A", excerpt: "e", content: "c" }],
+          mode: "replace",
+        }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      expect(postsUseCases.importPosts).not.toHaveBeenCalled();
+    });
+
     it("should import posts successfully", async () => {
       (requirePermission as any).mockResolvedValue(null);
       (postsUseCases.importPosts as any).mockResolvedValue({

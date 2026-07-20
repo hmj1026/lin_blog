@@ -41,6 +41,12 @@ export async function POST(request: Request) {
       return jsonError("請提供要匯入的文章", 400);
     }
 
+    // Runtime 驗證匯入模式：importPosts 將任何非 skip 值視為覆寫，
+    // 未驗證會讓非預期值（如 "replace"）實際覆寫資料卻繞過 import_overwrite 稽核。
+    if (mode !== "skip" && mode !== "overwrite") {
+      return jsonError("mode 僅支援 skip 或 overwrite", 400);
+    }
+
     const results = await postsUseCases.importPosts({ posts, mode });
     if (mode === "overwrite") {
       await recordAuditEventSafely({
