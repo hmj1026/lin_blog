@@ -1076,6 +1076,92 @@ describe("AdminPostForm", () => {
       expect(await screen.findByText("Earlier title")).toBeInTheDocument();
     });
 
+    it("連續三次暫時性失敗後暫停自動儲存，不再無限重試", async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({ success: false, message: "伺服器錯誤" }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Persistent failure" } });
+        // 首次嘗試 + 兩次重試 = 3 次後暫停。
+        for (let i = 0; i < 6; i += 1) {
+          await act(() => vi.advanceTimersByTimeAsync(1100));
+        }
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("自動儲存已暫停");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("非暫時性失敗（4xx，如重複 slug）不重試自動儲存", async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ success: false, message: "Slug 已存在" }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Duplicate slug" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("自動儲存已暫停");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("dirty 時攔截站內連結導覽並改走離開確認對話框", () => {
+      renderDraft();
+      fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Unsaved before nav" } });
+
+      const anchor = document.createElement("a");
+      anchor.href = "/admin/media";
+      anchor.textContent = "媒體庫";
+      document.body.appendChild(anchor);
+      try {
+        // fireEvent 回傳 false 代表 preventDefault 被呼叫 → 導覽被攔截。
+        const notPrevented = fireEvent.click(anchor);
+
+        expect(notPrevented).toBe(false);
+        expect(screen.getByRole("dialog", { name: "尚有未儲存變更" })).toBeInTheDocument();
+      } finally {
+        anchor.remove();
+      }
+    });
+
+    it("版本歷史可檢視版本詳情並經確認後還原", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [{ id: "v1", title: "Earlier title", editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: { id: "v1", title: "Earlier title", excerpt: "Old excerpt", content: "<p>old</p>", allowRawHtml: true, showRawHtmlToc: false, editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "已還原到選定版本" } }) });
+      renderDraft();
+      await userEvent.click(screen.getByRole("button", { name: "版本歷史" }));
+      await screen.findByText("Earlier title");
+
+      await userEvent.click(screen.getByRole("button", { name: "檢視" }));
+      expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions/v1");
+      expect(await screen.findByText("<p>old</p>")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "還原" }));
+      expect(screen.getByRole("dialog", { name: "確認還原版本" })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "確認還原" }));
+
+      // 還原成功後會 window.location.reload()（jsdom 僅記錄 not-implemented，不中斷測試）。
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions/v1", expect.objectContaining({ method: "POST" }))
+      );
+    });
+
     it("shows SEO counts, search preview, reading estimate and searchable taxonomy pickers", async () => {
       renderDraft();
 

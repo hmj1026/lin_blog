@@ -21,6 +21,17 @@ import { SettingsPanel } from "./post-form/settings-panel";
 import { detectStrippedRichHtml } from "@/lib/utils/detect-rich-html";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 
+type VersionDetail = {
+  id: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  allowRawHtml: boolean;
+  showRawHtmlToc: boolean;
+  editorName: string;
+  createdAt: string;
+};
+
 type Props = {
   mode: "create" | "edit";
   postId?: string;
@@ -57,6 +68,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const lastAutoSaveCandidateRef = useRef<string | null>(null);
   // 自動儲存失敗後遞增此 nonce 以強制重新觸發自動儲存 effect，讓相同內容得以重試。
   const [autoSaveRetryNonce, setAutoSaveRetryNonce] = useState(0);
+  // 連續自動儲存失敗次數：僅暫時性失敗（網路中斷、5xx）重試，且達上限即暫停，避免無限重打 API。
+  const autoSaveFailureCountRef = useRef(0);
   const [showRawHtmlToc, setShowRawHtmlToc] = useState(initial.showRawHtmlToc ?? false);
   const [status, setStatus] = useState<PostStatus>(initial.status);
   const [publishedAt, setPublishedAt] = useState(initial.publishedAt ?? "");
@@ -74,11 +87,16 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const [timeFormat, setTimeFormat] = useState<"24h" | "12h">("24h");
   const [dirty, setDirty] = useState(false);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
-  const [showLeavePrompt, setShowLeavePrompt] = useState(false);
+  // 待確認的離開目標路徑：null 表示未顯示離開確認；由返回連結或站內導覽攔截設定。
+  const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [validationSummary, setValidationSummary] = useState<string | null>(null);
   const [versions, setVersions] = useState<Array<{ id: string; title: string; editorName: string; createdAt: string }> | null>(null);
   const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionDetail, setVersionDetail] = useState<VersionDetail | null>(null);
+  const [versionDetailLoading, setVersionDetailLoading] = useState<string | null>(null);
+  const [pendingRestoreVersion, setPendingRestoreVersion] = useState<{ id: string; title: string } | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   // 表單快照：用來判斷自上次成功儲存以來是否有變更（dirty）
   function buildSnapshot(statusOverride: PostStatus = status) {
@@ -137,6 +155,28 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty]);
+
+  // App Router 的 <Link> 站內導覽只做 client-side transition，不會觸發 beforeunload；
+  // 以 capture 階段攔截同站錨點點擊，改走離開確認對話框，避免未儲存內容直接遺失。
+  useEffect(() => {
+    if (!dirty) return;
+    function handleClickCapture(event: MouseEvent) {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = (event.target as HTMLElement | null)?.closest?.<HTMLAnchorElement>("a[href]");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") ?? "";
+      if (anchor.target === "_blank" || anchor.hasAttribute("download") || href.startsWith("#")) return;
+      const url = new URL(anchor.href, window.location.href);
+      // 跨站導覽會整頁卸載，由 beforeunload 警告涵蓋。
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setLeaveTarget(url.pathname + url.search + url.hash);
+    }
+    document.addEventListener("click", handleClickCapture, true);
+    return () => document.removeEventListener("click", handleClickCapture, true);
   }, [dirty]);
 
   const canSubmit = useMemo(() => {
@@ -257,12 +297,15 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       const json = await parseJson<unknown>(res);
       if (!isApiSuccess(res, json)) {
         if (res.status === 409) setConflict(true);
-        throw new Error(getApiErrorMessage(json, "儲存失敗"));
+        const saveError = new Error(getApiErrorMessage(json, "儲存失敗")) as Error & { status?: number };
+        saveError.status = res.status;
+        throw saveError;
       }
       // 以伺服器回傳的新 updatedAt 更新樂觀鎖 token，讓連續儲存不誤判衝突。
       const savedUpdatedAt = (json.data as { updatedAt?: string } | null)?.updatedAt;
       if (savedUpdatedAt) expectedUpdatedAtRef.current = savedUpdatedAt;
       persistedStatusRef.current = payload.status;
+      autoSaveFailureCountRef.current = 0;
       // savedSnapshotRef 記錄「實際送出並儲存的快照」；dirty 則以最新快照（含請求期間的新編輯）重算，
       // 讓請求進行中產生的變更仍保持 dirty、續發自動儲存與離開警告，不會被舊快照誤清。
       savedSnapshotRef.current = buildSnapshot(kind === "auto" ? persistedStatusRef.current : status);
@@ -272,12 +315,23 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       setValidationSummary(null);
       return true;
     } catch (error: unknown) {
-      setMessage(error instanceof Error ? error.message : "儲存失敗");
-      // 自動儲存失敗（網路/5xx）時清除 candidate 並遞增 nonce 以重新觸發 effect，讓相同內容得以重試；
+      const baseMessage = error instanceof Error ? error.message : "儲存失敗";
+      // 自動儲存僅對「暫時性」失敗（fetch 拋出的網路錯誤 status undefined、或 5xx）重試，
+      // 且連續失敗達上限即暫停：4xx（如重複 slug）重送相同內容必然再失敗，不應無限重打 API；
       // 版本衝突（409）另由 conflict 旗標阻擋自動儲存，不會在此重試。
       if (kind === "auto") {
-        lastAutoSaveCandidateRef.current = null;
-        setAutoSaveRetryNonce((nonce) => nonce + 1);
+        const errorStatus = (error as { status?: number }).status;
+        const transient = errorStatus === undefined || errorStatus >= 500;
+        autoSaveFailureCountRef.current += 1;
+        if (transient && autoSaveFailureCountRef.current < 3) {
+          lastAutoSaveCandidateRef.current = null;
+          setAutoSaveRetryNonce((nonce) => nonce + 1);
+          setMessage(baseMessage);
+        } else {
+          setMessage(`${baseMessage}（自動儲存已暫停，請手動儲存）`);
+        }
+      } else {
+        setMessage(baseMessage);
       }
       return false;
     } finally {
@@ -361,6 +415,42 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
     }
   }
 
+  /** 載入（或收合）指定版本的詳情，供管理員在還原前檢視內容與 Raw HTML/TOC 設定。 */
+  async function viewVersion(versionId: string) {
+    if (!postId) return;
+    if (versionDetail?.id === versionId) {
+      setVersionDetail(null);
+      return;
+    }
+    setVersionDetailLoading(versionId);
+    try {
+      const response = await fetch(`/api/posts/${postId}/versions/${versionId}`);
+      const json = await parseJson<VersionDetail>(response);
+      if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "版本詳情載入失敗"));
+      setVersionDetail(json.data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "版本詳情載入失敗");
+    } finally {
+      setVersionDetailLoading(null);
+    }
+  }
+
+  /** 還原到選定版本；成功後整頁重新載入以取得還原後內容與新的樂觀鎖 token。 */
+  async function restoreVersion() {
+    if (!postId || !pendingRestoreVersion) return;
+    setRestoring(true);
+    try {
+      const response = await fetch(`/api/posts/${postId}/versions/${pendingRestoreVersion.id}`, { method: "POST" });
+      const json = await parseJson<unknown>(response);
+      if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "版本還原失敗"));
+      window.location.reload();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "版本還原失敗");
+      setRestoring(false);
+      setPendingRestoreVersion(null);
+    }
+  }
+
   const estimatedReadingMinutes = useMemo(() => {
     const plainText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
     return Math.max(1, Math.ceil(plainText.length / 400));
@@ -384,7 +474,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
         saving={saving}
         canSubmit={Boolean(canSubmit)}
         onSubmit={submit}
-        onBackClick={dirty ? () => setShowLeavePrompt(true) : undefined}
+        onBackClick={dirty ? () => setLeaveTarget("/admin/posts") : undefined}
       />
 
       {validationSummary ? <div role="alert" tabIndex={-1} className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{validationSummary}</div> : null}
@@ -397,7 +487,31 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       {mode === "edit" ? (
         <div className="rounded-xl border border-line bg-white p-3">
           <Button type="button" size="sm" variant="secondary" onClick={toggleVersions} disabled={versionsLoading}>{versionsLoading ? "載入版本中..." : "版本歷史"}</Button>
-          {versions ? <ul className="mt-3 space-y-2 text-sm">{versions.map((version) => <li key={version.id}><strong>{version.title}</strong><span className="ml-2 text-base-300">{version.editorName} · {new Date(version.createdAt).toLocaleString("zh-TW")}</span></li>)}</ul> : null}
+          {versions ? (
+            <ul className="mt-3 space-y-2 text-sm">
+              {versions.map((version) => (
+                <li key={version.id} className="rounded-lg border border-line p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong>{version.title}</strong>
+                    <span className="text-base-300">{version.editorName} · {new Date(version.createdAt).toLocaleString("zh-TW")}</span>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => viewVersion(version.id)} disabled={versionDetailLoading !== null}>
+                      {versionDetail?.id === version.id ? "收合" : versionDetailLoading === version.id ? "載入中..." : "檢視"}
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setPendingRestoreVersion({ id: version.id, title: version.title })} disabled={restoring}>
+                      還原
+                    </Button>
+                  </div>
+                  {versionDetail?.id === version.id ? (
+                    <div className="mt-2 space-y-1 text-xs text-base-300">
+                      <p>Raw HTML：{versionDetail.allowRawHtml ? "啟用" : "停用"} · TOC：{versionDetail.showRawHtmlToc ? "顯示" : "隱藏"}</p>
+                      <p className="text-primary">{versionDetail.excerpt}</p>
+                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-base-100 p-2">{versionDetail.content}</pre>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 
@@ -480,7 +594,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
 
       {/* 預覽 Modal */}
       {previewOpen && <PreviewModal slug={slug} onClose={() => setPreviewOpen(false)} />}
-      <ConfirmationDialog open={showLeavePrompt} title="尚有未儲存變更" description="離開後可能遺失尚未安全保存的內容。" confirmLabel="仍要離開" onConfirm={() => router.push("/admin/posts")} onCancel={() => setShowLeavePrompt(false)} />
+      <ConfirmationDialog open={leaveTarget !== null} title="尚有未儲存變更" description="離開後可能遺失尚未安全保存的內容。" confirmLabel="仍要離開" onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) router.push(target as Parameters<typeof router.push>[0]); }} onCancel={() => setLeaveTarget(null)} />
+      <ConfirmationDialog open={Boolean(pendingRestoreVersion)} title="確認還原版本" description={pendingRestoreVersion ? `將文章還原為版本「${pendingRestoreVersion.title}」？目前未儲存的變更將會遺失。` : ""} confirmLabel="確認還原" pending={restoring} onConfirm={restoreVersion} onCancel={() => setPendingRestoreVersion(null)} />
     </div>
   );
 }
