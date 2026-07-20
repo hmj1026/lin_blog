@@ -5,6 +5,7 @@ import { MediaLibraryClient } from "@/components/admin/media-library-client";
 import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 import { mediaQueries } from "@/lib/server-queries";
 import { toUploadListItemDto } from "@/modules/media/presentation/dto";
+import { MEDIA_FILTER_TYPE_VALUES } from "@/modules/media/presentation/media-filters";
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
@@ -20,7 +21,7 @@ export default async function AdminMediaPage({ searchParams }: Props) {
 
   const query = (await searchParams) ?? {};
   const requestedType = first(query.type) ?? "";
-  const type = ["image/", "video/", "application/pdf"].includes(requestedType) ? requestedType : "";
+  const type = MEDIA_FILTER_TYPE_VALUES.includes(requestedType) ? requestedType : "";
   const result = await mediaQueries.listUploadsPage({
     search: first(query.q),
     type,

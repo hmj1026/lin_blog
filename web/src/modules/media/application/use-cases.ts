@@ -4,7 +4,6 @@ import type { UploadRepository, StoragePort, ImageProcessorPort, MediaReferenceR
 import type { UploadVisibility } from "../domain";
 
 const MAX_LIST_TAKE = 200;
-const MEDIA_TYPES = new Set(["image/", "video/", "application/pdf"]);
 
 function boundedInteger(value: number | undefined, fallback: number, min: number, max: number) {
   const normalized = Number.isFinite(value) ? Math.trunc(value as number) : fallback;
@@ -37,7 +36,9 @@ export function createMediaUseCases(deps: {
     /** 以有界參數取得管理端媒體分頁，避免無限制查詢。 */
     listUploadsPage: async (params: { search?: string; type?: string; page?: number; pageSize?: number }) => {
       const search = params.search?.trim().slice(0, 100) || undefined;
-      const type = params.type && MEDIA_TYPES.has(params.type) ? params.type : undefined;
+      // type 以 mime 前綴透傳（對齊 listUploads），由 repository 以 startsWith 過濾；
+      // 不再以固定白名單靜默降級為「回傳全部類型」。
+      const type = params.type?.trim() || undefined;
       const page = boundedInteger(params.page, 1, 1, 10_000);
       const pageSize = boundedInteger(params.pageSize, 20, 1, 100);
       const result = await deps.uploads.listPage({ search, type, page, pageSize });

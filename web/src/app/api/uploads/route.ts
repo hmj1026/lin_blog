@@ -1,6 +1,7 @@
 import { jsonOk, jsonError, requirePermission } from "@/lib/api-utils";
 import { NextRequest } from "next/server";
 import { mediaUseCases } from "@/modules/media";
+import { mediaQueries } from "@/lib/server-queries";
 import { toUploadListItemDto } from "@/modules/media/presentation/dto";
 import { env } from "@/env";
 
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (authError) return authError;
 
   const { searchParams } = new URL(request.url);
-  const result = await mediaUseCases.listUploadsPage({
+  const result = await mediaQueries.listUploadsPage({
     search: searchParams.get("q") ?? searchParams.get("search") ?? undefined,
     type: searchParams.get("type") ?? undefined,
     page: Number(searchParams.get("page") ?? 1),

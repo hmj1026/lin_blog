@@ -98,14 +98,24 @@ describe("mediaUseCases", () => {
       expect(result).toEqual({ items: [mockUpload], page: 2, pageSize: 10, total: 21, totalPages: 3 });
     });
 
-    it("限制頁碼、每頁筆數與媒體類型", async () => {
+    it("非白名單的具體 mime（image/png）需作為前綴過濾透傳，不得靜默回傳全部類型 (C5)", async () => {
+      (mockRepo.listPage as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+
+      await useCases.listUploadsPage({ type: "image/png", page: 1, pageSize: 20 });
+
+      expect(mockRepo.listPage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "image/png" })
+      );
+    });
+
+    it("限制頁碼與每頁筆數，type 以前綴透傳（非白名單靜默降級）", async () => {
       (mockRepo.listPage as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
 
       await useCases.listUploadsPage({ search: "x".repeat(150), type: "text/html", page: 0, pageSize: 500 });
 
       expect(mockRepo.listPage).toHaveBeenCalledWith({
         search: "x".repeat(100),
-        type: undefined,
+        type: "text/html",
         page: 1,
         pageSize: 100,
       });
