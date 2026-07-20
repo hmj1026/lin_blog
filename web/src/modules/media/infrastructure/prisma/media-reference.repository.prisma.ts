@@ -70,7 +70,10 @@ export const mediaReferenceRepositoryPrisma: MediaReferenceRepository = {
       return await prisma.$transaction(
         async (tx) => {
           const references = await collectReferences(tx, uploadId);
-          if (references.length > 0) return { ok: false as const, reason: "referenced" as const, references };
+          // 僅高確定性 exact 引用（作用中封面/OG/Hero、內文含完整 URL）硬阻擋；
+          // 低確定性 manual-review 候選由 UI 覆寫路徑確認後放行，不在交易層阻擋。
+          const blocking = references.filter((reference) => reference.certainty === "exact");
+          if (blocking.length > 0) return { ok: false as const, reason: "referenced" as const, references: blocking };
           await tx.upload.update({ where: { id: uploadId }, data: { deletedAt: new Date() } });
           return { ok: true as const };
         },

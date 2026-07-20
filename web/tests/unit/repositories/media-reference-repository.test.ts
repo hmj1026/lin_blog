@@ -79,6 +79,21 @@ describe("mediaReferenceRepositoryPrisma", () => {
     expect(prisma.upload.update).not.toHaveBeenCalled();
   });
 
+  it("softDeleteUploadIfUnreferenced 於僅 manual-review 候選時放行刪除 (C3)", async () => {
+    // 內文僅含裸 id（非完整 /api/files/up-1）且允許 Raw HTML → certainty manual-review；
+    // 低確定性候選不得硬阻擋，交易內應放行軟刪除。
+    (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: "post-2", title: "嵌入碼", coverImage: null, ogImage: null, allowRawHtml: true, content: '<custom-media data-id="up-1" />' },
+    ]);
+    (prisma.siteSetting.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.upload.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "up-1" });
+
+    const result = await mediaReferenceRepositoryPrisma.softDeleteUploadIfUnreferenced("up-1");
+
+    expect(result).toEqual({ ok: true });
+    expect(prisma.upload.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "up-1" } }));
+  });
+
   it("softDeleteUploadIfUnreferenced 於並行寫入衝突（P2034）回報 conflict", async () => {
     (prisma.$transaction as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Prisma.PrismaClientKnownRequestError("write conflict", { code: "P2034", clientVersion: "5.22.0" }),

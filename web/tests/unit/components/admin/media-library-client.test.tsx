@@ -109,13 +109,28 @@ describe("MediaLibraryClient", () => {
     await waitFor(() => expect(screen.queryByText("image1.jpg")).not.toBeInTheDocument());
   });
 
-  it("以人工檢查資訊阻擋可能的 Raw HTML 引用", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [{ label: "Raw HTML 可能引用：嵌入碼（需人工檢查）" }] } }) });
+  it("僅 manual-review 候選時放行進確認對話框並列出候選 (C3)", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [{ label: "Raw HTML 可能引用：嵌入碼（需人工檢查）", certainty: "manual-review" }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "檔案已刪除" } }) });
     renderLibrary();
 
     await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("需人工檢查");
+    // 全為低確定性候選 → 不硬阻擋，放行進確認對話框；
+    expect(await screen.findByRole("button", { name: "確認刪除" })).toBeInTheDocument();
+    // 對話框列出需人工確認的候選。
+    expect(screen.getByText(/需人工確認/)).toBeInTheDocument();
+    expect(screen.getByText(/嵌入碼/)).toBeInTheDocument();
+  });
+
+  it("存在 exact 引用時仍硬阻擋刪除（無覆寫路徑）(C3)", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [{ label: "作用中封面", certainty: "exact" }] } }) });
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("無法刪除");
     expect(screen.queryByRole("button", { name: "確認刪除" })).not.toBeInTheDocument();
   });
 });

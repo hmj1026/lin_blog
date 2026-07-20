@@ -8,6 +8,7 @@ import { Button, buttonStyles } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { Pagination } from "@/components/pagination";
+import { MEDIA_FILTER_TYPES } from "@/modules/media/presentation/media-filters";
 
 type Upload = { id: string; originalName: string; mimeType: string; size: number; createdAt: string; src: string };
 type Props = {
@@ -15,7 +16,7 @@ type Props = {
   filters: { search: string; type: string };
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 };
-type MediaReference = { label: string };
+type MediaReference = { label: string; certainty: "exact" | "manual-review" };
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -38,6 +39,7 @@ export function MediaLibraryClient({ initialUploads, filters, pagination }: Prop
   const [uploading, setUploading] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Upload | null>(null);
+  const [manualReviewRefs, setManualReviewRefs] = useState<MediaReference[]>([]);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [deleteTrigger, setDeleteTrigger] = useState<HTMLElement | null>(null);
 
@@ -68,10 +70,14 @@ export function MediaLibraryClient({ initialUploads, filters, pagination }: Prop
       const json = await response.json();
       if (!response.ok || !json.success) throw new Error(json.message || "無法取得刪除影響");
       const references = json.data.references as MediaReference[];
-      if (references.length > 0) {
-        setFeedback({ tone: "error", message: `無法刪除，檔案仍被引用：${references.map((item) => item.label).join("、")}` });
+      // 依確定性分級：高確定性 exact 引用（如作用中封面）維持硬阻擋；
+      // 低確定性 manual-review 候選（Raw HTML 子字串命中）放行進確認對話框，供管理者審閱後覆寫刪除。
+      const blocking = references.filter((item) => item.certainty === "exact");
+      if (blocking.length > 0) {
+        setFeedback({ tone: "error", message: `無法刪除，檔案仍被引用：${blocking.map((item) => item.label).join("、")}` });
         return;
       }
+      setManualReviewRefs(references.filter((item) => item.certainty === "manual-review"));
       setPendingDelete(upload);
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "無法取得刪除影響" });
@@ -122,7 +128,7 @@ export function MediaLibraryClient({ initialUploads, filters, pagination }: Prop
 
       <form method="get" className="flex flex-wrap items-end gap-3 rounded-2xl border border-line bg-white p-4" aria-label="媒體篩選">
         <label className="grid gap-1 text-sm font-semibold text-primary">搜尋媒體檔案<input name="q" type="search" defaultValue={filters.search} placeholder="輸入檔案名稱" className="rounded-xl border border-line bg-white px-4 py-2 text-sm" /></label>
-        <label className="grid gap-1 text-sm font-semibold text-primary">媒體類型<select name="type" defaultValue={filters.type} className="rounded-xl border border-line bg-white px-4 py-2 text-sm"><option value="">所有類型</option><option value="image/">圖片</option><option value="video/">影片</option><option value="application/pdf">PDF</option></select></label>
+        <label className="grid gap-1 text-sm font-semibold text-primary">媒體類型<select name="type" defaultValue={filters.type} className="rounded-xl border border-line bg-white px-4 py-2 text-sm"><option value="">所有類型</option>{MEDIA_FILTER_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <input type="hidden" name="pageSize" value={pagination.pageSize} />
         <Button type="submit">套用</Button>
         <Link href="/admin/media" className={buttonStyles({ variant: "ghost" })}>清除</Link>
@@ -149,7 +155,7 @@ export function MediaLibraryClient({ initialUploads, filters, pagination }: Prop
         </div>
       )}
       <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} baseUrl="/admin/media" queryParams={queryParams} />
-      <ConfirmationDialog open={Boolean(pendingDelete)} title="確認刪除媒體" description={pendingDelete ? `確定刪除「${pendingDelete.originalName}」？已檢查結構化欄位、文章內文與 Raw HTML 引用候選。` : ""} confirmLabel="確認刪除" pending={Boolean(deleting)} returnFocus={deleteTrigger} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
+      <ConfirmationDialog open={Boolean(pendingDelete)} title="確認刪除媒體" description={pendingDelete ? `確定刪除「${pendingDelete.originalName}」？已檢查結構化欄位、文章內文與 Raw HTML 引用候選。${manualReviewRefs.length > 0 ? `以下候選需人工確認：${manualReviewRefs.map((item) => item.label).join("、")}` : ""}` : ""} confirmLabel="確認刪除" pending={Boolean(deleting)} returnFocus={deleteTrigger} onConfirm={confirmDelete} onCancel={() => setPendingDelete(null)} />
     </div>
   );
 }
