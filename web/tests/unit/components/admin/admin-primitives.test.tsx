@@ -66,6 +66,36 @@ describe("admin UI primitives", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("traps Tab focus inside the dialog while open", async () => {
+    // aria-modal 對話框開啟時，Tab 循環不得逃到背景控制項。
+    const outside = document.createElement("button");
+    outside.textContent = "outside";
+    document.body.appendChild(outside);
+
+    render(
+      <ConfirmationDialog
+        open
+        title="確認刪除媒體"
+        description="媒體將被刪除。"
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+
+    const cancelButton = screen.getByRole("button", { name: "取消" });
+    const confirmButton = screen.getByRole("button", { name: "確認" });
+
+    confirmButton.focus();
+    await userEvent.keyboard("{Tab}");
+    expect(cancelButton).toHaveFocus();
+
+    cancelButton.focus();
+    await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+    expect(confirmButton).toHaveFocus();
+
+    outside.remove();
+  });
+
   it("preserves the original trigger when pending state changes before Escape", async () => {
     const cancel = vi.fn();
     const trigger = document.createElement("button");

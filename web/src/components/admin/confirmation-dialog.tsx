@@ -41,9 +41,34 @@ export function ConfirmationDialog({
     returnFocusRef.current = returnFocus ?? (document.activeElement as HTMLElement | null);
     dialogRef.current?.focus();
 
-    /** 允許使用者以 Escape 安全取消對話框。 */
+    /** 允許使用者以 Escape 安全取消對話框，並將 Tab 焦點循環限制在對話框內。 */
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !pendingRef.current) onCancelRef.current();
+      if (event.key === "Escape" && !pendingRef.current) {
+        onCancelRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables || focusables.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const inside = dialogRef.current?.contains(active) ?? false;
+      if (event.shiftKey) {
+        if (!inside || active === first || active === dialogRef.current) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (!inside || active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     document.addEventListener("keydown", handleKeyDown);
