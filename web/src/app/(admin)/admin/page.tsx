@@ -58,7 +58,7 @@ export default async function AdminDashboardPage() {
           ))}
         </div>
       ) : null}
-      {(canManagePosts || canViewAnalytics) ? (
+      {canManagePosts ? (
         <DashboardWorkSummary
           drafts={{ total: drafts?.pagination.total ?? 0, items: drafts?.data.map((item) => ({ id: item.id, title: item.title })) ?? [] }}
           scheduled={{ total: scheduled?.pagination.total ?? 0, items: scheduled?.data.map((item) => ({ id: item.id, title: item.title })) ?? [] }}

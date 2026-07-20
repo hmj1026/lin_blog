@@ -69,6 +69,18 @@ describe("AdminDashboardPage", () => {
     expect(analyticsQueries.countViews).not.toHaveBeenCalled();
   });
 
+  it("analytics:view 但無 posts:write 者不見以 0 假冒的草稿／排程工作摘要 (C7)", async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { permissions: ["analytics:view"] } } as never);
+
+    const ui = await AdminDashboardPage();
+
+    // 沒有 posts:write 就不得查詢草稿/排程，避免以 total:0 假冒實際計數。
+    expect(postsQueries.listAdminPosts).not.toHaveBeenCalled();
+    // 工作摘要面板（含 drafts/scheduled 假 0）不得渲染給僅具分析權限者。
+    const children = ui.props.children as Array<{ props?: Record<string, unknown> } | null>;
+    expect(children.some((child) => (child?.props ? "drafts" in child.props : false))).toBe(false);
+  });
+
   it("僅具 posts:write 時只查詢文章統計，不查其他領域", async () => {
     vi.mocked(getSession).mockResolvedValue({ user: { permissions: ["admin:access", "posts:write"] } } as never);
 
