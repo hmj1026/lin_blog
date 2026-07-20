@@ -2,6 +2,7 @@ import { handleApiError, jsonOk, jsonError, requirePermission } from "@/lib/api-
 import { categorySchema } from "@/lib/validations/category.schema";
 import { postsUseCases } from "@/modules/posts";
 import { recordAuditEventSafely } from "@/lib/server/audit-safe";
+import { handleTaxonomyPatch } from "@/lib/server/taxonomy-patch";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -50,32 +51,10 @@ export async function DELETE(_request: Request, context: Context) {
 }
 
 export async function PATCH(request: Request, context: Context) {
-  const authError = await requirePermission("categories:manage");
-  if (authError) return authError;
-
-  try {
-    const { id } = await context.params;
-    const text = await request.text();
-    let raw: { mergeIntoId?: unknown };
-    try {
-      raw = text ? JSON.parse(text) as { mergeIntoId?: unknown } : {};
-    } catch {
-      return jsonError("請求內容不是有效的 JSON", 400);
-    }
-    // 明確區分合併與復原：出現 mergeIntoId 鍵但格式不對時直接拒絕，避免誤觸復原。
-    if ("mergeIntoId" in raw) {
-      if (typeof raw.mergeIntoId !== "string" || !raw.mergeIntoId.trim()) {
-        return jsonError("mergeIntoId 必須為非空字串", 400);
-      }
-      const targetId = raw.mergeIntoId.trim();
-      const result = await postsUseCases.mergeCategory(id, targetId);
-      await recordAuditEventSafely({ action: "category.merged", resourceType: "category", resourceId: id, summary: { affectedCount: result.movedPosts, referenceIds: [targetId] } });
-      return jsonOk(result);
-    }
-    const restored = await postsUseCases.restoreCategory(id);
-    await recordAuditEventSafely({ action: "category.restored", resourceType: "category", resourceId: id, summary: {} });
-    return jsonOk(restored);
-  } catch (error: unknown) {
-    return handleApiError(error);
-  }
+  return handleTaxonomyPatch(request, context, {
+    permission: "categories:manage",
+    resourceType: "category",
+    merge: (id, targetId) => postsUseCases.mergeCategory(id, targetId),
+    restore: (id) => postsUseCases.restoreCategory(id),
+  });
 }
