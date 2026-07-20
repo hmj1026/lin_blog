@@ -7,18 +7,9 @@ import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { Pagination } from "@/components/pagination";
 import { buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
+import { first, parseDate } from "@/lib/admin-search-params";
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
-
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function parseDate(value: string | undefined, endOfDay = false) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
-  const date = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}+08:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
 
 /** 具專用 audit:view 權限、URL 篩選與 bounded pagination 的活動紀錄頁。 */
 export default async function AdminAuditPage({ searchParams }: Props) {

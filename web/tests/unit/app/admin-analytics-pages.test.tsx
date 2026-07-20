@@ -102,6 +102,25 @@ describe("Admin Post Analytics Page", () => {
     expect(screen.getByRole("combobox", { name: "分類篩選" })).toHaveValue("cat-1");
   });
 
+  it("normalizes duplicate filter query params to a single value without crashing (C4)", async () => {
+    // Next.js 對重複 query param 給出 string[]；頁面須單值正規化，
+    // 不得把陣列直接送入 Prisma 查詢（會 PrismaClientValidationError 使整頁崩潰）。
+    const ui = await AdminPostAnalyticsPage({
+      searchParams: Promise.resolve({
+        days: "7",
+        category: ["cat-1", "cat-2"],
+        tag: ["tag-1", "tag-2"],
+        publishedFrom: ["2025-01-01", "2025-06-01"],
+      }) as any,
+    });
+    render(ui);
+
+    expect(screen.getByText("文章統計")).toBeInTheDocument();
+    expect(analyticsQueries.listPostAnalyticsSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ categoryId: "cat-1", tagId: "tag-1", publishedFrom: expect.any(Date) })
+    );
+  });
+
   it("renders analytics list", async () => {
     const ui = await AdminPostAnalyticsPage({ searchParams: Promise.resolve({ days: "7" }) });
     render(ui);

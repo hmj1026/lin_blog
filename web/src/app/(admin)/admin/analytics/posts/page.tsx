@@ -7,14 +7,9 @@ import { buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { first, parseDate } from "@/lib/admin-search-params";
 
-type Props = { searchParams?: Promise<{ days?: string; category?: string; tag?: string; publishedFrom?: string; publishedTo?: string }> };
-
-function parseDate(value: string | undefined, endOfDay = false) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
-  const date = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}+08:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
+type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
   const session = await getSession();
@@ -22,14 +17,16 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
   if (!session.user.roleId) return <AdminAccessDenied />;
   if (!sessionHasPermission(session, "analytics:view")) return <AdminAccessDenied />;
 
-  const params = await searchParams;
-  const days = Number(params?.days ?? "7");
+  const params = (await searchParams) ?? {};
+  const days = Number(first(params.days) ?? "7");
   const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
   const canViewSensitive = sessionHasPermission(session, "analytics:view_sensitive");
-  const categoryId = params?.category || undefined;
-  const tagId = params?.tag || undefined;
-  const publishedFrom = parseDate(params?.publishedFrom);
-  const publishedTo = parseDate(params?.publishedTo, true);
+  const categoryId = first(params.category) || undefined;
+  const tagId = first(params.tag) || undefined;
+  const publishedFromRaw = first(params.publishedFrom);
+  const publishedToRaw = first(params.publishedTo);
+  const publishedFrom = parseDate(publishedFromRaw);
+  const publishedTo = parseDate(publishedToRaw, true);
   const [list, categories, tags] = await Promise.all([
     analyticsQueries.listPostAnalyticsSummary({ days: safeDays, categoryId, tagId, publishedFrom, publishedTo }),
     postsQueries.listAllCategories(),
@@ -48,8 +45,8 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
         <label className="grid gap-1 text-sm font-semibold">期間<select name="days" defaultValue={safeDays} className="rounded-xl border border-line px-3 py-2"><option value="7">7 天</option><option value="14">14 天</option><option value="30">30 天</option><option value="90">90 天</option></select></label>
         <label className="grid gap-1 text-sm font-semibold">分類<select name="category" aria-label="分類篩選" defaultValue={categoryId ?? ""} className="rounded-xl border border-line px-3 py-2"><option value="">全部分類</option>{categories.filter((item) => !item.deletedAt).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-semibold">標籤<select name="tag" aria-label="標籤篩選" defaultValue={tagId ?? ""} className="rounded-xl border border-line px-3 py-2"><option value="">全部標籤</option>{tags.filter((item) => !item.deletedAt).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <label className="grid gap-1 text-sm font-semibold">發布起日<input name="publishedFrom" type="date" defaultValue={params?.publishedFrom ?? ""} className="rounded-xl border border-line px-3 py-2" /></label>
-        <label className="grid gap-1 text-sm font-semibold">發布迄日<input name="publishedTo" type="date" defaultValue={params?.publishedTo ?? ""} className="rounded-xl border border-line px-3 py-2" /></label>
+        <label className="grid gap-1 text-sm font-semibold">發布起日<input name="publishedFrom" type="date" defaultValue={publishedFromRaw ?? ""} className="rounded-xl border border-line px-3 py-2" /></label>
+        <label className="grid gap-1 text-sm font-semibold">發布迄日<input name="publishedTo" type="date" defaultValue={publishedToRaw ?? ""} className="rounded-xl border border-line px-3 py-2" /></label>
         <div className="flex items-end"><button type="submit" className={buttonStyles({ variant: "primary" })}>套用篩選</button></div>
       </form>
 
