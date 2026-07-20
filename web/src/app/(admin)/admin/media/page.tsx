@@ -6,12 +6,9 @@ import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 import { mediaQueries } from "@/lib/server-queries";
 import { toUploadListItemDto } from "@/modules/media/presentation/dto";
 import { MEDIA_FILTER_TYPE_VALUES } from "@/modules/media/presentation/media-filters";
+import { first } from "@/lib/admin-search-params";
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
-
-function first(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export default async function AdminMediaPage({ searchParams }: Props) {
   const session = await getSession();
