@@ -2,6 +2,7 @@ import { PostStatus } from "@prisma/client";
 import type { PostRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
 import { publishTimeReached } from "@/lib/prisma/public-post-visibility";
+import { lockMediaReferencesShared } from "@/lib/media-reference-lock";
 import { mapPostStatusFromPrisma, mapPostStatusToPrisma } from "./mappers";
 
 // updateWithVersion 內用來觸發 transaction rollback 並回報結果的哨兵錯誤。
@@ -302,44 +303,54 @@ export const postRepositoryPrisma: PostRepository = {
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },
   async create(data) {
-    return prisma.post.create({
-      data: {
-        slug: data.slug,
-        title: data.title,
-        excerpt: data.excerpt,
-        content: data.content,
-        coverImage: data.coverImage,
-        readingTime: data.readingTime,
-        featured: data.featured ?? false,
-        allowRawHtml: data.allowRawHtml ?? false,
-        showRawHtmlToc: data.showRawHtmlToc ?? false,
-        status: mapPostStatusToPrisma(data.status),
-        publishedAt: data.publishedAt,
-        seoTitle: data.seoTitle ?? null,
-        seoDescription: data.seoDescription ?? null,
-        ogImage: data.ogImage ?? null,
-        authorId: data.authorId ?? undefined,
-        categories: { connect: data.categoryIds?.map((id) => ({ id })) ?? [] },
-        tags: { connect: data.tagIds?.map((id) => ({ id })) ?? [] },
-      },
-      select: { id: true },
+    // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+    return prisma.$transaction(async (tx) => {
+      await lockMediaReferencesShared(tx);
+      return tx.post.create({
+        data: {
+          slug: data.slug,
+          title: data.title,
+          excerpt: data.excerpt,
+          content: data.content,
+          coverImage: data.coverImage,
+          readingTime: data.readingTime,
+          featured: data.featured ?? false,
+          allowRawHtml: data.allowRawHtml ?? false,
+          showRawHtmlToc: data.showRawHtmlToc ?? false,
+          status: mapPostStatusToPrisma(data.status),
+          publishedAt: data.publishedAt,
+          seoTitle: data.seoTitle ?? null,
+          seoDescription: data.seoDescription ?? null,
+          ogImage: data.ogImage ?? null,
+          authorId: data.authorId ?? undefined,
+          categories: { connect: data.categoryIds?.map((id) => ({ id })) ?? [] },
+          tags: { connect: data.tagIds?.map((id) => ({ id })) ?? [] },
+        },
+        select: { id: true },
+      });
     });
   },
   async update(id, data) {
-    return prisma.post.update({
-      where: { id },
-      data: {
-        ...toScalarUpdateData(data),
-        categories: data.categoryIds ? { set: data.categoryIds.map((cid) => ({ id: cid })) } : undefined,
-        tags: data.tagIds ? { set: data.tagIds.map((tid) => ({ id: tid })) } : undefined,
-      },
-      select: { id: true },
+    // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+    return prisma.$transaction(async (tx) => {
+      await lockMediaReferencesShared(tx);
+      return tx.post.update({
+        where: { id },
+        data: {
+          ...toScalarUpdateData(data),
+          categories: data.categoryIds ? { set: data.categoryIds.map((cid) => ({ id: cid })) } : undefined,
+          tags: data.tagIds ? { set: data.tagIds.map((tid) => ({ id: tid })) } : undefined,
+        },
+        select: { id: true },
+      });
     });
   },
   async updateWithVersion({ id, expectedUpdatedAt, version, update }) {
     try {
       let nextUpdatedAt: Date | null = null;
       await prisma.$transaction(async (tx) => {
+        // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+        await lockMediaReferencesShared(tx);
         const existing = await tx.post.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
         if (!existing) throw new PostNotFoundError();
 

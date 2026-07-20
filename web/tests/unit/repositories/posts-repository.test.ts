@@ -33,6 +33,7 @@ vi.mock("@/lib/db", () => {
     // 以 mocked prisma 自身作為 transaction client（tx），讓 updateWithVersion 內的
     // tx.post / tx.postVersion 呼叫落在同一組 mock 上，方便斷言。
     $transaction: vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+    $executeRaw: vi.fn(),
   };
   return { prisma };
 });
@@ -267,6 +268,19 @@ describe("postRepositoryPrisma", () => {
         })
       );
     });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再建立文章", async () => {
+      // 與媒體刪除的排他鎖互斥：避免刪除方確認無引用後、提交前，新文章寫入該媒體引用。
+      (prisma.post.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.create({ slug: "s", title: "t", status: "DRAFT", content: "c", excerpt: "e" });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.post.create as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+      );
+    });
   });
 
   describe("update", () => {
@@ -296,6 +310,18 @@ describe("postRepositoryPrisma", () => {
         })
       );
     });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再更新文章", async () => {
+      (prisma.post.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.update("p1", { slug: "s", title: "new", excerpt: "e", content: "c", status: "DRAFT" });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.post.update as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+      );
+    });
   });
 
   describe("updateWithVersion", () => {
@@ -320,6 +346,22 @@ describe("postRepositoryPrisma", () => {
       // 樂觀鎖：updateMany 以 updatedAt === expectedUpdatedAt 為條件。
       expect(prisma.post.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ id: "p1", updatedAt: expectedUpdatedAt }) })
+      );
+    });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再寫入版本與更新", async () => {
+      (prisma.post.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      (prisma.postVersion.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "v1" });
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+      (prisma.post.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ updatedAt: new Date() });
+
+      await postRepositoryPrisma.updateWithVersion({ id: "p1", expectedUpdatedAt, version, update });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.post.updateMany as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
       );
     });
 
