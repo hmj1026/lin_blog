@@ -98,8 +98,14 @@ export function classifyTrafficSource(
 /** 遮罩事件稽核中的網路位址，避免預設揭露完整識別資訊。 */
 export function maskIpAddress(ip: string): string {
   if (ip.includes(":")) {
-    const segments = ip.split(":").filter(Boolean);
-    return `${segments.slice(0, 3).join(":")}:xxxx`;
+    // 不可用 filter(Boolean) 收合 `::` 零壓縮產生的空群組，否則會把壓縮後的低位段（介面識別碼）
+    // 誤當成高位段保留而外洩。改為保留 `::` 之前、至多 3 個明確高位段，其餘一律遮蔽。
+    const prefix: string[] = [];
+    for (const segment of ip.split(":")) {
+      if (segment === "" || prefix.length >= 3) break;
+      prefix.push(segment);
+    }
+    return prefix.length > 0 ? `${prefix.join(":")}:xxxx` : "已遮罩";
   }
   const segments = ip.split(".");
   if (segments.length === 4) return `${segments.slice(0, 3).join(".")}.xxx`;

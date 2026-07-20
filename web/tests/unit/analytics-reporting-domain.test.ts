@@ -64,4 +64,13 @@ describe("analytics reporting domain", () => {
     expect(maskIpAddress("192.168.12.34")).toBe("192.168.12.xxx");
     expect(maskIpAddress("2001:db8:abcd:0012::1")).toBe("2001:db8:abcd:xxxx");
   });
+
+  it("does not leak the IPv6 interface identifier across :: zero-compression (C6)", () => {
+    // 2001:db8::1 的 ::1 為介面識別碼，須遮蔽；不得因 filter(Boolean) 收合空群組而外洩為 2001:db8:1:xxxx。
+    expect(maskIpAddress("2001:db8::1")).toBe("2001:db8:xxxx");
+    // 早於第 3 段出現 :: 時，跨越壓縮邊界的低位段一律遮蔽。
+    expect(maskIpAddress("2001::1")).not.toContain(":1:");
+    // IPv4 行為維持不變。
+    expect(maskIpAddress("10.0.0.99")).toBe("10.0.0.xxx");
+  });
 });
