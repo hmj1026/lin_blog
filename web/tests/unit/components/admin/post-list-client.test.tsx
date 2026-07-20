@@ -267,6 +267,18 @@ describe("PostListClient", () => {
     }));
   });
 
+  it("hides the featured toggle in the trash view", () => {
+    // 軟刪除文章的 PATCH 會因 getPostById 回傳 null 而 404，垃圾桶不應提供精選操作。
+    render(
+      <PostListClient
+        posts={[{ ...mockPosts[0], deletedAt: "2026-01-01T00:00:00.000Z" }] as any}
+        filters={{ deleted: true, sort: "updated-desc", page: 1, pageSize: 20 }}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /精選「Post One」/ })).not.toBeInTheDocument();
+  });
+
   it("toggles featured status", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
