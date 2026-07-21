@@ -1,8 +1,7 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import fs from "fs";
-import path from "path";
 import { PrismaClient } from "@prisma/client";
 import { loginAsAdmin, login } from "./helpers/auth";
+import { loadDatabaseUrl } from "./helpers/db";
 import { gotoSettled } from "./helpers/streaming";
 
 /**
@@ -24,17 +23,6 @@ import { gotoSettled } from "./helpers/streaming";
  * 完全繞過公開訂閱 API，符合「唯讀後台名單」的測試意圖。
  */
 
-function loadDatabaseUrl(): string {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  const envPath = path.resolve(__dirname, "../../.env");
-  const content = fs.readFileSync(envPath, "utf-8");
-  const match = content.match(/^DATABASE_URL\s*=\s*"?([^"\n]+)"?\s*$/m);
-  if (!match) {
-    throw new Error("找不到 DATABASE_URL，無法直連 dev DB 建立測試用訂閱者資料");
-  }
-  return match[1];
-}
-
 async function findRoleId(request: APIRequestContext, roleKey: string): Promise<string> {
   const res = await request.get("/api/roles");
   expect(res.ok(), `讀取角色列表失敗：${res.status()}`).toBeTruthy();
@@ -50,6 +38,7 @@ test.describe("admin-subscribers", () => {
   const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const searchableName = `E2E Subscriber Findable ${runId}`;
   const searchableEmail = `e2e-subscriber-findable-${runId}@example.com`;
+  const otherBEmail = `e2e-subscriber-other-b-${runId}@example.com`;
   const seededEmails: string[] = [];
   let editorUserId = "";
   let editorEmail = "";
@@ -58,12 +47,13 @@ test.describe("admin-subscribers", () => {
   const prisma = new PrismaClient({ datasourceUrl: loadDatabaseUrl() });
 
   test.beforeAll(async ({ browser }) => {
-    // 直連 DB 種子：搜尋目標 + 足夠分頁的其餘筆數（PAGE_SIZE=20，種子 3 筆即可驗證
-    // 分頁控制項存在且可操作，不需要真的塞滿一頁以上）。
+    // Pagination 在 totalPages <= 1 時會完全隱藏（web/src/components/pagination.tsx），
+    // 因此不再依賴種滿 20+ 筆資料；下方分頁測試強制 URL 使用 `?pageSize=1`，
+    // 無論種子資料筆數為何都能保證產生多頁。
     const rows = [
       { name: searchableName, email: searchableEmail },
       { name: `E2E Subscriber Other A ${runId}`, email: `e2e-subscriber-other-a-${runId}@example.com` },
-      { name: `E2E Subscriber Other B ${runId}`, email: `e2e-subscriber-other-b-${runId}@example.com` },
+      { name: `E2E Subscriber Other B ${runId}`, email: otherBEmail },
     ];
     for (const row of rows) {
       await prisma.subscriber.create({ data: row });
@@ -130,8 +120,8 @@ test.describe("admin-subscribers", () => {
     });
 
     test("分頁控制項保留 URL 查詢（第一頁上一頁不可操作）", async ({ page }) => {
-      await gotoSettled(page, "/admin/subscribers");
-      await expect(page.getByText(searchableEmail)).toBeVisible({ timeout: 15000 });
+      await gotoSettled(page, "/admin/subscribers?pageSize=1");
+      await expect(page.getByText(otherBEmail)).toBeVisible({ timeout: 15000 });
       await expect(page.getByText("上一頁", { exact: true })).toBeVisible();
       await expect(page.getByRole("link", { name: "上一頁" })).toHaveCount(0);
     });

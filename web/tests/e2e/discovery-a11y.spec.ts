@@ -1,5 +1,7 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { loginAsAdmin } from "./helpers/auth";
+import { loadDatabaseUrl } from "./helpers/db";
 import { gotoSettled } from "./helpers/streaming";
 
 /**
@@ -53,6 +55,16 @@ test.describe.configure({ mode: "serial" });
 test.describe("discovery-a11y", () => {
   const runId = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const slug = `discovery-a11y-e2e-${runId}`;
+  const prisma = new PrismaClient({ datasourceUrl: loadDatabaseUrl() });
+  const subscriberA = {
+    name: `E2E A11y Subscriber A ${runId}`,
+    email: `e2e-a11y-subscriber-a-${runId}@example.com`,
+  };
+  const subscriberB = {
+    name: `E2E A11y Subscriber B ${runId}`,
+    email: `e2e-a11y-subscriber-b-${runId}@example.com`,
+  };
+  const seededSubscriberEmails: string[] = [subscriberA.email, subscriberB.email];
 
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
@@ -72,10 +84,18 @@ test.describe("discovery-a11y", () => {
       },
     });
     expect(res.ok(), `建立宿主文章失敗：${res.status()}`).toBeTruthy();
+    for (const { name, email } of [subscriberA, subscriberB]) {
+      await prisma.subscriber.create({ data: { name, email } });
+    }
     // 預熱路由：避免 dev server 首次命中新路由的即時編譯延後 hydration，
     // 造成第一個鍵盤互動落在 React 接手事件之前（見 discovery-normal-post.spec.ts）。
     await gotoAndWaitHydrated(page, `/blog/${slug}`);
     await context.close();
+  });
+
+  test.afterAll(async () => {
+    await prisma.subscriber.deleteMany({ where: { email: { in: seededSubscriberEmails } } });
+    await prisma.$disconnect();
   });
 
   test("搜尋輸入 label 可透過 getByLabel 取得（可程式化關聯）", async ({ page }) => {
@@ -186,7 +206,7 @@ test.describe("discovery-a11y", () => {
 
   test("後台訂閱者名單：搜尋輸入可用鍵盤聚焦與 Enter 送出，分頁按鈕可聚焦", async ({ page }) => {
     await loginAsAdmin(page);
-    await gotoAndWaitHydrated(page, "/admin/subscribers");
+    await gotoAndWaitHydrated(page, "/admin/subscribers?pageSize=1");
 
     const searchInput = page.getByLabel("搜尋姓名或 Email");
     await expect(searchInput).toBeEnabled();
@@ -199,9 +219,8 @@ test.describe("discovery-a11y", () => {
     await searchInput.fill("");
     await page.keyboard.press("Enter");
 
-    // 第一頁時「上一頁」正確地停用（disabled 元素本就不可聚焦，這是正確的鍵盤
-    // 行為，不是缺陷）；改驗證「下一頁」——若有下一頁則應可鍵盤聚焦並具可見樣式，
-    // 否則兩者皆停用也視為合法（只有一頁資料時沒有可操作的分頁按鈕）。
+    // 本 spec 在 beforeAll 自行種入 2 筆訂閱者並強制使用 `?pageSize=1`，
+    // 因此保證 totalPages >= 2，下一頁一定存在，並驗證其可用鍵盤聚焦且具可見樣式。
     const prevControl = page.getByText("上一頁", { exact: true });
     await expect(prevControl).toBeVisible();
     expect(await prevControl.evaluate((element) => element.tagName)).toBe("SPAN");
