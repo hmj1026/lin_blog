@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { SiteSettingsRepository, SiteSettingRecord } from "../../application/ports";
-import { lockMediaReferencesShared } from "@/lib/media-reference-lock";
+import { assertReferencedMediaUsable, lockMediaReferencesShared } from "@/lib/media-reference-lock";
 
 /**
  * 將 Prisma 結果轉換為 SiteSettingRecord
@@ -107,6 +107,13 @@ export const siteSettingsRepositoryPrisma: SiteSettingsRepository = {
     // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
     const result = await prisma.$transaction(async (tx) => {
       await lockMediaReferencesShared(tx);
+      // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+      await assertReferencedMediaUsable(tx, [
+        params.create.heroImage,
+        params.create.aboutContent,
+        params.update.heroImage,
+        params.update.aboutContent,
+      ]);
       return tx.siteSetting.upsert({
       where: { key: params.key },
       create: {

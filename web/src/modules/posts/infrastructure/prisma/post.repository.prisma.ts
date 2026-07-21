@@ -2,7 +2,7 @@ import { PostStatus } from "@prisma/client";
 import type { PostRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
 import { publishTimeReached } from "@/lib/prisma/public-post-visibility";
-import { lockMediaReferencesShared } from "@/lib/media-reference-lock";
+import { assertReferencedMediaUsable, lockMediaReferencesShared } from "@/lib/media-reference-lock";
 import { mapPostStatusFromPrisma, mapPostStatusToPrisma } from "./mappers";
 
 // updateWithVersion 內用來觸發 transaction rollback 並回報結果的哨兵錯誤。
@@ -306,6 +306,8 @@ export const postRepositoryPrisma: PostRepository = {
     // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
     return prisma.$transaction(async (tx) => {
       await lockMediaReferencesShared(tx);
+      // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+      await assertReferencedMediaUsable(tx, [data.coverImage, data.ogImage, data.content]);
       return tx.post.create({
         data: {
           slug: data.slug,
@@ -334,6 +336,8 @@ export const postRepositoryPrisma: PostRepository = {
     // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
     return prisma.$transaction(async (tx) => {
       await lockMediaReferencesShared(tx);
+      // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+      await assertReferencedMediaUsable(tx, [data.coverImage, data.ogImage, data.content]);
       return tx.post.update({
         where: { id },
         data: {
@@ -351,6 +355,8 @@ export const postRepositoryPrisma: PostRepository = {
       await prisma.$transaction(async (tx) => {
         // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
         await lockMediaReferencesShared(tx);
+        // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+        await assertReferencedMediaUsable(tx, [update.coverImage, update.ogImage, update.content]);
         const existing = await tx.post.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
         if (!existing) throw new PostNotFoundError();
 
@@ -434,11 +440,17 @@ export const postRepositoryPrisma: PostRepository = {
     });
     if (scheduledPosts.length === 0) return { count: 0, published: [] };
 
-    const updateResult = await prisma.post.updateMany({
-      where: { id: { in: scheduledPosts.map((p) => p.id) } },
-      data: { status: PostStatus.PUBLISHED },
-    });
-    return { count: updateResult.count, published: scheduledPosts };
+    // 逐筆以完整資格條件原子更新：若編輯者在 findMany 後取消排程、延後 publishedAt 或刪除文章，
+    // 該筆 count 為 0，不得發布也不得列入 published 回報。
+    const published: typeof scheduledPosts = [];
+    for (const post of scheduledPosts) {
+      const updateResult = await prisma.post.updateMany({
+        where: { id: post.id, status: PostStatus.SCHEDULED, publishedAt: { lte: now }, deletedAt: null },
+        data: { status: PostStatus.PUBLISHED },
+      });
+      if (updateResult.count > 0) published.push(post);
+    }
+    return { count: published.length, published };
   },
 
   async listForExport(params) {

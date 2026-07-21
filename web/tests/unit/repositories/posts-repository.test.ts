@@ -16,6 +16,9 @@ vi.mock("@/lib/db", () => {
     postVersion: {
       create: vi.fn(),
     },
+    upload: {
+      findMany: vi.fn(async () => []),
+    },
     category: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -269,6 +272,20 @@ describe("postRepositoryPrisma", () => {
       );
     });
 
+    it("拒絕建立引用已軟刪除媒體的文章（取鎖後重驗）", async () => {
+      (prisma.upload.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ id: "u1" }]);
+      await expect(
+        postRepositoryPrisma.create({
+          slug: "s", title: "t", status: "DRAFT", excerpt: "e",
+          content: '<img src="/api/files/u1">',
+        })
+      ).rejects.toThrow(/媒體已被刪除/);
+      expect(prisma.upload.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ["u1"] }, deletedAt: { not: null } } })
+      );
+      expect(prisma.post.create).not.toHaveBeenCalled();
+    });
+
     it("於交易內先取得媒體引用共享 advisory lock 再建立文章", async () => {
       // 與媒體刪除的排他鎖互斥：避免刪除方確認無引用後、提交前，新文章寫入該媒體引用。
       (prisma.post.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
@@ -485,15 +502,15 @@ describe("postRepositoryPrisma", () => {
   });
 
   describe("publishDueScheduled", () => {
-    it("publishes posts due for schedule", async () => {
+    it("publishes posts due for schedule with atomic eligibility re-check", async () => {
       (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
         { id: "p1", slug: "s1", publishedAt: new Date() }
       ]);
       (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
-      
+
       const now = new Date();
-      await postRepositoryPrisma.publishDueScheduled(now);
-      
+      const result = await postRepositoryPrisma.publishDueScheduled(now);
+
       expect(prisma.post.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -503,13 +520,31 @@ describe("postRepositoryPrisma", () => {
           },
         })
       );
-      
+
+      // updateMany 須原子地重驗資格條件，而非只依先前取得的 ID 更新。
       expect(prisma.post.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: { in: ["p1"] } },
+          where: { id: "p1", status: "SCHEDULED", publishedAt: { lte: now }, deletedAt: null },
           data: { status: "PUBLISHED" },
         })
       );
+      expect(result).toEqual({ count: 1, published: [{ id: "p1", slug: "s1", publishedAt: expect.any(Date) }] });
+    });
+
+    it("excludes posts that lost eligibility between findMany and updateMany", async () => {
+      // 競態情境：p2 在 findMany 後被取消排程／延後，updateMany 資格重驗 count 為 0。
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: "p1", slug: "s1", publishedAt: new Date() },
+        { id: "p2", slug: "s2", publishedAt: new Date() },
+      ]);
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      const result = await postRepositoryPrisma.publishDueScheduled(new Date());
+
+      expect(result.count).toBe(1);
+      expect(result.published.map((p) => p.id)).toEqual(["p1"]);
     });
   });
 

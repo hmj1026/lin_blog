@@ -9,6 +9,9 @@ vi.mock("@/lib/db", () => {
       create: vi.fn(),
       upsert: vi.fn(),
     },
+    upload: {
+      findMany: vi.fn(async () => []),
+    },
     $executeRaw: vi.fn(),
   };
   // 以 mocked prisma 自身作為 transaction client（tx），讓 upsert 內的鎖與寫入落在同一組 mock 上。
@@ -125,6 +128,15 @@ describe("siteSettingsRepositoryPrisma", () => {
       expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
         (prisma.siteSetting.upsert as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
       );
+    });
+
+    it("拒絕寫入引用已軟刪除媒體的設定（取鎖後重驗）", async () => {
+      (prisma.upload.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ id: "up-1" }]);
+
+      await expect(
+        siteSettingsRepositoryPrisma.upsert({ key: "default", create: {}, update: { heroImage: "/api/files/up-1" } })
+      ).rejects.toThrow(/媒體已被刪除/);
+      expect(prisma.siteSetting.upsert).not.toHaveBeenCalled();
     });
   });
 });
