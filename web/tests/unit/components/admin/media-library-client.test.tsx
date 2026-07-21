@@ -1,155 +1,149 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MediaLibraryClient } from "@/components/admin/media-library-client";
 
-// Mock fetch
 const fetchMock = vi.fn();
+const refreshMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
+Object.assign(navigator, { clipboard: { writeText: vi.fn() } });
 
-// Mock alert & confirm
-const alertMock = vi.fn();
-const confirmMock = vi.fn();
-vi.stubGlobal("alert", alertMock);
-vi.stubGlobal("confirm", confirmMock);
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
+vi.mock("next/image", () => ({ default: (props: any) => <img {...props} alt={props.alt} /> }));
 
-// Mock clipboard
-Object.assign(navigator, {
-  clipboard: {
-    writeText: vi.fn(),
-  },
-});
-
-// Mock Next.js Image
-vi.mock("next/image", () => ({
-  default: (props: any) => <img {...props} alt={props.alt} />,
-}));
-
-const mockUploads = [
-  {
-    id: "1",
-    originalName: "image1.jpg",
-    mimeType: "image/jpeg",
-    size: 1024 * 500, // 500KB
-    createdAt: "2023-01-01T10:00:00Z",
-    src: "/api/files/1",
-  },
-  {
-    id: "2",
-    originalName: "doc.pdf",
-    mimeType: "application/pdf",
-    size: 1024 * 1024 * 2, // 2MB
-    createdAt: "2023-01-02T10:00:00Z",
-    src: "/api/files/2",
-  },
+const uploads = [
+  { id: "1", originalName: "image1.jpg", mimeType: "image/jpeg", size: 512000, createdAt: "2023-01-01T10:00:00Z", src: "/api/files/1" },
+  { id: "2", originalName: "doc.pdf", mimeType: "application/pdf", size: 2097152, createdAt: "2023-01-02T10:00:00Z", src: "/api/files/2" },
 ];
+
+const renderLibrary = () => render(
+  <MediaLibraryClient
+    initialUploads={uploads}
+    filters={{ search: "hero", type: "image/" }}
+    pagination={{ page: 2, pageSize: 20, total: 21, totalPages: 2 }}
+  />,
+);
 
 describe("MediaLibraryClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMock.mockReset();
-    confirmMock.mockReturnValue(true);
   });
 
-  it("starts the initial request during the first effect flush", () => {
-    fetchMock.mockReturnValue(new Promise(() => {}));
+  it("直接呈現伺服器資料與可分享的 GET 篩選表單", () => {
+    renderLibrary();
 
-    render(<MediaLibraryClient />);
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/uploads");
-  });
-
-  it("loads and displays uploads", async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: mockUploads }),
-    });
-
-    render(<MediaLibraryClient />);
-
-    expect(screen.getByText("載入中...")).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.getByText("image1.jpg")).toBeInTheDocument();
-    });
-    expect(screen.getByText("doc.pdf")).toBeInTheDocument();
-    expect(screen.getByText("500.0 KB")).toBeInTheDocument();
-    expect(screen.getByText("2.0 MB")).toBeInTheDocument();
-  });
-
-  it("filters uploads by search and type", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: mockUploads }),
-    });
-
-    render(<MediaLibraryClient />);
-    await waitFor(() => expect(screen.getByText("image1.jpg")).toBeInTheDocument());
-
-    // Search
-    const searchInput = screen.getByPlaceholderText("搜尋檔案名稱...");
-    await userEvent.type(searchInput, "image");
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByText("image1.jpg")).toBeInTheDocument();
-    expect(screen.queryByText("doc.pdf")).not.toBeInTheDocument();
-
-    await userEvent.clear(searchInput);
-    
-    // Type filter
-    const select = screen.getByRole("combobox"); // Combobox with options
-    // Or get by display value/class if hard to find. Tailwind select doesn't use semantic Select usually?
-    // The code uses standard <select>.
-    
-    await userEvent.selectOptions(select, "application/pdf");
-    expect(screen.queryByText("image1.jpg")).not.toBeInTheDocument();
     expect(screen.getByText("doc.pdf")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "搜尋媒體檔案" })).toHaveValue("hero");
+    expect(screen.getByRole("combobox", { name: "媒體類型" })).toHaveValue("image/");
+    expect(screen.getByRole("link", { name: "上一頁" })).toHaveAttribute("href", expect.stringContaining("q=hero"));
+    expect(screen.getByText("共 21 個檔案")).toBeInTheDocument();
   });
 
-  it("handles deletion", async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: mockUploads }),
-    });
+  it("在 props 變更時同步媒體清單（上傳後重新整理或分頁導航）", () => {
+    const { rerender } = render(
+      <MediaLibraryClient
+        initialUploads={uploads}
+        filters={{ search: "", type: "" }}
+        pagination={{ page: 1, pageSize: 20, total: 2, totalPages: 1 }}
+      />,
+    );
+    expect(screen.getByText("image1.jpg")).toBeInTheDocument();
 
-    render(<MediaLibraryClient />);
-    await waitFor(() => expect(screen.getByText("image1.jpg")).toBeInTheDocument());
+    const nextUploads = [
+      { id: "3", originalName: "fresh.png", mimeType: "image/png", size: 1024, createdAt: "2023-02-01T10:00:00Z", src: "/api/files/3" },
+    ];
+    rerender(
+      <MediaLibraryClient
+        initialUploads={nextUploads}
+        filters={{ search: "", type: "" }}
+        pagination={{ page: 1, pageSize: 20, total: 1, totalPages: 1 }}
+      />,
+    );
 
-    // Mock delete success
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true }),
-    });
-
-    // Find delete button for image1
-    // The buttons are hidden until hover (opacity-0 transition group-hover:opacity-100)
-    // But they are in DOM.
-    // Need to find specific button.
-    // <button>刪除</button> or "刪除中..."
-    // Since we have multiple, let's look within the card of image1
-    // Or just get all "刪除" buttons and click the first.
-    
-    const deleteButtons = screen.getAllByText("刪除");
-    await userEvent.click(deleteButtons[0]);
-
-    expect(confirmMock).toHaveBeenCalled();
-    expect(fetchMock).toHaveBeenCalledWith("/api/uploads/1", expect.objectContaining({ method: "DELETE" }));
-
-    await waitFor(() => {
-       expect(screen.queryByText("image1.jpg")).not.toBeInTheDocument();
-    });
+    expect(screen.getByText("fresh.png")).toBeInTheDocument();
+    expect(screen.queryByText("image1.jpg")).not.toBeInTheDocument();
   });
 
-  it("copies link to clipboard", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true, data: mockUploads }),
-    });
+  it("顯示檔案詳情", async () => {
+    renderLibrary();
 
-    render(<MediaLibraryClient />);
-    await waitFor(() => expect(screen.getByText("image1.jpg")).toBeInTheDocument());
+    await userEvent.click(screen.getAllByRole("button", { name: "查看詳情" })[0]);
 
-    const copyButtons = screen.getAllByText("複製連結");
-    await userEvent.click(copyButtons[0]);
+    expect(screen.getByRole("region", { name: "image1.jpg 詳情" })).toHaveTextContent("image/jpeg");
+    expect(screen.getByRole("region", { name: "image1.jpg 詳情" })).toHaveTextContent("/api/files/1");
+  });
+
+  it("上傳檔案後顯示成功回饋並重新整理伺服器資料", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { id: "3", src: "/api/files/3" } }) });
+    renderLibrary();
+    const file = new File(["image"], "new.png", { type: "image/png" });
+
+    await userEvent.upload(screen.getByLabelText("上傳媒體檔案"), file);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/uploads", expect.objectContaining({ method: "POST" })));
+    expect(await screen.findByRole("status")).toHaveTextContent("已上傳");
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it("複製連結並顯示回饋", async () => {
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "複製連結" })[0]);
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("/api/files/1");
+    expect(screen.getByRole("status")).toHaveTextContent("已複製");
+  });
+
+  it("確認無引用後刪除媒體", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "檔案已刪除" } }) });
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
+    await userEvent.click(await screen.findByRole("button", { name: "確認刪除" }));
+
+    await waitFor(() => expect(screen.queryByText("image1.jpg")).not.toBeInTheDocument());
+  });
+
+  it("刪除失敗時關閉確認對話框並顯示錯誤，不遮住回饋訊息", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [] } }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ success: false, message: "檔案仍被其他流程引用" }) });
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
+    await userEvent.click(await screen.findByRole("button", { name: "確認刪除" }));
+
+    expect(await screen.findByText("檔案仍被其他流程引用")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "確認刪除" })).not.toBeInTheDocument();
+  });
+
+  it("僅 manual-review 候選時放行進確認對話框並列出候選 (C3)", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [{ label: "Raw HTML 可能引用：嵌入碼（需人工檢查）", certainty: "manual-review" }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "檔案已刪除" } }) });
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
+
+    // 全為低確定性候選 → 不硬阻擋，放行進確認對話框；
+    expect(await screen.findByRole("button", { name: "確認刪除" })).toBeInTheDocument();
+    // 對話框列出需人工確認的候選。
+    expect(screen.getByText(/需人工確認/)).toBeInTheDocument();
+    expect(screen.getByText(/嵌入碼/)).toBeInTheDocument();
+  });
+
+  it("存在 exact 引用時仍硬阻擋刪除（無覆寫路徑）(C3)", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [{ label: "作用中封面", certainty: "exact" }] } }) });
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("無法刪除");
+    expect(screen.queryByRole("button", { name: "確認刪除" })).not.toBeInTheDocument();
   });
 });

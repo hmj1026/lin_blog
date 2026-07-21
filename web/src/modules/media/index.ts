@@ -4,6 +4,7 @@ import { uploadRepositoryPrisma } from "./infrastructure/prisma/upload.repositor
 import { getStorageAdapter, StorageError } from "./infrastructure/storage";
 import { processImage } from "./infrastructure/image-processor";
 import { env } from "@/env";
+import { mediaReferenceRepositoryPrisma } from "./infrastructure/prisma/media-reference.repository.prisma";
 
 /**
  * StoragePort 介面卡：把 infrastructure 的 StorageError 翻譯成 application 層的離散結果，
@@ -50,4 +51,5 @@ export const mediaUseCases = createMediaUseCases({
   uploads: uploadRepositoryPrisma,
   storage: storagePort,
   imageProcessor: imageProcessorPort,
+  references: mediaReferenceRepositoryPrisma,
 });

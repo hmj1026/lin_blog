@@ -14,6 +14,8 @@ export type UploadRecord = {
 
 export interface UploadRepository {
   list(params: { search?: string; type?: string; take: number }): Promise<UploadRecord[]>;
+  /** 以資料庫層級的篩選與分頁取得管理端媒體。 */
+  listPage(params: { search?: string; type?: string; page: number; pageSize: number }): Promise<{ items: UploadRecord[]; total: number }>;
   getById(id: string): Promise<UploadRecord | null>;
   create(data: {
     originalName: string;
@@ -23,6 +25,29 @@ export interface UploadRepository {
     visibility: UploadVisibility;
   }): Promise<{ id: string }>;
   softDelete(id: string): Promise<{ id: string }>;
+}
+
+export type MediaReference = {
+  resourceType: "post" | "site-setting";
+  resourceId: string;
+  field: "coverImage" | "ogImage" | "heroImage" | "content" | "aboutContent";
+  certainty: "exact" | "manual-review";
+  label: string;
+};
+
+/** 查詢媒體在結構化欄位、文章內容及 Raw HTML 候選中的引用。 */
+export interface MediaReferenceRepository {
+  listStructuredReferences(uploadId: string): Promise<MediaReference[]>;
+  /**
+   * 於同一交易內重新確認引用（含垃圾桶文章），僅在無引用時軟刪除該上傳。
+   * 回傳成功、殘留引用清單（referenced），或並行寫入衝突（conflict，應提示重試）。
+   * 關閉「確認無引用後、刪除前新增引用」的競態。
+   */
+  softDeleteUploadIfUnreferenced(uploadId: string): Promise<
+    | { ok: true }
+    | { ok: false; reason: "referenced"; references: MediaReference[] }
+    | { ok: false; reason: "conflict" }
+  >;
 }
 
 /** 圖片處理結果（處理後的內容與 MIME type） */
@@ -57,4 +82,3 @@ export interface StoragePort {
   putObject(params: { key: string; contentType: string; body: Buffer }): Promise<StoragePutResult>;
   getObjectStream(params: { key: string }): Promise<StorageStreamResult>;
 }
-

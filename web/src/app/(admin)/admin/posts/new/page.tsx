@@ -3,12 +3,13 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
 import { postsQueries } from "@/lib/server-queries";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 
 export default async function AdminPostNewPage() {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "posts:write"))) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!(await roleHasPermission(session.user.roleId, "posts:write"))) return <AdminAccessDenied />;
 
   const [categories, tags] = await Promise.all([
     postsQueries.listActiveCategories(),

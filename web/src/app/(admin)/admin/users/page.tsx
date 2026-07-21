@@ -3,12 +3,13 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { sessionHasPermission } from "@/lib/rbac";
 import { securityAdminQueries } from "@/lib/server-queries";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 
 export default async function AdminUsersPage() {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!sessionHasPermission(session, "users:manage")) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!sessionHasPermission(session, "users:manage")) return <AdminAccessDenied />;
 
   const [users, roles] = await Promise.all([
     securityAdminQueries.listUsers({ includeDeleted: true }),

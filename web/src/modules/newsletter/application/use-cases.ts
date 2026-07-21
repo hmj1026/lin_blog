@@ -1,4 +1,5 @@
 import { validateSubscriberInput, type SubscriberFieldErrors } from "../domain";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import type {
   CaptchaFailureReason,
   CaptchaVerifier,
@@ -117,18 +118,36 @@ export function createNewsletterUseCases(deps: {
       const pageSize = clampPageSize(params.pageSize);
 
       const trimmedSearch = params.search?.trim();
-      const result = await deps.listRepo.list({
-        search: trimmedSearch ? trimmedSearch : undefined,
-        page,
-        pageSize,
-      });
+      const listParams = { search: trimmedSearch ? trimmedSearch : undefined, page, pageSize };
+      let result = await deps.listRepo.list(listParams);
+
+      // 請求頁碼可能超過刪除/搜尋縮減後的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin / media.listUploadsPage 的處理）。
+      let effectivePage = page;
+      const totalPages = computeTotalPages(result.total, pageSize);
+      const overflowPage = resolveOverflowPage({ itemCount: result.items.length, total: result.total, page, totalPages });
+      if (overflowPage !== null) {
+        effectivePage = overflowPage;
+        result = await deps.listRepo.list({ ...listParams, page: effectivePage });
+      }
 
       return {
         items: result.items.map(toSafeListItem),
         total: result.total,
-        page,
+        page: effectivePage,
         pageSize,
       };
+    },
+
+    /** 計算近 7／30 天新增訂閱者 aggregate，不回傳任何訂閱者個資。 */
+    async countSubscriberGrowth(now = new Date()) {
+      if (!deps.listRepo?.countGrowth) {
+        throw new Error("countGrowth is not configured for this NewsletterUseCases instance");
+      }
+      return deps.listRepo.countGrowth({
+        since7Days: new Date(now.getTime() - 7 * 86_400_000),
+        since30Days: new Date(now.getTime() - 30 * 86_400_000),
+      });
     },
   };
 }

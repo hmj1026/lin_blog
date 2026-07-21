@@ -91,4 +91,6 @@ export type SubscriberListPage = SubscriberListResult &
  */
 export interface SubscriberListRepository {
   list(params: { search?: string; page: number; pageSize: number }): Promise<SubscriberListResult>;
+  /** 以 aggregate count 回傳兩個時間窗的新增數，不載入個資列。 */
+  countGrowth?(params: { since7Days: Date; since30Days: Date }): Promise<{ last7Days: number; last30Days: number }>;
 }

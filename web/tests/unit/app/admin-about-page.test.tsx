@@ -56,15 +56,16 @@ describe("Admin About Page (server gate)", () => {
     expect(roleHasPermission).toHaveBeenCalledWith("role-1", "settings:manage");
   });
 
-  it("redirects when the role's settings:manage was revoked, even though the JWT session snapshot still lists it", async () => {
+  it("renders access denied when settings:manage was revoked without loading protected settings", async () => {
     // 模擬「已撤權但 session 仍有效」：JWT 快照裡的 permissions 仍含 settings:manage，
     // 但即時查庫（roleHasPermission）回傳 false，代表角色權限已被收回。
     (getSession as any).mockResolvedValue(session);
     (roleHasPermission as any).mockResolvedValue(false);
 
-    await expect(AdminAboutPage()).rejects.toThrow("Redirected");
+    const ui = await AdminAboutPage();
+    render(ui);
 
-    expect(redirect).toHaveBeenCalledWith("/admin");
+    expect(screen.getByRole("heading", { name: "無法存取此頁面" })).toBeInTheDocument();
     expect(siteSettingsQueries.getOrCreateDefault).not.toHaveBeenCalled();
   });
 
@@ -76,11 +77,13 @@ describe("Admin About Page (server gate)", () => {
     expect(redirect).toHaveBeenCalledWith("/login");
   });
 
-  it("redirects a session without a roleId to /admin", async () => {
+  it("renders access denied for a session without a roleId", async () => {
     (getSession as any).mockResolvedValue({ user: { email: "no-role@example.com" } });
 
-    await expect(AdminAboutPage()).rejects.toThrow("Redirected");
+    const ui = await AdminAboutPage();
+    render(ui);
 
-    expect(redirect).toHaveBeenCalledWith("/admin");
+    expect(screen.getByRole("heading", { name: "無法存取此頁面" })).toBeInTheDocument();
+    expect(siteSettingsQueries.getOrCreateDefault).not.toHaveBeenCalled();
   });
 });

@@ -11,6 +11,7 @@ export type RoleRecord = {
   key: string;
   name: string;
   permissionKeys: string[];
+  activeUserCount: number;
 };
 
 export type RoleSummary = {
@@ -39,12 +40,17 @@ export type AdminUserRecord = {
 export interface SecurityAdminRepository {
   getRoleAccessState(roleId: string): Promise<RoleAccessState | null>;
   listRolePermissionKeys(roleId: string): Promise<string[]>;
+  /** 更新前的角色識別鍵、名稱與權限快照，供稽核比對實際變更的欄位。 */
+  getRoleAuditState(roleId: string): Promise<{ key: string; name: string; permissionKeys: string[] } | null>;
 
   listRolesWithPermissions(): Promise<RoleRecord[]>;
   listPermissions(): Promise<PermissionRecord[]>;
   createRole(params: { key: string; name: string; permissionKeys: string[] }): Promise<RoleRecord>;
-  updateRole(params: { id: string; key: string; name: string; permissionKeys: string[] }): Promise<RoleRecord>;
+  // enforceAdminFloor：於同一交易內以可序列化隔離等級確保操作後仍保留至少一位管理者，
+  // 關閉「並行降權/停用移除最後管理者」的競態窗口（use-case 判斷是否需要，repo 原子強制）。
+  updateRole(params: { id: string; key: string; name: string; permissionKeys: string[]; enforceAdminFloor?: boolean }): Promise<RoleRecord>;
   softDeleteRole(id: string): Promise<{ id: string }>;
+  countActiveUsersForRole(roleId: string): Promise<number>;
   listActiveRoles(): Promise<RoleSummary[]>;
 
   listUsersWithRoles(params: { includeDeleted: boolean }): Promise<AdminUserRecord[]>;
@@ -55,11 +61,13 @@ export interface SecurityAdminRepository {
     name?: string | null;
     roleId: string;
     passwordHash?: string;
+    enforceAdminFloor?: boolean;
   }): Promise<AdminUserRecord>;
-  softDeleteUser(id: string): Promise<AdminUserRecord>;
+  softDeleteUser(id: string, options?: { enforceAdminFloor?: boolean }): Promise<AdminUserRecord>;
   countActiveUsers(): Promise<number>;
+  userHasPermission(userId: string, permissionKey: string): Promise<boolean>;
+  countActiveUsersWithPermission(permissionKey: string): Promise<number>;
 
   getPermissionsVersion(): Promise<number>;
-  getUserAuthSnapshot(userId: string): Promise<{ roleId: string; roleKey: string; roleName: string; permissionKeys: string[] } | null>;
+  getUserAuthSnapshot(userId: string): Promise<{ email: string; name: string | null; roleId: string; roleKey: string; roleName: string; permissionKeys: string[] } | null>;
 }
-

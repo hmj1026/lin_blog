@@ -32,6 +32,9 @@ type SettingsPanelProps = {
   onSeoDescriptionChange: (value: string) => void;
   ogImage: string;
   onOgImageChange: (value: string) => void;
+  previewTitle: string;
+  previewDescription: string;
+  estimatedReadingMinutes: number;
 };
 
 /**
@@ -64,6 +67,9 @@ export function SettingsPanel({
   onSeoDescriptionChange,
   ogImage,
   onOgImageChange,
+  previewTitle,
+  previewDescription,
+  estimatedReadingMinutes,
 }: SettingsPanelProps) {
   return (
     <div data-testid="post-form-settings" className="space-y-6">
@@ -130,6 +136,7 @@ export function SettingsPanel({
             onChange={(e) => onReadingTimeChange(e.target.value)}
             placeholder="例如：8 分鐘"
           />
+          <div className="text-xs text-base-300">預估閱讀時間：{estimatedReadingMinutes} 分鐘</div>
         </Field>
         <label className="flex items-center gap-3 text-sm text-primary">
           <input
@@ -147,8 +154,9 @@ export function SettingsPanel({
         options={categories}
         selected={categoryIds}
         onToggle={onCategoryToggle}
+        searchLabel="搜尋分類"
       />
-      <Picker title="標籤（可多選）" options={tags} selected={tagIds} onToggle={onTagToggle} />
+      <Picker title="標籤（可多選）" options={tags} selected={tagIds} onToggle={onTagToggle} searchLabel="搜尋標籤" />
 
       {/* SEO 設定 */}
       <div className="rounded-2xl border border-line bg-base-50 p-4 space-y-4">
@@ -161,6 +169,7 @@ export function SettingsPanel({
             onChange={(e) => onSeoTitleChange(e.target.value)}
             placeholder="自訂搜尋引擎標題（留空使用文章標題）"
           />
+          <div className="text-xs text-base-300">SEO 標題字數：{seoTitle.length}</div>
         </Field>
         <Field label="SEO 描述" htmlFor="seo-description">
           <textarea
@@ -171,6 +180,7 @@ export function SettingsPanel({
             onChange={(e) => onSeoDescriptionChange(e.target.value)}
             placeholder="自訂搜尋引擎描述（留空使用摘要）"
           />
+          <div className="text-xs text-base-300">SEO 描述字數：{seoDescription.length}</div>
         </Field>
         <Field label="OG 圖片" htmlFor="og-image">
           <input
@@ -181,6 +191,10 @@ export function SettingsPanel({
             placeholder="社群分享縮圖網址（留空使用封面）"
           />
         </Field>
+        <div data-testid="seo-preview" className="rounded-xl border border-line bg-white p-3">
+          <div className="truncate text-base text-blue-700">{seoTitle || previewTitle || "文章標題"}</div>
+          <div className="mt-1 line-clamp-2 text-xs text-base-300">{seoDescription || previewDescription || "文章摘要"}</div>
+        </div>
       </div>
     </div>
   );

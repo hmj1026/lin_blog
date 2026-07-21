@@ -2,12 +2,35 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { sessionHasPermission } from "@/lib/rbac";
 import { MediaLibraryClient } from "@/components/admin/media-library-client";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
+import { mediaQueries } from "@/lib/server-queries";
+import { toUploadListItemDto } from "@/modules/media/presentation/dto";
+import { MEDIA_FILTER_TYPE_VALUES } from "@/modules/media/presentation/media-filters";
+import { first } from "@/lib/admin-search-params";
 
-export default async function AdminMediaPage() {
+type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
+
+export default async function AdminMediaPage({ searchParams }: Props) {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!sessionHasPermission(session, "uploads:write")) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!sessionHasPermission(session, "uploads:write")) return <AdminAccessDenied />;
 
-  return <MediaLibraryClient />;
+  const query = (await searchParams) ?? {};
+  const requestedType = first(query.type) ?? "";
+  const type = MEDIA_FILTER_TYPE_VALUES.includes(requestedType) ? requestedType : "";
+  const result = await mediaQueries.listUploadsPage({
+    search: first(query.q),
+    type,
+    page: Number(first(query.page) ?? 1),
+    pageSize: Number(first(query.pageSize) ?? 20),
+  });
+
+  return (
+    <MediaLibraryClient
+      initialUploads={result.items.map(toUploadListItemDto)}
+      filters={{ search: first(query.q)?.trim().slice(0, 100) ?? "", type }}
+      pagination={{ page: result.page, pageSize: result.pageSize, total: result.total, totalPages: result.totalPages }}
+    />
+  );
 }

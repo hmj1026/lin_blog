@@ -5,14 +5,15 @@ import { redirect } from "next/navigation";
 import { roleHasPermission } from "@/lib/rbac";
 import { postsQueries } from "@/lib/server-queries";
 import { formatLocalDateTimeInput } from "@/lib/format";
+import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function AdminPostEditPage({ params }: Props) {
   const session = await getSession();
   if (!session?.user?.email) redirect("/login");
-  if (!session.user.roleId) redirect("/admin");
-  if (!(await roleHasPermission(session.user.roleId, "posts:write"))) redirect("/admin");
+  if (!session.user.roleId) return <AdminAccessDenied />;
+  if (!(await roleHasPermission(session.user.roleId, "posts:write"))) return <AdminAccessDenied />;
 
   const { id } = await params;
   const [post, categories, tags] = await Promise.all([

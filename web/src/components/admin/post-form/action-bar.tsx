@@ -11,6 +11,7 @@ type ActionBarProps = {
   saving: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
+  onBackClick?: () => void;
 };
 
 /**
@@ -25,6 +26,7 @@ export function ActionBar({
   saving,
   canSubmit,
   onSubmit,
+  onBackClick,
 }: ActionBarProps) {
   return (
     <div
@@ -48,7 +50,11 @@ export function ActionBar({
         >
           {message}
         </div>
-        <Link href="/admin/posts" className="text-sm font-semibold text-accent-600">
+        <Link
+          href="/admin/posts"
+          className="text-sm font-semibold text-accent-600"
+          onClick={onBackClick ? (event) => { event.preventDefault(); onBackClick(); } : undefined}
+        >
           返回列表
         </Link>
         <Button type="button" onClick={onSubmit} disabled={!canSubmit || saving}>

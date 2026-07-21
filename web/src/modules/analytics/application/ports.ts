@@ -19,6 +19,31 @@ export type DashboardStats = {
   topPosts: Array<{ postId: string; slug: string; title: string; count: number }>;
   devices: Array<{ type: DeviceType; count: number }>;
   userAgents: Array<{ userAgent: string; count: number }>;
+  referers: Array<{ referer: string | null; count: number }>;
+  totalViews: number;
+  previousTotalViews: number;
+};
+
+export type PostAnalyticsAggregate = {
+  postId: string;
+  slug: string;
+  title: string;
+  views: number;
+  uniqueCount: number;
+  previousViews: number;
+  previousUniqueCount: number;
+  lastViewedAt: Date | null;
+};
+
+export type AnalyticsPeriod = {
+  since: Date;
+  until: Date;
+  previousSince: Date;
+  previousUntil: Date;
+  categoryId?: string;
+  tagId?: string;
+  publishedFrom?: Date;
+  publishedTo?: Date;
 };
 
 export type ListPostViewEventsFilter = {
@@ -33,8 +58,9 @@ export type ListPostViewEventsFilter = {
 
 export interface AnalyticsRepository {
   getPostSummary(postId: string): Promise<PostSummary | null>;
-  listEventsSince(params: { since: Date; take: number }): Promise<Array<{ postId: string; viewedAt: Date; fingerprint: string; post: PostSummary | null }>>;
-  countViewEventsSince(params: { since: Date }): Promise<number>;
+  listPostAnalyticsSummaries(params: AnalyticsPeriod): Promise<PostAnalyticsAggregate[]>;
+  listRefererCounts(params: { since: Date; until: Date; groupByPost: boolean; postIds?: string[] }): Promise<Array<{ postId: string | null; referer: string | null; count: number }>>;
+  countViewEventsSince(params: { since: Date; until: Date }): Promise<number>;
   findRecentViewEvent(params: { postId: string; fingerprint: string; since: Date }): Promise<{ id: string } | null>;
   createViewEvent(data: {
     postId: string;
@@ -46,7 +72,7 @@ export interface AnalyticsRepository {
     deviceType: DeviceType;
     fingerprint: string;
   }): Promise<{ id: string }>;
-  getDashboardStats(params: { since: Date; takeTopPosts: number }): Promise<DashboardStats>;
+  getDashboardStats(params: AnalyticsPeriod & { takeTopPosts: number }): Promise<DashboardStats>;
   listPostViewEvents(params: {
     filter: ListPostViewEventsFilter;
     page: number;

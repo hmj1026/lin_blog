@@ -1,10 +1,11 @@
 import type { z } from "zod";
+import { badRequest } from "@/lib/errors";
 import { sanitizeContentByMode } from "@/lib/content-pipeline";
 import { postSchema, importPostSchema } from "@/lib/validations/post.schema";
 import { categorySchema } from "@/lib/validations/category.schema";
 import { tagSchema } from "@/lib/validations/tag.schema";
 import { isPostStatus, isReadablePost, normalizeSlug } from "../domain";
-import type { CategoryRepository, PostRepository, PostVersionRepository, TagRepository } from "./ports";
+import type { AdminPostListParams, CategoryRepository, PostRepository, PostVersionRepository, TagRepository } from "./ports";
 
 export type PostsUseCases = ReturnType<typeof createPostsUseCases>;
 
@@ -46,7 +47,7 @@ export function createPostsUseCases(deps: {
     /**
      * 取得後台管理用的文章列表
      */
-    listAdminPosts: () => deps.posts.listForAdmin(),
+    listAdminPosts: (params: AdminPostListParams) => deps.posts.listForAdmin(params),
     
     /** 計算已發布文章總數 */
     countPublishedPosts: () => deps.posts.countPublished(),
@@ -196,6 +197,7 @@ export function createPostsUseCases(deps: {
       });
     },
     removePost: (id: string) => deps.posts.softDelete(id),
+    restorePost: (id: string) => deps.posts.restore(id),
     listPostVersions: async (postId: string) => {
       const post = await deps.posts.getById(postId);
       if (!post) return null;
@@ -358,7 +360,19 @@ export function createPostsUseCases(deps: {
       const data = categorySchema.parse(payload);
       return deps.categories.update(id, data);
     },
-    removeCategory: (id: string) => deps.categories.softDelete(id),
+    getCategoryDeletionImpact: async (id: string) => ({
+      affectedPosts: await deps.categories.countPostsByCategory(id),
+    }),
+    removeCategory: async (id: string) => {
+      const affectedPosts = await deps.categories.countPostsByCategory(id);
+      const removed = await deps.categories.softDelete(id);
+      return { ...removed, affectedPosts };
+    },
+    restoreCategory: (id: string) => deps.categories.restore(id),
+    mergeCategory: async (sourceId: string, targetId: string) => {
+      if (sourceId === targetId) throw badRequest("分類不能合併到自身");
+      return await deps.categories.merge(sourceId, targetId);
+    },
     createTag: async (payload: z.infer<typeof tagSchema>) => {
       const data = tagSchema.parse(payload);
       return deps.tags.create(data);
@@ -368,5 +382,10 @@ export function createPostsUseCases(deps: {
       return deps.tags.update(id, data);
     },
     removeTag: (id: string) => deps.tags.softDelete(id),
+    restoreTag: (id: string) => deps.tags.restore(id),
+    mergeTag: async (sourceId: string, targetId: string) => {
+      if (sourceId === targetId) throw badRequest("標籤不能合併到自身");
+      return await deps.tags.merge(sourceId, targetId);
+    },
   };
 }

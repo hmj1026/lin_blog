@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, POST } from "@/app/api/uploads/route";
-import { DELETE } from "@/app/api/uploads/[id]/route";
+import { GET as getUploadImpact, DELETE } from "@/app/api/uploads/[id]/route";
 import { mediaUseCases } from "@/modules/media";
 import { requirePermission } from "@/lib/api-utils";
+
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
 
 // Mock dependencies
 vi.mock("@/modules/media", () => ({
   mediaUseCases: {
     listUploads: vi.fn(),
+    listUploadsPage: vi.fn(),
     uploadFile: vi.fn(),
     softDeleteUpload: vi.fn(),
+    getUploadDeletionImpact: vi.fn(),
   },
 }));
 
@@ -37,25 +41,30 @@ describe("API: /api/uploads", () => {
   });
 
   describe("GET", () => {
-    it("returns uploads list", async () => {
+    it("returns a bounded paginated uploads list", async () => {
       (requirePermission as any).mockResolvedValue(null);
-      (mediaUseCases.listUploads as any).mockResolvedValue([
-        { 
+      (mediaUseCases.listUploadsPage as any).mockResolvedValue({
+        items: [{
           id: "1", 
           originalName: "file.jpg",
           mimeType: "image/jpeg",
           size: 1024,
           createdAt: new Date(),
           updatedAt: new Date()
-        }
-      ]);
+        }],
+        page: 2,
+        pageSize: 20,
+        total: 21,
+        totalPages: 2,
+      });
 
-      const request = new Request("http://localhost/api/uploads?search=test");
+      const request = new Request("http://localhost/api/uploads?q=test&type=image%2F&page=2&pageSize=20");
       const response = await GET(request as any);
-      await response.json(); // Don't check json structure strictly if not needed, or check success status
+      const json = await response.json();
 
       expect(response.status).toBe(200);
-      expect(mediaUseCases.listUploads).toHaveBeenCalledWith(expect.objectContaining({ search: "test" }));
+      expect(mediaUseCases.listUploadsPage).toHaveBeenCalledWith({ search: "test", type: "image/", page: 2, pageSize: 20 });
+      expect(json.data).toEqual(expect.objectContaining({ page: 2, total: 21, items: [expect.objectContaining({ src: "/api/files/1" })] }));
     });
   });
 
@@ -150,5 +159,32 @@ describe("API: /api/uploads/[id]", () => {
       
       expect(response.status).toBe(404);
     });
+
+    it("returns 409 when the upload is still referenced", async () => {
+      (requirePermission as any).mockResolvedValue(null);
+      (mediaUseCases.softDeleteUpload as any).mockResolvedValue({
+        ok: false,
+        error: "referenced",
+        references: [{ label: "文章封面" }],
+      });
+
+      const response = await DELETE(new Request("http://localhost/api/uploads/1", { method: "DELETE" }), context);
+
+      expect(response.status).toBe(409);
+    });
+  });
+
+  it("returns structured reference impact", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    (mediaUseCases.getUploadDeletionImpact as any).mockResolvedValue({
+      ok: true,
+      upload: { id: "1", originalName: "image.jpg" },
+      references: [],
+    });
+
+    const response = await getUploadImpact(new Request("http://localhost/api/uploads/1"), context);
+
+    expect(response.status).toBe(200);
+    expect(mediaUseCases.getUploadDeletionImpact).toHaveBeenCalledWith("1");
   });
 });

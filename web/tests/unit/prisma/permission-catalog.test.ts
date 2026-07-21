@@ -10,6 +10,11 @@ describe("permission catalog: subscribers:view", () => {
     expect(EDITOR_PERMISSION_KEYS).not.toContain("subscribers:view");
   });
 
+  it("只讓 ADMIN 預設取得 audit:view", () => {
+    expect(PERMISSIONS.some((permission) => permission.key === "audit:view")).toBe(true);
+    expect(EDITOR_PERMISSION_KEYS).not.toContain("audit:view");
+  });
+
   it("keeps EDITOR's existing baseline permissions untouched", () => {
     expect(EDITOR_PERMISSION_KEYS).toEqual(
       expect.arrayContaining(["admin:access", "posts:write", "uploads:write", "analytics:view"])
