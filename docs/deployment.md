@@ -458,30 +458,69 @@ docker inspect blog_app --format='{{.State.Health.Status}}'
 
 ---
 
-## 📁 環境變數說明
+## 📁 環境變數與 Docker 打包設定說明
 
-| 變數 | 說明 | 必填 |
-|------|------|:----:|
-| `DATABASE_URL` | PostgreSQL 連線字串 | ✅ |
-| `NEXTAUTH_SECRET` | 認證密鑰（32字元以上） | ✅ |
-| `NEXTAUTH_URL` | 網站完整 URL | ✅ |
-| `NEXT_PUBLIC_SITE_URL` | 前端網站 URL | ✅ |
-| `BLOG_PORT` | 對外 Port（預設 3100） | ❌ |
-| `NEXT_PUBLIC_GA_ID` | Google Analytics ID | ❌ |
-| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | Newsletter 訂閱表單 reCAPTCHA v2 site key（**build-time 內嵌，須設為 GitHub repo secret**，只設 `.env` 對前端無效） | ❌ |
-| `RECAPTCHA_SECRET_KEY` | reCAPTCHA v2 secret key（server-only，缺少時訂閱驗證 fail closed） | ❌ |
-| `RECAPTCHA_ALLOWED_HOSTNAMES` | reCAPTCHA 允許的 hostname 清單，逗號分隔 | ❌ |
-| `NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS` | Newsletter 訂閱限流視窗（秒，預設 600） | ❌ |
-| `NEWSLETTER_RATE_LIMIT_MAX` | Newsletter 訂閱限流視窗內最大請求數（預設 5） | ❌ |
-| `APP_REPLICA_COUNT` | 目前部署 replica 數（預設 1）；大於 1 時 newsletter 限流器建構會失敗，需先改用共享 store | ❌ |
-| `NEWSLETTER_SOURCE_HASH_SECRET` | Newsletter 限流器來源雜湊用的 HMAC 密鑰（未設定時自動產生 per-process 隨機密鑰） | ❌ |
+本系統的環境變數分為 **「建置期 (Build-Time) 參數」** 與 **「執行期 (Run-Time) 參數」**。由於 Next.js 的架構特性，所有以 `NEXT_PUBLIC_` 開頭的變數都會在編譯時（`next build`）內嵌進前端的靜態 HTML/JS Bundle 中。因此，**在打包 Docker Image 時，必須正確傳入這些參數**，僅在容器啟動時於伺服器端設定 `.env` 對前端瀏覽器是無效的。
+
+### 1. 參數分類說明
+
+#### A. 建置期參數 (Build-Time Arguments)
+在執行 `docker build` 或 CI 自動打包時，需透過 `--build-arg` 傳入。若使用 GitHub Actions 工作流，請將其設定於 GitHub Repository Secrets 中，CI 會在建置時自動讀取。
+
+| 參數名稱 | 說明 | 必要性 | 預設值/格式 | 影響範圍 |
+| :--- | :--- | :--- | :--- | :--- |
+| `NEXT_PUBLIC_SITE_URL` | 網站的公開完整網址 | ✅ 必要 | `http://localhost:3000` | 前台與 SEO Sitemap 生成 |
+| `NEXT_PUBLIC_UPLOAD_BASE_URL` | 媒體檔案的公開讀取 Base URL | ❌ 選填 | 留空（預設使用相對路徑） | 切換雲端 CDN (如 Cloudflare R2) 時使用 |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | reCAPTCHA v2 「我不是機器人」 site key | ❌ 選填 | 留空（未設定時前台訂閱功能降級關閉） | 電子報訂閱元件的防護驗證 |
+| `NEXT_PUBLIC_GA_ID` | Google Analytics 4 追蹤 ID | ❌ 選填 | 留空（未設定時不載入） | GA4 流量統計 |
+| `NEXT_PUBLIC_GTM_ID` | Google Tag Manager 容器 ID | ❌ 選填 | 留空（未設定時不載入） | GTM 代碼管理 |
+| `NEXT_PUBLIC_FB_PIXEL_ID` | Meta (Facebook) Pixel ID | ❌ 選填 | 留空（未設定時不載入） | 廣告受眾與成效追蹤 |
+| `NEXT_PUBLIC_APP_ENV` | 應用程式部署環境 | ❌ 選填 | `production` | 前端環境判斷 |
+
+#### B. 執行期參數 (Run-Time Environment Variables)
+在容器啟動時設定（如寫入伺服器的 `.env` 或 `docker-compose.yml` 的 `environment` 段落中）。這些是機密金鑰或伺服器端連線資訊，**不需要**在打包 Image 時提供。
+
+| 參數名稱 | 說明 | 必要性 | 預設值/格式 | 影響範圍 |
+| :--- | :--- | :--- | :--- | :--- |
+| `DATABASE_URL` | PostgreSQL 資料庫連線字串 | ✅ 必要 | `postgresql://user:pass@host:5432/db` | 資料庫讀寫（Prisma） |
+| `NEXTAUTH_SECRET` | NextAuth 會話加密金鑰 | ✅ 必要 | 32 字元以上的隨機字串 | 後台登入 Session 安全 |
+| `NEXTAUTH_URL` | 網站的內部/外部 URL（與 NextAuth 綁定）| ✅ 必要 | `http://localhost:3000` | OAuth 與會話跳轉 |
+| `CRON_SECRET` | 排程觸發 API 的密鑰保護 | ✅ 必要 | 32 字元以上的隨機字串 | 文章自動排程發布安全 |
+| `RECAPTCHA_SECRET_KEY` | reCAPTCHA v2 後端驗證私鑰 | ❌ 選填 | 僅與 site key 同時設定時生效 | 電子報訂閱防禦安全校驗 |
+| `RECAPTCHA_ALLOWED_HOSTNAMES` | 允許接收訂閱的 Hostname 清單 | ❌ 選填 | 逗號分隔（如 `linstar.win`） | 電子報訂閱 Hostname 檢查 |
+| `STORAGE_PROVIDER` | 媒體儲存體後端 | ❌ 選填 | `local` (可選 `local`, `s3`, `r2`, `gcs`) | 圖片與檔案儲存 |
+| `BLOG_PORT` | Docker 容器對外對接埠 | ❌ 選填 | `3100` | Docker Compose 對外埠口 |
+| `NEWSLETTER_RATE_LIMIT_WINDOW_SECONDS` | Newsletter 訂閱限流視窗 | ❌ 選填 | 秒，預設 `600` | 訂閱 API 防刷限流 |
+| `NEWSLETTER_RATE_LIMIT_MAX` | Newsletter 訂閱限流視窗內最大請求數 | ❌ 選填 | 預設 `5` | 訂閱 API 防刷限流 |
+| `APP_REPLICA_COUNT` | 目前部署 replica 數 | ❌ 選填 | 預設 `1`（大於 1 時限流器需改用共享 store） | 系統部署規模 |
+| `NEWSLETTER_SOURCE_HASH_SECRET` | 限流器來源雜湊用的 HMAC 密鑰 | ❌ 選填 | 留空時自動產生 per-process 隨機密鑰 | 限流安全性 |
 
 完整範例見：[.env.example](../.env.example)
 
 > [!WARNING]
-> `NEWSLETTER_CAPTCHA_TEST_DOUBLE` 與 `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=e2e-test` 僅供 Playwright E2E（`playwright.config.ts` `webServer.env`）使用，絕對不可設定於任何部署環境（staging 亦然）；NODE_ENV=production 執行時會強制忽略此旗標。
+> `NEWSLETTER_CAPTCHA_TEST_DOUBLE` 與 `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=e2e-test` 僅供 Playwright E2E（`playwright.config.ts` 的 `webServer.env`）使用，絕對不可設定於任何正式或 Staging 部署環境；`NODE_ENV=production` 執行時會強制忽略此測試雙身旗標。
 
 ---
+
+### 2. 手動 Docker 打包與參數傳遞範例
+
+如果您需要在本機或私有伺服器手動打包 Image，請特別注意以 `NEXT_PUBLIC_` 開頭的前端參數必須作為 `--build-arg` 在建置階段傳入，否則會被編譯為空值。以下是手動建置 Image 的完整指令範例：
+
+```bash
+# 於專案根目錄下執行（打包 web 子目錄）
+docker build \
+  --build-arg NEXT_PUBLIC_SITE_URL="https://yourblog.com" \
+  --build-arg NEXT_PUBLIC_GA_ID="G-XXXXXXXXXX" \
+  --build-arg NEXT_PUBLIC_GTM_ID="GTM-XXXXXXX" \
+  --build-arg NEXT_PUBLIC_FB_PIXEL_ID="your-fb-pixel-id" \
+  --build-arg NEXT_PUBLIC_RECAPTCHA_SITE_KEY="your-recaptcha-v2-site-key" \
+  -t hmj1026/lin_blog:v1.5.0 ./web
+```
+
+*打包完成後，只需在伺服器部署該 Image，並將 `DATABASE_URL`、`NEXTAUTH_SECRET` 與 `RECAPTCHA_SECRET_KEY` 等「執行期參數」配置於伺服器的環境變數或 `.env` 檔案中，再啟動容器即可運作。*
+
+---
+
 
 ## 📮 Newsletter 訂閱與 reCAPTCHA v2 部署
 
