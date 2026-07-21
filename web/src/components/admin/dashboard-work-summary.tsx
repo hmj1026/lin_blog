@@ -27,7 +27,7 @@ export function DashboardWorkSummary({ drafts, scheduled, recent, performance, s
       </div>
       {!hasWork ? <p className="rounded-xl border border-line bg-white p-4 text-sm text-base-300">目前沒有待處理的草稿或排程文章</p> : null}
       <div className="grid gap-4 lg:grid-cols-3">
-        <PostList title="近期更新" items={recent} />
+        <WorkCard title="近期更新" items={recent} />
         <Ranking title="成長排行" items={performance.growth} />
         <Ranking title="衰退排行" items={performance.decline} />
       </div>
@@ -36,10 +36,6 @@ export function DashboardWorkSummary({ drafts, scheduled, recent, performance, s
 }
 
 function WorkCard({ title, items }: { title: string; items: PostItem[] }) {
-  return <div className="rounded-2xl border border-line bg-white p-5 shadow-card"><h3 className="font-semibold text-primary">{title}</h3><PostLinks items={items} /></div>;
-}
-
-function PostList({ title, items }: { title: string; items: PostItem[] }) {
   return <div className="rounded-2xl border border-line bg-white p-5 shadow-card"><h3 className="font-semibold text-primary">{title}</h3><PostLinks items={items} /></div>;
 }
 

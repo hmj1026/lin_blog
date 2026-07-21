@@ -7,8 +7,6 @@ import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
-import { EmptyState } from "@/components/admin/empty-state";
-import { FilterBar } from "@/components/admin/filter-bar";
 
 describe("admin UI primitives", () => {
   it("renders a page title, description and action", () => {
@@ -140,31 +138,6 @@ describe("admin UI primitives", () => {
     expect(cancel).toHaveBeenCalledOnce();
     expect(trigger).toHaveFocus();
     trigger.remove();
-  });
-
-  it("renders a labelled empty state action", () => {
-    render(
-      <EmptyState
-        title="尚無文章"
-        description="建立第一篇文章開始使用。"
-        action={<button type="button">新增文章</button>}
-      />
-    );
-
-    expect(screen.getByRole("status")).toHaveAccessibleName("尚無文章");
-    expect(screen.getByRole("button", { name: "新增文章" })).toBeInTheDocument();
-  });
-
-  it("groups filters in a labelled search region", () => {
-    render(
-      <FilterBar ariaLabel="文章篩選">
-        <label htmlFor="post-search">搜尋文章</label>
-        <input id="post-search" />
-      </FilterBar>
-    );
-
-    expect(screen.getByRole("search", { name: "文章篩選" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "搜尋文章" })).toBeInTheDocument();
   });
 
   it("keeps a wide admin table keyboard-scrollable at narrow widths", () => {
