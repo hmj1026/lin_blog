@@ -2,9 +2,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { conflict } from "@/lib/errors";
 import type { SecurityAdminRepository } from "../../application/ports";
+import { ADMIN_ACCESS_PERMISSION } from "../../domain/permissions";
 
 const PERMISSION_VERSION_ID = "global";
-const ADMIN_ACCESS_PERMISSION = "admin:access";
 /** Prisma 交易在可序列化隔離下遇到寫入衝突時回傳的錯誤碼 */
 const SERIALIZATION_FAILURE = "P2034";
 

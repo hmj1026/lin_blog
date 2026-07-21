@@ -4,13 +4,7 @@ import { getSession } from "./auth";
 import { ApiException } from "./errors";
 import { ApiResponse } from "@/types/api";
 import { logger } from "./logger";
-
-/**
- * 後台存取門檻：所有後台 API 一律要求此權限，作為與 (admin) layout 對齊的共用門檻。
- * 避免僅授予單一領域權限（如 posts:write / uploads:write）卻缺後台存取權的角色，
- * 繞過 UI 守門直接呼叫 API。
- */
-const ADMIN_ACCESS_PERMISSION = "admin:access";
+import { ADMIN_ACCESS_PERMISSION } from "@/modules/security-admin/domain/permissions";
 
 /**
  * 建立成功的 JSON 回應

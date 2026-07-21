@@ -7,9 +7,8 @@ import {
   roleHasAnyPermission as roleHasAnyPermissionRule,
 } from "../domain/rules";
 import { permissionDependencyViolations } from "../domain/permission-dependencies";
+import { ADMIN_ACCESS_PERMISSION } from "../domain/permissions";
 import { badRequest, conflict } from "@/lib/errors";
-
-const ADMIN_ACCESS_PERMISSION = "admin:access";
 
 /**
  * 伺服器端強制驗證權限相依性；集合缺少相依權限時擲出 400 錯誤，

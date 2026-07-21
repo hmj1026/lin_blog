@@ -6,9 +6,11 @@
  * （伺服器端寫入）共用的單一事實來源（SSOT），避免僅在前端阻擋、後端 API 被直接繞過。
  */
 
+import { ADMIN_ACCESS_PERMISSION } from "./permissions";
+
 /** 權限鍵值 → 其必須先具備的相依權限鍵值清單。 */
 export const PERMISSION_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  "analytics:view_sensitive": ["admin:access", "analytics:view"],
+  "analytics:view_sensitive": [ADMIN_ACCESS_PERMISSION, "analytics:view"],
 });
 
 /** 單一未滿足的相依關係：`permissionKey` 需要但缺少 `requires`。 */
