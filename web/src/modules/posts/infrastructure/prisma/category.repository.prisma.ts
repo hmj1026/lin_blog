@@ -1,5 +1,6 @@
 import type { CategoryRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
+import { badRequest, notFoundError } from "@/lib/errors";
 
 export const categoryRepositoryPrisma: CategoryRepository = {
   async listActive(params) {
@@ -41,7 +42,7 @@ export const categoryRepositoryPrisma: CategoryRepository = {
     }),
   async merge(sourceId, targetId) {
     return prisma.$transaction(async (tx) => {
-      if (sourceId === targetId) throw new Error("分類不能合併到自身");
+      if (sourceId === targetId) throw badRequest("分類不能合併到自身");
       const [source, target] = await Promise.all([
         tx.category.findUnique({
           where: { id: sourceId },
@@ -49,8 +50,8 @@ export const categoryRepositoryPrisma: CategoryRepository = {
         }),
         tx.category.findUnique({ where: { id: targetId }, select: { deletedAt: true } }),
       ]);
-      if (!source || source.deletedAt) throw new Error("來源分類不存在或已刪除");
-      if (!target || target.deletedAt) throw new Error("目標分類不存在或已刪除");
+      if (!source || source.deletedAt) throw notFoundError("來源分類不存在或已刪除");
+      if (!target || target.deletedAt) throw notFoundError("目標分類不存在或已刪除");
       // 一次批次連結至目標、自來源移除並軟刪除來源，避免逐篇 update 造成 N+1 與交易逾時。
       const postIds = source.posts.map((post) => ({ id: post.id }));
       if (postIds.length > 0) {

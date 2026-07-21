@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { badRequest } from "@/lib/errors";
 import { sanitizeContentByMode } from "@/lib/content-pipeline";
 import { postSchema, importPostSchema } from "@/lib/validations/post.schema";
 import { categorySchema } from "@/lib/validations/category.schema";
@@ -369,7 +370,7 @@ export function createPostsUseCases(deps: {
     },
     restoreCategory: (id: string) => deps.categories.restore(id),
     mergeCategory: async (sourceId: string, targetId: string) => {
-      if (sourceId === targetId) throw new Error("分類不能合併到自身");
+      if (sourceId === targetId) throw badRequest("分類不能合併到自身");
       return await deps.categories.merge(sourceId, targetId);
     },
     createTag: async (payload: z.infer<typeof tagSchema>) => {
@@ -383,7 +384,7 @@ export function createPostsUseCases(deps: {
     removeTag: (id: string) => deps.tags.softDelete(id),
     restoreTag: (id: string) => deps.tags.restore(id),
     mergeTag: async (sourceId: string, targetId: string) => {
-      if (sourceId === targetId) throw new Error("標籤不能合併到自身");
+      if (sourceId === targetId) throw badRequest("標籤不能合併到自身");
       return await deps.tags.merge(sourceId, targetId);
     },
   };

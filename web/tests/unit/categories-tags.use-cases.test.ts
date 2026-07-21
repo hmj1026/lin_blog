@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPostsUseCases } from "@/modules/posts/application/use-cases";
+import { ApiException } from "@/lib/errors";
 
 describe("categories use cases", () => {
   const posts = {
@@ -140,8 +141,10 @@ describe("categories use cases", () => {
       expect(categories.softDelete).toHaveBeenCalledWith("c1");
     });
 
-    it("mergeCategory() rejects merging a category into itself", async () => {
-      await expect(useCases.mergeCategory("c1", "c1")).rejects.toThrow("不能合併到自身");
+    it("mergeCategory() rejects merging a category into itself with a 4xx ApiException, not a plain Error", async () => {
+      const error = await useCases.mergeCategory("c1", "c1").catch((e) => e);
+      expect(error).toBeInstanceOf(ApiException);
+      expect(error).toHaveProperty("message", expect.stringContaining("不能合併到自身"));
       expect(categories.merge).not.toHaveBeenCalled();
     });
 
@@ -285,7 +288,9 @@ describe("tags use cases", () => {
     });
 
     it("mergeTag() rejects self merge and otherwise delegates atomically", async () => {
-      await expect(useCases.mergeTag("t1", "t1")).rejects.toThrow("不能合併到自身");
+      const error = await useCases.mergeTag("t1", "t1").catch((e) => e);
+      expect(error).toBeInstanceOf(ApiException);
+      expect(error).toHaveProperty("message", expect.stringContaining("不能合併到自身"));
       tags.merge.mockResolvedValue({ id: "t1", movedPosts: 2 });
       await expect(useCases.mergeTag("t1", "t2")).resolves.toEqual({ id: "t1", movedPosts: 2 });
       expect(tags.merge).toHaveBeenCalledWith("t1", "t2");

@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 
 import { categoryRepositoryPrisma } from "@/modules/posts/infrastructure/prisma/category.repository.prisma";
 import { tagRepositoryPrisma } from "@/modules/posts/infrastructure/prisma/tag.repository.prisma";
+import { ApiException } from "@/lib/errors";
 
 describe("taxonomy repositories", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -85,7 +86,9 @@ describe("taxonomy repositories", () => {
     };
     prismaMock.$transaction.mockImplementation((callback) => callback(tx));
 
-    await expect(tagRepositoryPrisma.merge("t1", "t2")).rejects.toThrow("目標標籤不存在或已刪除");
+    const error = await tagRepositoryPrisma.merge("t1", "t2").catch((e) => e);
+    expect(error).toBeInstanceOf(ApiException);
+    expect(error).toHaveProperty("message", "目標標籤不存在或已刪除");
     expect(tx.post.update).not.toHaveBeenCalled();
     expect(tx.tag.update).not.toHaveBeenCalled();
   });
