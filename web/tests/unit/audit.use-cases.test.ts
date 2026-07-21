@@ -32,4 +32,19 @@ describe("audit use cases", () => {
     expect(result.page).toBe(100_000);
     expect(repo.listPage).toHaveBeenCalledWith(expect.objectContaining({ skip: 1_999_980, take: 20 }));
   });
+
+  it("請求頁碼超過保存期限內縮減的總頁數時，以實際最後一頁重查而非回傳空列表", async () => {
+    const event = { id: "e1", actorId: "a1", action: "post.published", resourceType: "post", resourceId: "p1", summary: {}, createdAt: new Date() };
+    const repo = {
+      create: vi.fn(),
+      deleteBefore: vi.fn(),
+      listPage: vi.fn()
+        .mockResolvedValueOnce({ total: 1, items: [] })
+        .mockResolvedValueOnce({ total: 1, items: [event] }),
+    };
+    const useCases = createAuditUseCases({ repo: repo as never });
+    const result = await useCases.listAuditEvents({ page: 3, pageSize: 20 }, new Date("2026-07-19T00:00:00.000Z"));
+    expect(repo.listPage).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 0, take: 20 }));
+    expect(result).toEqual({ total: 1, items: [event], page: 1, pageSize: 20, totalPages: 1 });
+  });
 });

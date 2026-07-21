@@ -42,19 +42,26 @@ export function createAuditUseCases({ repo }: { repo: AuditRepository }) {
       const retentionSince = new Date(now);
       retentionSince.setUTCDate(retentionSince.getUTCDate() - AUDIT_RETENTION_DAYS);
       const since = input.since && input.since > retentionSince ? input.since : retentionSince;
-      const result = await repo.listPage({
+      const listFilters = {
         since,
         until: input.until,
         actor: input.actor?.trim() || undefined,
         resource: input.resource?.trim() || undefined,
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      });
+      };
+      let result = await repo.listPage({ ...listFilters, skip: (page - 1) * pageSize, take: pageSize });
+      const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
+      // 請求頁碼可能超過刪除保存期限縮減後的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin 的處理）。
+      let effectivePage = page;
+      if (result.items.length === 0 && result.total > 0 && page > totalPages) {
+        effectivePage = totalPages;
+        result = await repo.listPage({ ...listFilters, skip: (effectivePage - 1) * pageSize, take: pageSize });
+      }
       return {
         ...result,
-        page,
+        page: effectivePage,
         pageSize,
-        totalPages: Math.max(1, Math.ceil(result.total / pageSize)),
+        totalPages,
       };
     },
   };

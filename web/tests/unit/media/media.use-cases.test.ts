@@ -120,6 +120,17 @@ describe("mediaUseCases", () => {
         pageSize: 100,
       });
     });
+
+    it("請求頁碼超過刪除後縮減的總頁數時，以實際最後一頁重查而非回傳空列表", async () => {
+      (mockRepo.listPage as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ items: [], total: 5 })
+        .mockResolvedValueOnce({ items: [mockUpload], total: 5 });
+
+      const result = await useCases.listUploadsPage({ page: 3, pageSize: 10 });
+
+      expect(mockRepo.listPage).toHaveBeenNthCalledWith(2, { search: undefined, type: undefined, page: 1, pageSize: 10 });
+      expect(result).toEqual({ items: [mockUpload], page: 1, pageSize: 10, total: 5, totalPages: 1 });
+    });
   });
 
   describe("createUpload", () => {

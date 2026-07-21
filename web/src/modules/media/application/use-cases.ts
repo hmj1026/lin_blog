@@ -41,13 +41,21 @@ export function createMediaUseCases(deps: {
       const type = params.type?.trim() || undefined;
       const page = boundedInteger(params.page, 1, 1, 10_000);
       const pageSize = boundedInteger(params.pageSize, 20, 1, 100);
-      const result = await deps.uploads.listPage({ search, type, page, pageSize });
+      let result = await deps.uploads.listPage({ search, type, page, pageSize });
+      const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
+      // 請求頁碼可能超過刪除後縮減的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin 的處理）。
+      let effectivePage = page;
+      if (result.items.length === 0 && result.total > 0 && page > totalPages) {
+        effectivePage = totalPages;
+        result = await deps.uploads.listPage({ search, type, page: effectivePage, pageSize });
+      }
       return {
         items: result.items,
-        page,
+        page: effectivePage,
         pageSize,
         total: result.total,
-        totalPages: Math.max(1, Math.ceil(result.total / pageSize)),
+        totalPages,
       };
     },
 
