@@ -111,10 +111,10 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
       if (!isApiSuccess(res, json)) throw new Error(getApiErrorMessage(json, "刪除失敗"));
       setRows((prev) => prev.map((r) => (r.id === pendingDelete.row.id ? { ...r, deletedAt: new Date().toISOString() } : r)));
       setDeletedFeedback({ row: pendingDelete.row, affectedPosts: json.data.affectedPosts });
-      setPendingDelete(null);
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : "刪除失敗");
     } finally {
+      setPendingDelete(null);
       setSaving(false);
     }
   }
@@ -151,10 +151,10 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         ? { ...row, deletedAt: new Date().toISOString(), showInNav: false }
         : row.id === pendingMerge.target.id ? { ...row, postCount: row.postCount + json.data.movedPosts } : row));
       setMessage(`已合併 ${json.data.movedPosts} 篇文章關聯`);
-      setPendingMerge(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "合併失敗");
     } finally {
+      setPendingMerge(null);
       setSaving(false);
     }
   }

@@ -121,10 +121,10 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
         ? { ...row, deletedAt: new Date().toISOString() }
         : row.id === pendingMerge.target.id ? { ...row, postCount: row.postCount + json.data.movedPosts } : row));
       setMessage(`已合併 ${json.data.movedPosts} 篇文章關聯`);
-      setPendingMerge(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "合併失敗");
     } finally {
+      setPendingMerge(null);
       setSaving(false);
     }
   }

@@ -49,6 +49,20 @@ describe("TagAdminClient", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/tags/1", expect.objectContaining({ body: JSON.stringify({ mergeIntoId: "2" }) }));
   });
 
+  it("合併標籤失敗時仍會關閉確認對話框並顯示錯誤", async () => {
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({ success: false, message: "合併失敗，請稍後再試" }) });
+    render(<TagAdminClient initialTags={mockTags} />);
+    const row = screen.getByDisplayValue("React").closest("tr") as HTMLElement;
+    await userEvent.selectOptions(within(row).getByRole("combobox", { name: "React 合併目標" }), "2");
+    await userEvent.click(within(row).getByRole("button", { name: "合併 React" }));
+    expect(screen.getByRole("dialog", { name: "確認合併標籤" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "確認合併" }));
+
+    expect(await screen.findByText("合併失敗，請稍後再試")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "確認合併標籤" })).not.toBeInTheDocument();
+  });
+
   it("creates a new tag", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

@@ -50,6 +50,20 @@ describe("CategoryAdminClient", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/categories/1", expect.objectContaining({ body: JSON.stringify({ mergeIntoId: "2" }) }));
   });
 
+  it("合併分類失敗時仍會關閉確認對話框並顯示錯誤", async () => {
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({ success: false, message: "合併失敗，請稍後再試" }) });
+    render(<CategoryAdminClient initialCategories={mockCategories} />);
+    const row = screen.getByDisplayValue("Technology").closest("tr") as HTMLElement;
+    await userEvent.selectOptions(within(row).getByRole("combobox", { name: "Technology 合併目標" }), "2");
+    await userEvent.click(within(row).getByRole("button", { name: "合併 Technology" }));
+    expect(screen.getByRole("dialog", { name: "確認合併分類" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "確認合併" }));
+
+    expect(await screen.findByText("合併失敗，請稍後再試")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "確認合併分類" })).not.toBeInTheDocument();
+  });
+
   it("creates a new category", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -159,5 +173,26 @@ describe("CategoryAdminClient", () => {
       method: "PATCH"
     }));
     expect(await screen.findByDisplayValue("Technology")).toBeInTheDocument();
+  });
+
+  it("刪除分類失敗時仍會關閉確認對話框並顯示錯誤", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, data: { affectedPosts: 3 } }),
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ success: false, message: "刪除失敗，請稍後再試" }),
+    });
+
+    render(<CategoryAdminClient initialCategories={mockCategories} />);
+    const row = screen.getByDisplayValue("Technology").closest("tr");
+    await userEvent.click(within(row as HTMLElement).getByText("刪除"));
+    expect(await screen.findByText(/3 篇文章/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "確認刪除" }));
+
+    expect(await screen.findByText("刪除失敗，請稍後再試")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "確認刪除分類" })).not.toBeInTheDocument();
   });
 });
