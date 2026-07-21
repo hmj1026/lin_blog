@@ -5,17 +5,22 @@
 ## ✨ 功能特色
 
 ### 前台
-- 📝 部落格文章展示（支援分類、標籤篩選）
-- 🔍 全站搜尋功能
-- 📱 響應式設計
-- 🚀 SEO 優化（sitemap、RSS feed、Open Graph）
+提供完整響應式、SEO 優化的部落格前台展示。詳見 [前台功能指南](docs/frontend-features.md)。
+- 📝 文章閱讀與分類、標籤多重篩選
+- 🔍 基於關鍵字的全站即時搜尋功能
+- 📱 375px~1440px 完整響應式與無障礙閱讀體驗
+- 🚀 SEO 優化（自動生成動態 sitemap、RSS feed 與 Open Graph 標記）
+- ✉️ 電子報訂閱元件與驗證防護
 
 ### 後台管理
-- 📄 文章 CRUD（草稿、發布、排程）
-- 🏷️ 分類與標籤管理
-- 🖼️ 媒體庫（圖片上傳、裁切）
-- 👥 使用者與角色管理（RBAC）
-- 📈 文章分析報表
+提供完整的文章、分類、標籤、媒體、訂閱者、使用者與 RBAC 權限管理系統。詳見 [後台功能指南](docs/admin-features.md)。
+- 📄 文章 CRUD（支援草稿、排程、自動儲存與離頁保護）
+- 🏷️ 分類與標籤安全合併與文章使用量統計
+- 🖼️ 媒體庫及文章內文引用關係安全檢查
+- 👥 使用者與角色管理（防範最後管理員停用保護）
+- 📈 無界資料庫文章分析報表與來源分類機制
+- 🔄 統一的分頁溢位安全重查與 `AdminTable` 響應式無障礙元件
+
 
 ---
 
@@ -104,7 +109,13 @@ docker compose exec blog node scripts/init-admin.js                             
 
 | 文件 | 說明 |
 |-----|------|
+| [前台功能指南](docs/frontend-features.md) | 前台頁面展示與後台設定連動機制 |
+| [後台功能指南](docs/admin-features.md) | 後台各分頁功能說明與安全機制 |
+| [權限與角色指南](docs/permissions.md) | 後台 RBAC 權限定義、相依關係與安全機制 |
+| [維運與管理腳本指南](docs/scripts.md) | 系統初始化、使用者建立與伺服器自動化維運腳本說明 |
 | [架構文件](docs/architecture/architecture.md) | C4 架構圖、DDD 模組說明 |
+
+
 | [本地開發指南](docs/development.md) | 環境設定、常用指令 |
 | [資料庫管理](docs/database.md) | Migration 流程、Schema 說明 |
 | [ADR](docs/adr/README.md) | 架構決策記錄 |

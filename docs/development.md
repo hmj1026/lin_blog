@@ -175,6 +175,55 @@ npm run db:seed
 
 ---
 
+## 開發規範與共用元件
+
+### 1. 後台資料表元件 (`AdminTable`)
+後台所有呈現列表資料的表格，必須統一使用 `web/src/components/admin/table.tsx` 中的 `AdminTable` 元件（原 `AdminDataTable` 已棄用並移除）。
+- **特點**：內建響應式包裝容器、無障礙屬性（`role="region"`、`aria-label`）以及窄螢幕下的鍵盤可捲動支援。
+- **範例**：
+  ```tsx
+  import { AdminTable } from "@/components/admin/table";
+  
+  // 在頁面中使用：
+  <AdminTable ariaLabel="使用者列表">
+    <thead>
+      <tr>
+        <th>名稱</th>
+        <th>動作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {/* 資料列 */}
+    </tbody>
+  </AdminTable>
+  ```
+
+### 2. 分頁溢位處理 (`pagination-utils`)
+在實作分頁列表查詢時，若因為刪除資料、搜尋條件改變或手動變更 URL 頁碼，導致請求頁碼大於實際最大頁數，應統一使用 `web/src/lib/server/pagination-utils.ts` 進行安全重查。
+- **函數說明**：
+  - `computeTotalPages(total: number, pageSize: number): number` — 計算總頁數（最少回傳 1 頁，適用於 Prisma 分頁計算）。
+  - `resolveOverflowPage(params: { itemCount: number; total: number; page: number; totalPages: number }): number | null` — 判斷是否需要重導向至最後一頁。若需要重查，會回傳應重查的頁碼（如 `totalPages`），否則回傳 `null`。
+- **後台 Use Case 範例**：
+  ```ts
+  import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
+  
+  // 取得初始查詢結果...
+  const totalPages = computeTotalPages(total, pageSize);
+  const overflowPage = resolveOverflowPage({
+    itemCount: items.length,
+    total,
+    page,
+    totalPages
+  });
+  
+  if (overflowPage !== null) {
+    // 使用 overflowPage 重新查詢資料庫或 API
+    effectivePage = overflowPage;
+  }
+  ```
+
+---
+
 ## IDE 設定
 
 ### VS Code 推薦擴充套件
@@ -182,3 +231,4 @@ npm run db:seed
 - **Prisma** - Prisma Schema 語法高亮
 - **ESLint** - 程式碼檢查
 - **Tailwind CSS IntelliSense** - CSS 自動補全
+
