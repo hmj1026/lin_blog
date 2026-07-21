@@ -44,6 +44,39 @@ describe("analytics use cases", () => {
       expect(call.filter.userAgentContains).toBe("Chrome");
       expect(call.filter.refererContains).toBe("google");
     });
+
+    it("請求頁碼超過篩選縮減後的總頁數時，以實際最後一頁重查而非回傳空列表", async () => {
+      const event = {
+        id: "evt-1",
+        postId: "p1",
+        viewedAt: new Date("2026-01-01T00:00:00Z"),
+        ip: "1.2.3.4",
+        userAgent: "Chrome",
+        referer: null,
+        acceptLanguage: null,
+        deviceType: "DESKTOP" as DeviceType,
+        fingerprint: "fp",
+      };
+      analytics.listPostViewEvents
+        .mockResolvedValueOnce({ total: 5, events: [] })
+        .mockResolvedValueOnce({ total: 5, events: [event] });
+
+      const result = await useCases.listPostViewEvents({ postId: "p1", page: 3, pageSize: 10 });
+
+      expect(analytics.listPostViewEvents).toHaveBeenCalledTimes(2);
+      const secondCall = analytics.listPostViewEvents.mock.calls[1]?.[0];
+      expect(secondCall.page).toBe(1);
+      expect(result).toEqual({ total: 5, events: [event] });
+    });
+
+    it("不會為真正的空結果（total 為 0）觸發重查", async () => {
+      analytics.listPostViewEvents.mockResolvedValue({ total: 0, events: [] });
+
+      const result = await useCases.listPostViewEvents({ postId: "p1", page: 3, pageSize: 10 });
+
+      expect(analytics.listPostViewEvents).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ total: 0, events: [] });
+    });
   });
 
   describe("listPostAnalyticsSummary", () => {

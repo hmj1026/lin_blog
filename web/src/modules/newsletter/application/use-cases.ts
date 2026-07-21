@@ -1,4 +1,5 @@
 import { validateSubscriberInput, type SubscriberFieldErrors } from "../domain";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import type {
   CaptchaFailureReason,
   CaptchaVerifier,
@@ -123,9 +124,10 @@ export function createNewsletterUseCases(deps: {
       // 請求頁碼可能超過刪除/搜尋縮減後的總頁數，此時以實際最後一頁重查，
       // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin / media.listUploadsPage 的處理）。
       let effectivePage = page;
-      const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
-      if (result.items.length === 0 && result.total > 0 && page > totalPages) {
-        effectivePage = totalPages;
+      const totalPages = computeTotalPages(result.total, pageSize);
+      const overflowPage = resolveOverflowPage({ itemCount: result.items.length, total: result.total, page, totalPages });
+      if (overflowPage !== null) {
+        effectivePage = overflowPage;
         result = await deps.listRepo.list({ ...listParams, page: effectivePage });
       }
 

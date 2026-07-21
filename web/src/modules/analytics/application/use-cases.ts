@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import type { AnalyticsRepository, ListPostViewEventsFilter } from "./ports";
 import {
   buildAnalyticsDateRange,
@@ -152,7 +153,14 @@ export function createAnalyticsUseCases(deps: {
         refererContains: params.referer?.trim() ? params.referer.trim() : undefined,
       };
 
-      return deps.analytics.listPostViewEvents({ filter, page, pageSize });
+      let result = await deps.analytics.listPostViewEvents({ filter, page, pageSize });
+      // 請求頁碼可能超過篩選縮減後的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin 的處理）。
+      const totalPages = computeTotalPages(result.total, pageSize);
+      if (resolveOverflowPage({ itemCount: result.events.length, total: result.total, page, totalPages }) !== null) {
+        result = await deps.analytics.listPostViewEvents({ filter, page: totalPages, pageSize });
+      }
+      return result;
     },
   };
 }

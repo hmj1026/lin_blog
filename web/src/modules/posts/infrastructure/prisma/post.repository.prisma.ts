@@ -3,6 +3,7 @@ import type { PostRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
 import { publishTimeReached } from "@/lib/prisma/public-post-visibility";
 import { assertReferencedMediaUsable, lockMediaReferencesShared } from "@/lib/media-reference-lock";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import { mapPostStatusFromPrisma, mapPostStatusToPrisma } from "./mappers";
 
 // updateWithVersion 內用來觸發 transaction rollback 並回報結果的哨兵錯誤。
@@ -224,9 +225,10 @@ export const postRepositoryPrisma: PostRepository = {
     // 請求頁碼可能超過刪除後縮減的總頁數（例如第 2 頁唯一一篇被刪），
     // 此時以實際最後一頁重查，避免回傳空列表且分頁元件無法導回。
     let effectivePage = page;
-    const totalPages = Math.ceil(total / pageSize);
-    if (posts.length === 0 && total > 0 && page > totalPages) {
-      effectivePage = Math.max(1, totalPages);
+    const totalPages = computeTotalPages(total, pageSize);
+    const overflowPage = resolveOverflowPage({ itemCount: posts.length, total, page, totalPages });
+    if (overflowPage !== null) {
+      effectivePage = overflowPage;
       posts = await prisma.post.findMany({
         where,
         orderBy,

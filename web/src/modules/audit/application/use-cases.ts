@@ -1,4 +1,5 @@
 import { sanitizeAuditSummary } from "../domain/audit-summary";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import type { AuditRepository } from "./ports";
 
 export const AUDIT_RETENTION_DAYS = 365;
@@ -49,12 +50,13 @@ export function createAuditUseCases({ repo }: { repo: AuditRepository }) {
         resource: input.resource?.trim() || undefined,
       };
       let result = await repo.listPage({ ...listFilters, skip: (page - 1) * pageSize, take: pageSize });
-      const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
+      const totalPages = computeTotalPages(result.total, pageSize);
       // 請求頁碼可能超過刪除保存期限縮減後的總頁數，此時以實際最後一頁重查，
       // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin 的處理）。
       let effectivePage = page;
-      if (result.items.length === 0 && result.total > 0 && page > totalPages) {
-        effectivePage = totalPages;
+      const overflowPage = resolveOverflowPage({ itemCount: result.items.length, total: result.total, page, totalPages });
+      if (overflowPage !== null) {
+        effectivePage = overflowPage;
         result = await repo.listPage({ ...listFilters, skip: (effectivePage - 1) * pageSize, take: pageSize });
       }
       return {
