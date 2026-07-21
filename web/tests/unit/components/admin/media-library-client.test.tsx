@@ -109,6 +109,19 @@ describe("MediaLibraryClient", () => {
     await waitFor(() => expect(screen.queryByText("image1.jpg")).not.toBeInTheDocument());
   });
 
+  it("刪除失敗時關閉確認對話框並顯示錯誤，不遮住回饋訊息", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [] } }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ success: false, message: "檔案仍被其他流程引用" }) });
+    renderLibrary();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "刪除" })[0]);
+    await userEvent.click(await screen.findByRole("button", { name: "確認刪除" }));
+
+    expect(await screen.findByText("檔案仍被其他流程引用")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "確認刪除" })).not.toBeInTheDocument();
+  });
+
   it("僅 manual-review 候選時放行進確認對話框並列出候選 (C3)", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { upload: uploads[0], references: [{ label: "Raw HTML 可能引用：嵌入碼（需人工檢查）", certainty: "manual-review" }] } }) })

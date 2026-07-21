@@ -164,6 +164,7 @@ export function PostListClient({
       router.refresh();
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "刪除失敗" });
+      setPendingSingleDelete(null);
     } finally {
       setLoading(false);
     }

@@ -83,7 +83,14 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
       const response = await fetch(`/api/users/${draft.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const json = await parseApiResponse<Row>(response);
       if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "更新失敗"));
-      const next = { ...draft, ...json.data };
+      // 僅套用本次操作實際變更的欄位：role/password 回應仍帶著 persisted 的 email/name，
+      // 全量合併會把使用者尚未儲存的身份欄位草稿覆蓋回舊值。
+      const next: Row =
+        operation === "identity"
+          ? { ...draft, ...json.data }
+          : operation === "role"
+            ? { ...draft, roleId: json.data.roleId, roleKey: json.data.roleKey, roleName: json.data.roleName }
+            : draft;
       setRows((current) => current.map((row) => row.id === next.id ? next : row));
       setSelected(next); setDraft(next); setNewPasswordForSelected("");
       setMessage(operation === "identity" ? "基本資料已更新" : operation === "role" ? "角色已更新" : "密碼已重設");

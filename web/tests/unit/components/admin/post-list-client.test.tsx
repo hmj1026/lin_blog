@@ -180,6 +180,22 @@ describe("PostListClient", () => {
     }));
   });
 
+  it("刪除單篇文章失敗時關閉確認對話框並顯示錯誤，不遮住回饋訊息", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ success: false, message: "刪除失敗，請稍後再試" }),
+    });
+
+    render(<PostListClient posts={mockPosts as any} />);
+
+    const deleteButtons = screen.getAllByRole("button", { name: "刪除" });
+    await userEvent.click(deleteButtons[0]);
+    await userEvent.click(await screen.findByRole("button", { name: "移至垃圾桶" }));
+
+    expect(await screen.findByText("刪除失敗，請稍後再試")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "確認刪除文章" })).not.toBeInTheDocument();
+  });
+
   it("shows batch action errors in an accessible alert", async () => {
     fetchMock.mockResolvedValue({
       ok: false,

@@ -68,6 +68,23 @@ describe("UserAdminClient", () => {
     expect(body).not.toContain('"roleId":"role1"');
   });
 
+  it("更新角色不會把尚未儲存的 Email/名稱草稿還原成舊值", async () => {
+    fetchMock.mockResolvedValue(ok(users[0]));
+    render(<UserAdminClient initialUsers={users} roles={roles} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "編輯使用者" })[0]);
+    const panel = screen.getByRole("region", { name: "編輯 user1@example.com" });
+    const emailInput = within(panel).getByLabelText("使用者 Email");
+
+    // 輸入新 email 但不按「儲存基本資料」，改按「更新角色」；伺服器回應的仍是舊 email。
+    await userEvent.clear(emailInput);
+    await userEvent.type(emailInput, "changed@example.com");
+    await userEvent.selectOptions(within(panel).getByRole("combobox", { name: "指派角色" }), "role1");
+    await userEvent.click(within(panel).getByRole("button", { name: "更新角色" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(emailInput).toHaveValue("changed@example.com");
+  });
+
   it("密碼重設是獨立操作且至少六字", async () => {
     fetchMock.mockResolvedValue(ok(users[0]));
     render(<UserAdminClient initialUsers={users} roles={roles} />);

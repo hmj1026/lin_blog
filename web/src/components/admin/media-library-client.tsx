@@ -99,6 +99,7 @@ export function MediaLibraryClient({ initialUploads, filters, pagination }: Prop
       router.refresh();
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "刪除失敗" });
+      setPendingDelete(null);
     } finally {
       setDeleting(null);
     }
