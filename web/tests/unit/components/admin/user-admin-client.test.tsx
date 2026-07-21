@@ -100,6 +100,19 @@ describe("UserAdminClient", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/users/user1", expect.objectContaining({ body: expect.stringContaining('"password":"123456"') }));
   });
 
+  it("重設密碼成功後清空密碼輸入框，避免殘留舊密碼字串", async () => {
+    fetchMock.mockResolvedValue(ok(users[0]));
+    render(<UserAdminClient initialUsers={users} roles={roles} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "編輯使用者" })[0]);
+    const panel = screen.getByRole("region", { name: "編輯 user1@example.com" });
+    const password = within(panel).getByLabelText("新密碼");
+
+    await userEvent.type(password, "123456");
+    await userEvent.click(within(panel).getByRole("button", { name: "重設密碼" }));
+
+    await waitFor(() => expect(password).toHaveValue(""));
+  });
+
   it("停用維持獨立高風險確認", async () => {
     fetchMock.mockResolvedValue(ok({ ...users[0], deletedAt: new Date().toISOString() }));
     render(<UserAdminClient initialUsers={users} roles={roles} />);

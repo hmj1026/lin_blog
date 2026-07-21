@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
@@ -28,6 +28,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pendingDisable, setPendingDisable] = useState<Row | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
 
   const visibleRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -38,6 +39,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
   }, [query, roleFilter, rows]);
 
   const selectRow = (row: Row) => {
+    selectedIdRef.current = row.id;
     setSelected(row);
     setDraft({ ...row });
     setNewPasswordForSelected("");
@@ -65,6 +67,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
 
   const updateSelected = async (operation: "identity" | "role" | "password") => {
     if (!draft || !selected) return;
+    const rowId = draft.id;
     setSaving(true);
     setMessage(null);
     try {
@@ -92,7 +95,14 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
             ? { ...draft, roleId: json.data.roleId, roleKey: json.data.roleKey, roleName: json.data.roleName }
             : draft;
       setRows((current) => current.map((row) => row.id === next.id ? next : row));
-      setSelected(next); setDraft(next); setNewPasswordForSelected("");
+      // 請求進行中使用者可能已切換到別的使用者列——selectedIdRef 由 selectRow/disableSelected
+      // 同步維護，於此同步比對是否仍是本次更新的那一列，避免用過時結果覆蓋切換後的畫面。
+      // （functional updater 的執行時機由 React 排程決定，不保證在這裡同步跑完，不可靠。）
+      if (selectedIdRef.current === rowId) {
+        setSelected(next);
+        setDraft(next);
+        setNewPasswordForSelected("");
+      }
       setMessage(operation === "identity" ? "基本資料已更新" : operation === "role" ? "角色已更新" : "密碼已重設");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "更新失敗");
@@ -110,6 +120,7 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
       if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "停用失敗"));
       const deletedAt = json.data.deletedAt ?? new Date().toISOString();
       setRows((current) => current.map((row) => row.id === pendingDisable.id ? { ...row, deletedAt } : row));
+      if (selectedIdRef.current === pendingDisable.id) selectedIdRef.current = null;
       setSelected(null); setDraft(null); setMessage("帳號已停用");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "停用失敗");
@@ -141,10 +152,10 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
 
       {draft ? <section role="region" aria-label={`編輯 ${selected?.email ?? draft.email}`} className="space-y-5 rounded-2xl border border-line bg-white p-6 shadow-card">
         <h2 className="text-xl font-semibold text-primary">編輯使用者</h2>
-        <div className="grid gap-3 md:grid-cols-2"><label className="grid gap-1 text-sm font-semibold">Email<input aria-label="使用者 Email" className="rounded-xl border border-line px-4 py-2" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label><label className="grid gap-1 text-sm font-semibold">名稱<input aria-label="使用者名稱" className="rounded-xl border border-line px-4 py-2" value={draft.name ?? ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label></div>
+        <div className="grid gap-3 md:grid-cols-2"><label className="grid gap-1 text-sm font-semibold">Email<input aria-label="使用者 Email" disabled={saving} className="rounded-xl border border-line px-4 py-2" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label><label className="grid gap-1 text-sm font-semibold">名稱<input aria-label="使用者名稱" disabled={saving} className="rounded-xl border border-line px-4 py-2" value={draft.name ?? ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label></div>
         <Button type="button" disabled={saving} onClick={() => updateSelected("identity")}>儲存基本資料</Button>
-        <div className="border-t border-line pt-5"><label className="grid max-w-md gap-1 text-sm font-semibold">指派角色<RoleSelect ariaLabel="指派角色" value={draft.roleId} roles={roles} onChange={(roleId) => { const role = roles.find((item) => item.id === roleId); if (role) setDraft({ ...draft, roleId, roleKey: role.key, roleName: role.name }); }} /></label><Button className="mt-3" type="button" variant="secondary" disabled={saving} onClick={() => updateSelected("role")}>更新角色</Button></div>
-        <div className="border-t border-line pt-5"><label className="grid max-w-md gap-1 text-sm font-semibold">新密碼<input aria-label="新密碼" type="password" className="rounded-xl border border-line px-4 py-2" value={newPasswordForSelected} onChange={(event) => setNewPasswordForSelected(event.target.value)} /></label><Button className="mt-3" type="button" variant="secondary" disabled={saving || newPasswordForSelected.length < 6} onClick={() => updateSelected("password")}>重設密碼</Button></div>
+        <div className="border-t border-line pt-5"><label className="grid max-w-md gap-1 text-sm font-semibold">指派角色<RoleSelect ariaLabel="指派角色" value={draft.roleId} roles={roles} disabled={saving} onChange={(roleId) => { const role = roles.find((item) => item.id === roleId); if (role) setDraft({ ...draft, roleId, roleKey: role.key, roleName: role.name }); }} /></label><Button className="mt-3" type="button" variant="secondary" disabled={saving} onClick={() => updateSelected("role")}>更新角色</Button></div>
+        <div className="border-t border-line pt-5"><label className="grid max-w-md gap-1 text-sm font-semibold">新密碼<input aria-label="新密碼" type="password" disabled={saving} className="rounded-xl border border-line px-4 py-2" value={newPasswordForSelected} onChange={(event) => setNewPasswordForSelected(event.target.value)} /></label><Button className="mt-3" type="button" variant="secondary" disabled={saving || newPasswordForSelected.length < 6} onClick={() => updateSelected("password")}>重設密碼</Button></div>
         {!draft.deletedAt ? <div className="border-t border-line pt-5"><Button type="button" variant="danger" disabled={saving} onClick={() => setPendingDisable(draft)}>停用帳號</Button></div> : <p className="border-t border-line pt-5 text-sm text-base-300">此帳號已停用。</p>}
       </section> : null}
 
@@ -154,6 +165,6 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
   );
 }
 
-function RoleSelect({ value, onChange, roles, ariaLabel }: { value: string; onChange: (roleId: string) => void; roles: Role[]; ariaLabel: string }) {
-  return <select aria-label={ariaLabel} className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary" value={value} onChange={(event) => onChange(event.target.value)}><option value="" disabled>選擇角色</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.name} ({role.key})</option>)}</select>;
+function RoleSelect({ value, onChange, roles, ariaLabel, disabled }: { value: string; onChange: (roleId: string) => void; roles: Role[]; ariaLabel: string; disabled?: boolean }) {
+  return <select aria-label={ariaLabel} disabled={disabled} className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-primary" value={value} onChange={(event) => onChange(event.target.value)}><option value="" disabled>選擇角色</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.name} ({role.key})</option>)}</select>;
 }
