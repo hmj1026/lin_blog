@@ -3,6 +3,10 @@
 -- 「後台存取」的既有角色，在此次部署後被鎖死既有 API 呼叫。
 -- 已跑過 seed/init-admin.js 的環境重跑安全（NOT EXISTS）
 
+INSERT INTO "Permission" ("key", "name")
+VALUES ('admin:access', '後台存取')
+ON CONFLICT ("key") DO NOTHING;
+
 INSERT INTO "RolePermission" ("id", "roleId", "permissionKey")
 SELECT gen_random_uuid()::text, r."id", 'admin:access'
 FROM "Role" r
