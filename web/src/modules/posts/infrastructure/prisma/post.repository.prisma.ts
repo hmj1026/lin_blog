@@ -440,16 +440,22 @@ export const postRepositoryPrisma: PostRepository = {
     });
     if (scheduledPosts.length === 0) return { count: 0, published: [] };
 
-    // 逐筆以完整資格條件原子更新：若編輯者在 findMany 後取消排程、延後 publishedAt 或刪除文章，
-    // 該筆 count 為 0，不得發布也不得列入 published 回報。
-    const published: typeof scheduledPosts = [];
-    for (const post of scheduledPosts) {
-      const updateResult = await prisma.post.updateMany({
-        where: { id: post.id, status: PostStatus.SCHEDULED, publishedAt: { lte: now }, deletedAt: null },
-        data: { status: PostStatus.PUBLISHED },
-      });
-      if (updateResult.count > 0) published.push(post);
-    }
+    const ids = scheduledPosts.map((post) => post.id);
+    // 單一原子 updateMany：WHERE 仍完整帶入資格條件，若編輯者在 findMany 後取消排程、
+    // 延後 publishedAt 或刪除文章，該筆不會被此次 UPDATE 命中；相較逐筆迴圈，
+    // 常數次資料庫往返不隨到期文章數量線性增長。
+    const updateResult = await prisma.post.updateMany({
+      where: { id: { in: ids }, status: PostStatus.SCHEDULED, publishedAt: { lte: now }, deletedAt: null },
+      data: { status: PostStatus.PUBLISHED },
+    });
+    if (updateResult.count === 0) return { count: 0, published: [] };
+
+    const publishedRows = await prisma.post.findMany({
+      where: { id: { in: ids }, status: PostStatus.PUBLISHED },
+      select: { id: true },
+    });
+    const publishedIds = new Set(publishedRows.map((row) => row.id));
+    const published = scheduledPosts.filter((post) => publishedIds.has(post.id));
     return { count: published.length, published };
   },
 
