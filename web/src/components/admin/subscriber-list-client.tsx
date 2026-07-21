@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDateTime } from "@/lib/format";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { Pagination } from "@/components/pagination";
 import { Button, buttonStyles } from "@/components/ui/button";
@@ -48,10 +48,10 @@ export function SubscriberListClient({ items, filters, pagination, growth, loadE
         ) : items.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-base-300">{filters.search ? "找不到符合的訂閱者" : "目前沒有訂閱者"}</div>
         ) : (
-          <AdminDataTable ariaLabel="訂閱者名單資料表">
+          <AdminTable ariaLabel="訂閱者名單資料表">
             <thead className="bg-base-100 text-left text-base-300"><tr><th className="px-4 py-3">姓名</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">建立時間</th><th className="px-4 py-3">操作</th></tr></thead>
             <tbody>{items.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-3 font-semibold text-primary">{item.name}</td><td className="px-4 py-3 text-primary">{item.email}</td><td className="px-4 py-3 text-base-300">{formatDateTime(new Date(item.createdAt))}</td><td className="px-4 py-3"><Button size="sm" variant="secondary" aria-label={`複製 ${item.email} Email`} onClick={async () => { await navigator.clipboard.writeText(item.email); setFeedback(`已複製「${item.email}」。`); }}>複製 Email</Button></td></tr>)}</tbody>
-          </AdminDataTable>
+          </AdminTable>
         )}
         {!loadError ? <div className="mt-4 space-y-4"><p className="text-sm text-base-300">共 {pagination.total} 位訂閱者，第 {pagination.page} / {pagination.totalPages} 頁</p><Pagination currentPage={pagination.page} totalPages={pagination.totalPages} baseUrl="/admin/subscribers" queryParams={queryParams} /></div> : null}
       </div>

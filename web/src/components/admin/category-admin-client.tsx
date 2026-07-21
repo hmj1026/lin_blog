@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 
 type Row = {
   id: string;
@@ -181,7 +181,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
         <Button type="button" variant="secondary" onClick={() => setShowTrash((value) => !value)}>{showTrash ? "返回分類" : "垃圾桶"}</Button>
       </div>
 
-      <AdminDataTable ariaLabel="分類管理資料表">
+      <AdminTable ariaLabel="分類管理資料表">
           <thead className="bg-base-100 text-left text-base-300">
             <tr>
               <th className="px-4 py-3">顯示</th>
@@ -266,7 +266,7 @@ export function CategoryAdminClient({ initialCategories }: { initialCategories: 
               </tr>
             )}
           </tbody>
-      </AdminDataTable>
+      </AdminTable>
 
       <div className="text-sm text-base-300">{message}</div>
       {deletedFeedback ? (

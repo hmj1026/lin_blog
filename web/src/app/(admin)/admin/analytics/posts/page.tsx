@@ -6,7 +6,7 @@ import { analyticsQueries, postsQueries } from "@/lib/server-queries";
 import { buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { first, parseDate } from "@/lib/admin-search-params";
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
@@ -53,7 +53,7 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
       <div className="rounded-2xl border border-line bg-white p-6 shadow-card">
         <div className="text-sm text-base-300">期間：最近 {safeDays} 個 Asia/Taipei 日曆日，包含完整資料庫事件。</div>
         <div className="mt-2 text-sm font-semibold text-primary">成長 {growthCount} 篇・衰退 {declineCount} 篇</div>
-        <AdminDataTable ariaLabel="文章統計資料表" className="mt-4">
+        <AdminTable ariaLabel="文章統計資料表" className="mt-4">
             <thead className="bg-base-100 text-left text-base-300">
               <tr>
                 <th className="px-4 py-3">文章</th>
@@ -114,7 +114,7 @@ export default async function AdminPostAnalyticsPage({ searchParams }: Props) {
                 </tr>
               )}
             </tbody>
-        </AdminDataTable>
+        </AdminTable>
       </div>
     </div>
   );

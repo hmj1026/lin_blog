@@ -9,7 +9,7 @@ import { formatDateTime } from "@/lib/format";
 import { DaysFilter } from "@/components/admin/days-filter";
 import { Field } from "@/components/admin/field";
 import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 
 type Props = {
   params: Promise<{ postId: string }>;
@@ -182,7 +182,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
         </form>
       </div>
 
-      <AdminDataTable ariaLabel="進階事件稽核資料表" className="rounded-2xl bg-white shadow-card">
+      <AdminTable ariaLabel="進階事件稽核資料表" className="rounded-2xl bg-white shadow-card">
           <thead className="bg-base-100 text-left text-base-300">
             <tr>
               <th className="px-4 py-3">時間</th>
@@ -218,7 +218,7 @@ export default async function AdminPostEventBrowserPage({ params, searchParams }
               </tr>
             )}
           </tbody>
-      </AdminDataTable>
+      </AdminTable>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-semibold">
         <div className="text-base-300">

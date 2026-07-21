@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
@@ -142,7 +142,7 @@ describe("admin UI primitives", () => {
 
   it("keeps a wide admin table keyboard-scrollable at narrow widths", () => {
     render(
-      <AdminDataTable ariaLabel="文章列表">
+      <AdminTable ariaLabel="文章列表">
         <thead>
           <tr>
             <th>標題</th>
@@ -157,7 +157,7 @@ describe("admin UI primitives", () => {
             </td>
           </tr>
         </tbody>
-      </AdminDataTable>
+      </AdminTable>
     );
 
     const region = screen.getByRole("region", { name: "文章列表" });

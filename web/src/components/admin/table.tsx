@@ -3,18 +3,18 @@ import { cn } from "@/lib/utils";
 type AdminTableProps = {
   children: React.ReactNode;
   className?: string;
-  ariaLabel?: string;
+  ariaLabel: string;
 };
 
 /**
- * 後台表格容器
+ * 後台表格容器；ariaLabel 讓窄螢幕仍可捲動的表格區域維持鍵盤可操作與可辨識的 a11y landmark。
  */
 export function AdminTable({ children, className, ariaLabel }: AdminTableProps) {
   return (
     <div
-      role={ariaLabel ? "region" : undefined}
+      role="region"
       aria-label={ariaLabel}
-      tabIndex={ariaLabel ? 0 : undefined}
+      tabIndex={0}
       className={cn("overflow-x-auto rounded-xl border border-line", className)}
     >
       <table className="min-w-full text-sm">{children}</table>

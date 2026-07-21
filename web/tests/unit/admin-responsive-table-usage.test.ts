@@ -18,7 +18,7 @@ describe("responsive admin table migration", () => {
     "uses the shared responsive table contract at %ipx in %s",
     (_width, file) => {
     const source = readFileSync(join(process.cwd(), file), "utf8");
-    expect(source).toContain("AdminDataTable");
+    expect(source).toContain("AdminTable");
     expect(source).not.toMatch(/overflow-hidden[^\n]*>\s*\n?\s*<table/);
     }
   );

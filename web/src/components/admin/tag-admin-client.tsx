@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 
 type Row = {
@@ -151,7 +151,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
         <Button type="button" variant="secondary" onClick={() => setShowTrash((value) => !value)}>{showTrash ? "返回標籤" : "垃圾桶"}</Button>
       </div>
 
-      <AdminDataTable ariaLabel="標籤管理資料表">
+      <AdminTable ariaLabel="標籤管理資料表">
           <thead className="bg-base-100 text-left text-base-300">
             <tr>
               <th className="px-4 py-3">名稱</th>
@@ -206,7 +206,7 @@ export function TagAdminClient({ initialTags }: { initialTags: Row[] }) {
               </tr>
             )}
           </tbody>
-      </AdminDataTable>
+      </AdminTable>
 
       <div className="text-sm text-base-300">{message}</div>
 

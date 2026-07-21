@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { roleHasPermission } from "@/lib/rbac";
 import { auditQueries } from "@/lib/server-queries";
 import { AdminAccessDenied } from "@/components/admin/admin-access-denied";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { Pagination } from "@/components/pagination";
 import { buttonStyles } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
@@ -47,10 +47,10 @@ export default async function AdminAuditPage({ searchParams }: Props) {
     </form>
     <section className="space-y-4 rounded-2xl border border-line bg-white p-6 shadow-card">
       <p className="text-sm text-base-300">共 {result.total} 筆，第 {result.page} / {result.totalPages} 頁</p>
-      <AdminDataTable ariaLabel="活動紀錄資料表">
+      <AdminTable ariaLabel="活動紀錄資料表">
         <thead className="bg-base-100 text-left text-base-300"><tr><th className="px-4 py-3">時間</th><th className="px-4 py-3">Actor</th><th className="px-4 py-3">Action</th><th className="px-4 py-3">Resource</th><th className="px-4 py-3">安全摘要</th></tr></thead>
         <tbody>{result.items.map((event) => <tr key={event.id} className="border-t border-line"><td className="px-4 py-3 whitespace-nowrap">{formatDateTime(event.createdAt)}</td><td className="px-4 py-3">{event.actorId}</td><td className="px-4 py-3 font-semibold">{event.action}</td><td className="px-4 py-3">{event.resourceType} / {event.resourceId}</td><td className="px-4 py-3 font-mono text-xs break-all">{JSON.stringify(event.summary)}</td></tr>)}</tbody>
-      </AdminDataTable>
+      </AdminTable>
       {result.items.length === 0 ? <p className="text-center text-sm text-base-300">找不到符合條件的活動紀錄</p> : null}
       <Pagination currentPage={result.page} totalPages={result.totalPages} baseUrl="/admin/audit" queryParams={queryParams} />
     </section>

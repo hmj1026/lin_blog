@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { parseApiResponse, isApiSuccess, getApiErrorMessage } from "@/lib/api-client";
 
 type Row = { id: string; email: string; name: string | null; roleId: string; roleKey: string; roleName: string; deletedAt: string | null };
@@ -144,10 +144,10 @@ export function UserAdminClient({ initialUsers, roles }: { initialUsers: Row[]; 
           <label className="grid gap-1 text-sm font-semibold">搜尋使用者<input type="search" aria-label="搜尋使用者" className="rounded-xl border border-line px-4 py-2" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
           <label className="grid gap-1 text-sm font-semibold">角色篩選<select aria-label="角色篩選" className="rounded-xl border border-line px-4 py-2" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}><option value="">所有角色</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
         </div>
-        <AdminDataTable ariaLabel="使用者管理資料表">
+        <AdminTable ariaLabel="使用者管理資料表">
           <thead className="bg-base-100 text-left text-base-300"><tr><th className="px-4 py-3">Email</th><th className="px-4 py-3">名稱</th><th className="px-4 py-3">角色</th><th className="px-4 py-3">狀態</th><th className="px-4 py-3">操作</th></tr></thead>
           <tbody>{visibleRows.map((row) => <tr key={row.id} className="border-t border-line"><td className="px-4 py-3">{row.email}</td><td className="px-4 py-3">{row.name || "—"}</td><td className="px-4 py-3">{row.roleName}</td><td className="px-4 py-3">{row.deletedAt ? "已停用" : "啟用中"}</td><td className="px-4 py-3"><Button type="button" size="sm" variant="secondary" aria-label="編輯使用者" onClick={() => selectRow(row)}>編輯</Button></td></tr>)}{visibleRows.length === 0 ? <tr><td colSpan={5} className="px-4 py-6 text-center text-base-300">找不到符合的使用者</td></tr> : null}</tbody>
-        </AdminDataTable>
+        </AdminTable>
       </section>
 
       {draft ? <section role="region" aria-label={`編輯 ${selected?.email ?? draft.email}`} className="space-y-5 rounded-2xl border border-line bg-white p-6 shadow-card">

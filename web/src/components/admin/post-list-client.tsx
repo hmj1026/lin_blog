@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import { AdminFeedback } from "@/components/admin/admin-feedback";
 import { ConfirmationDialog } from "@/components/admin/confirmation-dialog";
-import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminTable } from "@/components/admin/table";
 import { Pagination } from "@/components/pagination";
 import type { AdminPostListParams } from "@/modules/posts";
 
@@ -206,7 +206,7 @@ export function PostListClient({
       ) : null}
 
       <p className="text-sm text-base-300">共 {pagination.total} 篇</p>
-      <AdminDataTable ariaLabel="文章列表資料表" className="rounded-2xl bg-white shadow-card">
+      <AdminTable ariaLabel="文章列表資料表" className="rounded-2xl bg-white shadow-card">
         <thead className="bg-base-100 text-left text-base-300"><tr><th className="w-10 px-4 py-3"><input type="checkbox" aria-label="選取本頁全部文章" checked={allSelected} onChange={toggleAll} /></th><th className="px-4 py-3">精選</th><th className="px-4 py-3">標題</th><th className="px-4 py-3">分類 / 標籤</th><th className="px-4 py-3">狀態</th><th className="px-4 py-3">發布時間</th><th className="px-4 py-3">更新時間</th><th className="px-4 py-3">動作</th></tr></thead>
         <tbody>
           {posts.map((post) => (
@@ -223,7 +223,7 @@ export function PostListClient({
           ))}
           {posts.length === 0 ? <tr><td colSpan={8} className="px-4 py-6 text-center text-base-300">{filters.deleted ? "垃圾桶目前是空的。" : "找不到符合的文章。"}</td></tr> : null}
         </tbody>
-      </AdminDataTable>
+      </AdminTable>
 
       <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} baseUrl="/admin/posts" queryParams={queryParams} />
       <ConfirmationDialog open={pendingBatchDelete} title="確認批次刪除文章" description={`即將刪除 ${selected.size} 篇文章，之後可從垃圾桶復原。`} confirmLabel="確認刪除" pending={loading} onConfirm={() => handleBatch("delete")} onCancel={() => setPendingBatchDelete(false)} />
