@@ -47,4 +47,16 @@ describe("audit use cases", () => {
     expect(repo.listPage).toHaveBeenNthCalledWith(2, expect.objectContaining({ skip: 0, take: 20 }));
     expect(result).toEqual({ total: 1, items: [event], page: 1, pageSize: 20, totalPages: 1 });
   });
+
+  it("until 早於 since 時原樣透傳給 repository，交由查詢條件自然回傳空結果而非拋錯", async () => {
+    const since = new Date("2026-07-10T00:00:00.000Z");
+    const until = new Date("2026-07-01T00:00:00.000Z");
+    const repo = { create: vi.fn(), deleteBefore: vi.fn(), listPage: vi.fn().mockResolvedValue({ total: 0, items: [] }) };
+    const useCases = createAuditUseCases({ repo: repo as never });
+
+    const result = await useCases.listAuditEvents({ since, until, page: 1, pageSize: 20 }, new Date("2026-07-19T00:00:00.000Z"));
+
+    expect(repo.listPage).toHaveBeenCalledWith(expect.objectContaining({ since, until }));
+    expect(result).toEqual({ total: 0, items: [], page: 1, pageSize: 20, totalPages: 1 });
+  });
 });

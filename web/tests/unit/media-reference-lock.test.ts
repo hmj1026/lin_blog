@@ -21,6 +21,32 @@ describe("extractReferencedUploadIds", () => {
   it("無引用時回傳空陣列", () => {
     expect(extractReferencedUploadIds([null, undefined, "text"])).toEqual([]);
   });
+
+  it("同一字串內重複引用同一 ID 時去重", () => {
+    expect(
+      extractReferencedUploadIds(['<img src="/api/files/abc123"><img src="/api/files/abc123">'])
+    ).toEqual(["abc123"]);
+  });
+
+  it("複合 HTML 格式：srcset、background-image、多屬性標籤內皆能萃取", () => {
+    expect(
+      extractReferencedUploadIds([
+        '<img srcset="/api/files/small-1 480w, /api/files/large-2 1024w" src="/api/files/large-2">',
+        '<div style="background-image: url(/api/files/bg-9)" class="hero" data-id="1"></div>',
+      ])
+    ).toEqual(["small-1", "large-2", "bg-9"]);
+  });
+
+  it("形似但不符合前綴的路徑不視為引用", () => {
+    expect(
+      extractReferencedUploadIds([
+        "xapi/files/abc",
+        "/api/other-files/abc",
+        "/apifiles/abc",
+        "/api/files/",
+      ])
+    ).toEqual([]);
+  });
 });
 
 describe("assertReferencedMediaUsable", () => {
