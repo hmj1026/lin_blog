@@ -117,16 +117,22 @@ export function createNewsletterUseCases(deps: {
       const pageSize = clampPageSize(params.pageSize);
 
       const trimmedSearch = params.search?.trim();
-      const result = await deps.listRepo.list({
-        search: trimmedSearch ? trimmedSearch : undefined,
-        page,
-        pageSize,
-      });
+      const listParams = { search: trimmedSearch ? trimmedSearch : undefined, page, pageSize };
+      let result = await deps.listRepo.list(listParams);
+
+      // 請求頁碼可能超過刪除/搜尋縮減後的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin / media.listUploadsPage 的處理）。
+      let effectivePage = page;
+      const totalPages = Math.max(1, Math.ceil(result.total / pageSize));
+      if (result.items.length === 0 && result.total > 0 && page > totalPages) {
+        effectivePage = totalPages;
+        result = await deps.listRepo.list({ ...listParams, page: effectivePage });
+      }
 
       return {
         items: result.items.map(toSafeListItem),
         total: result.total,
-        page,
+        page: effectivePage,
         pageSize,
       };
     },

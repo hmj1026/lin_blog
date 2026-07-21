@@ -246,6 +246,28 @@ describe("newsletter use cases: listSubscribers()", () => {
     expect(Object.keys(result.items[0])).toEqual(["id", "name", "email", "createdAt"]);
   });
 
+  it("請求頁碼超過搜尋/刪除縮減後的總頁數時，以實際最後一頁重查而非回傳空列表", async () => {
+    const createdAt = new Date("2026-01-01T00:00:00Z");
+    const subscriber = { id: "sub-1", name: "Reader", email: "reader@example.com", createdAt };
+    listRepo.list
+      .mockResolvedValueOnce({ items: [], total: 5 })
+      .mockResolvedValueOnce({ items: [subscriber], total: 5 });
+
+    const result = await useCases.listSubscribers({ page: 3, pageSize: 10 });
+
+    expect(listRepo.list).toHaveBeenNthCalledWith(2, { search: undefined, page: 1, pageSize: 10 });
+    expect(result).toEqual({ items: [subscriber], total: 5, page: 1, pageSize: 10 });
+  });
+
+  it("不會為真正的空結果（total 為 0）觸發重查", async () => {
+    listRepo.list.mockResolvedValue({ items: [], total: 0 });
+
+    const result = await useCases.listSubscribers({ page: 3, pageSize: 10 });
+
+    expect(listRepo.list).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ items: [], total: 0, page: 3, pageSize: 10 });
+  });
+
   it("以同一基準時間查詢近 7 與 30 天 aggregate growth", async () => {
     listRepo.countGrowth.mockResolvedValue({ last7Days: 3, last30Days: 10 });
     const now = new Date("2026-07-19T00:00:00.000Z");
