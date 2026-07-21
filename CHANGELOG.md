@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.6.0 — 2026-07-21 — 後台管理能力擴充：活動審計、媒體引用防競態與文章排程發布
+
+本版以後台管理為主軸，補齊營運所需的稽核與分析能力，並針對併行寫入的資料一致性做了系統性強化。
+新增活動審計日誌、文章流量統計分析與媒體引用追蹤；導入 PostgreSQL Advisory Lock 機制，
+使媒體軟刪除、文章寫入與站點設定寫入在交易內取得對應鎖，消除「引用檢查通過後才被刪除」類的競態。
+後台 UX 全面重整，資料表統一為 `AdminTable`，並抽出共用的分頁溢位處理與 searchParams 正規化工具。
+
+### 新增功能 (feat)
+
+- **audit**: 後台活動審計日誌與安全稽核防護機制，含 `AuditEvent` 資料表遷移
+- **analytics**: 文章流量統計分析與報表產出，調整領域模型與查詢實作
+- **media**: 媒體庫上傳與引用追蹤；可序列化交易之刪除引用追蹤與併行防護
+- **media**: 媒體篩選 SSOT 與一般 mime-type 前綴過濾；無高確定性引用時軟刪除放行並改以人工確認對話框
+- **posts**: 文章排程發布與資料庫儲存庫效能優化；後台文章、分類標籤批次管理與查詢優化
+- **posts**: 文章編輯表單支援失敗暫停自動儲存、站內導覽 dirty 攔截，以及歷史版本檢視與還原
+- **security-admin**: 重構角色權限管理與依賴解析機制；後台 API 加強權限共用門檻
+- **newsletter**: 通訊報訂閱者後台管理與匯出功能
+- **infra**: 媒體引用防競態之 Advisory Lock 核心機制庫
+- **media / posts / site-settings**: 於軟刪除、文章建立更新與站點設定寫入交易內取得對應 Advisory Lock
+- **infra**: 媒體引用查詢擴充支援關於頁內容 `aboutContent`
+- **admin**: 跨分頁站點設定單次儲存持久化
+- **view**: `ConfirmationDialog` 開啟時限制 Tab 焦點循環於對話框內
+- **components**: 後台共用 UI 元件與導覽結構
+- **migration**: 新增活動審計日誌資料表與後台權限資料回填遷移（`backfill_admin_access_permission`）
+
+### 問題修復 (fix)
+
+- **analytics**: 修正 IPv6 位址遮罩行為，防止 Zero-compression 後外洩介面識別碼
+- **media**: 寫入方取得共享鎖後重驗媒體引用存活，並原子重驗排程發布資格
+- **domain / infra / newsletter**: 請求頁碼超過總頁數時夾限至最後一頁重新查詢，修正縮減後回傳空列表
+- **admin**: `getApiErrorMessage` 在異常成功信封袋下不再回傳空訊息，避免丟失錯誤描述
+- **admin**: 後台工作摘要面板限制為具 `posts:write` 權限者才顯示
+- **api**: 文章匯入 API 新增 `mode` 參數 Runtime 驗證
+- **controller**: 修正使用者管理表單請求中的競態條件與 disabled 狀態；分類標籤對話框失敗時仍正確關閉
+- **view**: 修正後台刪除失敗的對話框關閉邏輯與更新角色時的身分草稿覆蓋問題
+- **view**: 垃圾桶視圖下隱藏／停用精選狀態切換按鈕；版本還原成功與衝突重載時略過 beforeunload 攔截
+- **infra**: 移除 `listForExport` 中冗餘的三元排序條件
+
+### 重構與優化 (refactor)
+
+- **view**: 後台資料表統一為 `AdminTable`，取代 `AdminDataTable`；移除冗餘 UI 元件並重構工作摘要元件
+- **admin**: 後台管理頁面與 Client 渲染元件之 UX 體驗重整；首頁資訊面板與表單元件互動優化
+- **admin**: 引入 searchParams 單值正規化工具，防止重複參數導致 Prisma 崩潰
+- **admin**: 統一後台元件 API 回應處理，提升錯誤訊息提示品質
+- **domain**: 抽取共用分頁溢位處理邏輯（`pagination-utils`）；`ADMIN_ACCESS_PERMISSION` 提取至 `domain/permissions.ts` 作為 SSOT
+- **domain**: 移除未使用的 `InvalidPostStatusError` 與 `isEditablePost` 規則
+- **infra**: 排程文章發布重構為單次原子批次更新
+- **api**: 參數化抽離分類與標籤 PATCH 合併及復原路由邏輯
+- **taxonomy**: 分類與標籤合併失敗時改拋 `ApiException`
+- **perf(analytics)**: 儀表板統計數據庫查詢改為 `Promise.all` 平行處理
+
+### 測試與維運 (test/ci/chore)
+
+- **test**: 補齊 `until` 早於 `since` 的邊界測試與媒體引用鎖定的額外測試案例
+- **test**: 修正與更新後台端到端測試，移除過時視覺測試
+- **fix(e2e)**: 訂閱者分頁測試改以 `?pageSize=1` 取代單頁假設，並自行 seed 資料避免依賴環境殘留
+- **test(unit)**: 修正 newsletter 成功訊息斷言的競態（flaky）
+- **docs**: 新增前台與後台功能指南、權限與角色管理指南、維運腳本指南、程式碼與資料庫審查紀錄
+- **docs**: 新增 `AdminTable` 與分頁溢位處理規範，更新 Docker 建置參數與 README 連結
+- **chore**: 調整 `.gitignore` 忽略 GitNexus 索引與環境變數
+
 ## 1.5.0 — 2026-07-18 — 升級 Next.js 16 / React 19 並完成 react-hooks v6 規則清理
 
 框架基線升級:Next.js 16.2.10(Turbopack 預設)、React 19.2.7、ESLint 9 Flat Config。
