@@ -66,6 +66,14 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   const expectedUpdatedAtRef = useRef<string | null>(initial.updatedAt ?? null);
   const persistedStatusRef = useRef<PostStatus>(initial.status);
   const lastAutoSaveCandidateRef = useRef<string | null>(null);
+  // 意圖性整頁重載（版本還原成功／衝突重載）時設為 true，讓 beforeunload 警告放行。
+  const bypassUnloadGuardRef = useRef(false);
+
+  /** 使用者已明確同意放棄未儲存變更時的整頁重載：略過 beforeunload 攔截。 */
+  function reloadDiscardingChanges() {
+    bypassUnloadGuardRef.current = true;
+    window.location.reload();
+  }
   // 自動儲存失敗後遞增此 nonce 以強制重新觸發自動儲存 effect，讓相同內容得以重試。
   const [autoSaveRetryNonce, setAutoSaveRetryNonce] = useState(0);
   // 連續自動儲存失敗次數：僅暫時性失敗（網路中斷、5xx）重試，且達上限即暫停，避免無限重打 API。
@@ -150,6 +158,8 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
   useEffect(() => {
     if (!dirty) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // 使用者已在確認框同意放棄變更（版本還原／衝突重載）時，不再二次攔截。
+      if (bypassUnloadGuardRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -443,7 +453,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       const response = await fetch(`/api/posts/${postId}/versions/${pendingRestoreVersion.id}`, { method: "POST" });
       const json = await parseJson<unknown>(response);
       if (!isApiSuccess(response, json)) throw new Error(getApiErrorMessage(json, "版本還原失敗"));
-      window.location.reload();
+      reloadDiscardingChanges();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "版本還原失敗");
       setRestoring(false);
@@ -481,7 +491,7 @@ export function AdminPostForm({ mode, postId, initial, categories, tags }: Props
       {conflict ? (
         <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           <p>偵測到版本衝突；自動儲存已停止，請重新載入最新版本後比較本機內容。</p>
-          <Button type="button" size="sm" className="mt-2" onClick={() => window.location.reload()}>重新載入最新版本</Button>
+          <Button type="button" size="sm" className="mt-2" onClick={reloadDiscardingChanges}>重新載入最新版本</Button>
         </div>
       ) : null}
       {mode === "edit" ? (

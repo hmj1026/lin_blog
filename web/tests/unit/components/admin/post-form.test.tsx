@@ -1162,6 +1162,38 @@ describe("AdminPostForm", () => {
       );
     });
 
+    it("dirty 表單經確認還原成功後的重載不再被 beforeunload 攔截", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [{ id: "v1", title: "Earlier title", editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" }],
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "已還原到選定版本" } }) });
+      renderDraft();
+      fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Unsaved local edit" } });
+
+      // dirty 期間 beforeunload 應攔截。
+      const guarded = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(guarded);
+      expect(guarded.defaultPrevented).toBe(true);
+
+      await userEvent.click(screen.getByRole("button", { name: "版本歷史" }));
+      await screen.findByText("Earlier title");
+      await userEvent.click(screen.getByRole("button", { name: "還原" }));
+      await userEvent.click(screen.getByRole("button", { name: "確認還原" }));
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions/v1", expect.objectContaining({ method: "POST" }))
+      );
+
+      // 使用者已在確認框同意放棄變更：還原成功觸發的 reload 不應再被二次攔截。
+      const bypassed = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(bypassed);
+      expect(bypassed.defaultPrevented).toBe(false);
+    });
+
     it("shows SEO counts, search preview, reading estimate and searchable taxonomy pickers", async () => {
       renderDraft();
 
