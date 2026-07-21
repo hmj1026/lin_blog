@@ -548,6 +548,21 @@ describe("postRepositoryPrisma", () => {
       expect(result.count).toBe(1);
       expect(result.published.map((p) => p.id)).toEqual(["p1"]);
     });
+
+    it("returns count 0 without a re-query when every scheduled post lost eligibility before updateMany", async () => {
+      // 全部候選文章在原子重驗 updateMany 命中前皆已喪失資格（例如全被取消排程），
+      // updateResult.count 為 0，應直接回傳空結果而不再發出第二次 findMany。
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { id: "p1", slug: "s1", publishedAt: new Date() },
+        { id: "p2", slug: "s2", publishedAt: new Date() },
+      ]);
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 0 });
+
+      const result = await postRepositoryPrisma.publishDueScheduled(new Date());
+
+      expect(result).toEqual({ count: 0, published: [] });
+      expect(prisma.post.findMany).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("listForExport", () => {

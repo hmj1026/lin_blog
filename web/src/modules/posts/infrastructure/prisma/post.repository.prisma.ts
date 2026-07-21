@@ -464,7 +464,7 @@ export const postRepositoryPrisma: PostRepository = {
     const posts = await prisma.post.findMany({
       where: { deletedAt: null, ...(ids?.length ? { id: { in: ids } } : {}) },
       include: { categories: { select: { slug: true, name: true } }, tags: { select: { slug: true, name: true } } },
-      orderBy: params.orderBy === "createdAtDesc" ? { createdAt: "desc" } : { createdAt: "desc" },
+      orderBy: { createdAt: "desc" },
     });
 
     return posts.map((p) => ({
