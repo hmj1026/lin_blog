@@ -17,6 +17,7 @@ describe("posts use cases", () => {
     update: vi.fn(),
     updateWithVersion: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
     batchAction: vi.fn(),
     publishDueScheduled: vi.fn(),
     listForExport: vi.fn(),
@@ -34,6 +35,9 @@ describe("posts use cases", () => {
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
+    merge: vi.fn(),
+    countPostsByCategory: vi.fn(),
   };
   const tags = {
     listActive: vi.fn(),
@@ -43,6 +47,8 @@ describe("posts use cases", () => {
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
+    merge: vi.fn(),
   };
 
   const useCases = createPostsUseCases({
@@ -818,9 +824,24 @@ describe("posts use cases", () => {
     });
 
     it("removeCategory calls softDelete", async () => {
-      categories.softDelete.mockResolvedValue(undefined);
-      await useCases.removeCategory("c1");
+      categories.countPostsByCategory.mockResolvedValue(3);
+      categories.softDelete.mockResolvedValue({ id: "c1" });
+      const result = await useCases.removeCategory("c1");
       expect(categories.softDelete).toHaveBeenCalledWith("c1");
+      expect(result).toEqual({ id: "c1", affectedPosts: 3 });
+    });
+
+    it("getCategoryDeletionImpact reports affected posts before deletion", async () => {
+      categories.countPostsByCategory.mockResolvedValue(3);
+
+      await expect(useCases.getCategoryDeletionImpact("c1")).resolves.toEqual({ affectedPosts: 3 });
+    });
+
+    it("restoreCategory delegates to the repository", async () => {
+      categories.restore.mockResolvedValue({ id: "c1" });
+
+      await expect(useCases.restoreCategory("c1")).resolves.toEqual({ id: "c1" });
+      expect(categories.restore).toHaveBeenCalledWith("c1");
     });
   });
 
@@ -865,8 +886,9 @@ describe("posts use cases", () => {
 
     it("listAdminPosts calls repo", async () => {
       posts.listForAdmin.mockResolvedValue([]);
-      await useCases.listAdminPosts();
-      expect(posts.listForAdmin).toHaveBeenCalled();
+      const params = { deleted: false, sort: "updated-desc" as const, page: 1, pageSize: 20 };
+      await useCases.listAdminPosts(params);
+      expect(posts.listForAdmin).toHaveBeenCalledWith(params);
     });
 
     it("listPublishedForSitemap calls repo", async () => {

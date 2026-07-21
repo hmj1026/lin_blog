@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPostsUseCases } from "@/modules/posts/application/use-cases";
+import { ApiException } from "@/lib/errors";
 
 describe("categories use cases", () => {
   const posts = {
@@ -17,6 +18,7 @@ describe("categories use cases", () => {
     update: vi.fn(),
     updateWithVersion: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
     batchAction: vi.fn(),
     publishDueScheduled: vi.fn(),
     listForExport: vi.fn(),
@@ -34,6 +36,9 @@ describe("categories use cases", () => {
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
+    countPostsByCategory: vi.fn(),
+    merge: vi.fn(),
   };
   const tags = {
     listActive: vi.fn(),
@@ -43,6 +48,8 @@ describe("categories use cases", () => {
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
+    merge: vi.fn(),
   };
 
   const useCases = createPostsUseCases({ posts, versions, categories, tags });
@@ -133,6 +140,19 @@ describe("categories use cases", () => {
       await useCases.removeCategory("c1");
       expect(categories.softDelete).toHaveBeenCalledWith("c1");
     });
+
+    it("mergeCategory() rejects merging a category into itself with a 4xx ApiException, not a plain Error", async () => {
+      const error = await useCases.mergeCategory("c1", "c1").catch((e) => e);
+      expect(error).toBeInstanceOf(ApiException);
+      expect(error).toHaveProperty("message", expect.stringContaining("不能合併到自身"));
+      expect(categories.merge).not.toHaveBeenCalled();
+    });
+
+    it("mergeCategory() moves relations through the repository", async () => {
+      categories.merge.mockResolvedValue({ id: "c1", movedPosts: 3 });
+      await expect(useCases.mergeCategory("c1", "c2")).resolves.toEqual({ id: "c1", movedPosts: 3 });
+      expect(categories.merge).toHaveBeenCalledWith("c1", "c2");
+    });
   });
 });
 
@@ -152,6 +172,7 @@ describe("tags use cases", () => {
     update: vi.fn(),
     updateWithVersion: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
     batchAction: vi.fn(),
     publishDueScheduled: vi.fn(),
     listForExport: vi.fn(),
@@ -169,6 +190,9 @@ describe("tags use cases", () => {
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
+    countPostsByCategory: vi.fn(),
+    merge: vi.fn(),
   };
   const tags = {
     listActive: vi.fn(),
@@ -178,6 +202,8 @@ describe("tags use cases", () => {
     create: vi.fn(),
     update: vi.fn(),
     softDelete: vi.fn(),
+    restore: vi.fn(),
+    merge: vi.fn(),
   };
 
   const useCases = createPostsUseCases({ posts, versions, categories, tags });
@@ -253,6 +279,21 @@ describe("tags use cases", () => {
       tags.softDelete.mockResolvedValue(undefined);
       await useCases.removeTag("t1");
       expect(tags.softDelete).toHaveBeenCalledWith("t1");
+    });
+
+    it("restoreTag() restores a soft-deleted tag", async () => {
+      tags.restore.mockResolvedValue({ id: "t1" });
+      await useCases.restoreTag("t1");
+      expect(tags.restore).toHaveBeenCalledWith("t1");
+    });
+
+    it("mergeTag() rejects self merge and otherwise delegates atomically", async () => {
+      const error = await useCases.mergeTag("t1", "t1").catch((e) => e);
+      expect(error).toBeInstanceOf(ApiException);
+      expect(error).toHaveProperty("message", expect.stringContaining("不能合併到自身"));
+      tags.merge.mockResolvedValue({ id: "t1", movedPosts: 2 });
+      await expect(useCases.mergeTag("t1", "t2")).resolves.toEqual({ id: "t1", movedPosts: 2 });
+      expect(tags.merge).toHaveBeenCalledWith("t1", "t2");
     });
   });
 });

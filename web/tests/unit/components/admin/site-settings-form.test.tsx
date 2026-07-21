@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SiteSettingsForm } from "@/components/admin/site-settings-form";
 
@@ -21,6 +21,7 @@ const mockSettings = {
   contactEmail: "test@example.com",
   copyrightText: "Copyright",
   showBlogLink: true,
+  showAbout: false,
   showNewsletter: false,
   showContact: true,
   heroBadge: "Badge",
@@ -37,10 +38,6 @@ const mockSettings = {
   communityDesc: "Desc",
 } as any;
 
-const mockCategories = [
-  { id: "1", slug: "cat-1", name: "Category 1", showInNav: true, navOrder: 1 },
-];
-
 describe("SiteSettingsForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,25 +45,23 @@ describe("SiteSettingsForm", () => {
   });
 
   it("renders with initial settings", () => {
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
     expect(screen.getByDisplayValue("Test Site")).toBeInTheDocument();
   });
 
   it("switches tabs", async () => {
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
     
     // Switch to Hero tab
     await userEvent.click(screen.getByText("Hero 區塊"));
     expect(screen.getByText("Hero 區塊設定")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Hero Title")).toBeInTheDocument();
 
-    // Switch to Categories tab
-    await userEvent.click(screen.getByText("分類管理"));
-    expect(screen.getByText("分類連結")).toBeInTheDocument();
+    expect(screen.queryByText("分類管理")).not.toBeInTheDocument();
   });
 
   it("updates site name", async () => {
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
     
     const input = screen.getByDisplayValue("Test Site");
     await userEvent.clear(input);
@@ -81,7 +76,7 @@ describe("SiteSettingsForm", () => {
       json: async () => ({ success: true }),
     });
 
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
     
     // Change a value
     const input = screen.getByDisplayValue("Test Site");
@@ -89,13 +84,17 @@ describe("SiteSettingsForm", () => {
     await userEvent.type(input, "Saved Site");
 
     // Click save
-    const saveButton = screen.getByRole("button", { name: "儲存" });
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     await userEvent.click(saveButton);
 
     expect(fetchMock).toHaveBeenCalledWith("/api/site-settings", expect.objectContaining({
         method: "PUT",
         body: expect.stringContaining("Saved Site")
     }));
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    // 只送出實際變動的欄位；未變動的 showBlogLink 不應被夾帶送出。
+    expect(body).toEqual({ siteName: "Saved Site" });
+    expect(screen.getByText(/上次儲存/)).toBeInTheDocument();
   });
 
   it("handles save error", async () => {
@@ -104,18 +103,20 @@ describe("SiteSettingsForm", () => {
       json: async () => ({ success: false, message: "Server Error" }),
     });
 
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
     
-    const saveButton = screen.getByRole("button", { name: "儲存" });
+    await userEvent.type(screen.getByDisplayValue("Test Site"), " unsaved");
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     await userEvent.click(saveButton);
 
     await waitFor(() => {
       expect(screen.getByText("Server Error")).toBeInTheDocument();
     });
+    expect(screen.getByDisplayValue("Test Site unsaved")).toBeInTheDocument();
   });
 
   it("renders newsletter checkbox reflecting initial state", () => {
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
 
     const checkbox = screen.getByLabelText("顯示 Newsletter 訂閱區塊");
     expect(checkbox).toBeInTheDocument();
@@ -128,13 +129,13 @@ describe("SiteSettingsForm", () => {
       json: async () => ({ success: true }),
     });
 
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
 
     const checkbox = screen.getByLabelText("顯示 Newsletter 訂閱區塊");
     await userEvent.click(checkbox);
     expect(checkbox).toBeChecked();
 
-    const saveButton = screen.getByRole("button", { name: "儲存" });
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
     await userEvent.click(saveButton);
 
     expect(fetchMock).toHaveBeenCalledWith("/api/site-settings", expect.objectContaining({
@@ -143,36 +144,124 @@ describe("SiteSettingsForm", () => {
     }));
   });
 
-  it("handles category updates", async () => {
-    render(<SiteSettingsForm initialSettings={mockSettings} categories={mockCategories} />);
-    
-    await userEvent.click(screen.getByText("分類管理"));
-    
-    // Toggle showInNav
-    const checkbox = screen.getAllByRole("checkbox")[0];
-    await userEvent.click(checkbox);
-    
-    // Change order
-    const numberInput = screen.getByDisplayValue("1");
-    await userEvent.clear(numberInput);
-    await userEvent.type(numberInput, "2");
+  it("將關於我開關納入一般設定 dirty state 與分區保存", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
 
-    // TODO: Verify state update? Or just verify save payload includes changes
-    // But testing state update in valid way requires inspecting payload on save
-    
-    fetchMock.mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true }),
+    await userEvent.click(screen.getByLabelText("顯示「關於我」"));
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
+    expect(saveButton).toBeEnabled();
+    await userEvent.click(saveButton);
+
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({ showAbout: true });
+  });
+
+  it("僅在 showBlogLink 實際變動時送出，不覆寫其他管理員的併發變更", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+
+    // 只變更 Hero 分區欄位並儲存：payload 不應包含未變動的 showBlogLink。
+    await userEvent.click(screen.getByText("Hero 區塊"));
+    const heroTitle = screen.getByDisplayValue("Hero Title");
+    await userEvent.clear(heroTitle);
+    await userEvent.type(heroTitle, "New Hero");
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    const heroBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(heroBody).toEqual({ heroTitle: "New Hero" });
+    expect(heroBody).not.toHaveProperty("showBlogLink");
+
+    // 實際切換 showBlogLink 後儲存：payload 才會帶上該欄位。
+    await userEvent.click(screen.getByText("一般設定"));
+    await userEvent.click(screen.getByLabelText("顯示「部落格」連結"));
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)).toEqual({ showBlogLink: false });
+  });
+
+  it("儲存請求進行中再次修改同欄位時，新值仍維持 dirty（不被誤標為已儲存）", async () => {
+    let resolveSave: (value: unknown) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+    const input = screen.getByDisplayValue("Test Site");
+    await userEvent.clear(input);
+    await userEvent.type(input, "First");
+
+    // 送出儲存（請求 pending）。
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    // 請求尚未回應時再次把同一欄位改成不同值。
+    await userEvent.clear(input);
+    await userEvent.type(input, "Second");
+
+    // 解析儲存請求（回傳的是送出當下的舊值 "First"）。
+    await act(async () => {
+      resolveSave({ ok: true, json: async () => ({ success: true }) });
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "儲存" }));
+    // 新值 "Second" 必須仍為 dirty：儲存鈕啟用、顯示未儲存變更、輸入維持新值，不被誤標為已儲存。
+    await waitFor(() => expect(screen.getByRole("button", { name: "儲存變更" })).toBeEnabled());
+    expect(screen.getByText("有未儲存變更")).toBeInTheDocument();
+    expect(input).toHaveValue("Second");
+  });
 
-    await waitFor(() => {
-        expect(screen.getByText("已儲存")).toBeInTheDocument();
-    });
+  it("跨分頁編輯後單次儲存持久化所有分頁的 dirty 欄位 (C1)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
 
-    // Verify categories update call
-    // Logic: maps categories to fetch calls
-    expect(fetchMock).toHaveBeenCalledWith("/api/categories/1", expect.anything());
+    // 於一般設定分頁改站點名稱。
+    const siteName = screen.getByDisplayValue("Test Site");
+    await userEvent.clear(siteName);
+    await userEvent.type(siteName, "Cross Tab Site");
+
+    // 切到 Hero 分頁改主標題（跨分頁的 dirty 欄位）。
+    await userEvent.click(screen.getByText("Hero 區塊"));
+    const heroTitle = screen.getByDisplayValue("Hero Title");
+    await userEvent.clear(heroTitle);
+    await userEvent.type(heroTitle, "Cross Tab Hero");
+
+    // 單次儲存須同時持久化兩個分頁的變更，而非僅目前分頁。
+    await userEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body).toEqual({ siteName: "Cross Tab Site", heroTitle: "Cross Tab Hero" });
+  });
+
+  it("跨分頁尚有 dirty 欄位時，即使目前分頁未變動仍可儲存 (C1)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+
+    // 只在一般設定分頁改值，再切到未變動的 Hero 分頁。
+    const siteName = screen.getByDisplayValue("Test Site");
+    await userEvent.clear(siteName);
+    await userEvent.type(siteName, "Only General");
+    await userEvent.click(screen.getByText("Hero 區塊"));
+
+    // 儲存鈕須因整體仍有 dirty 而啟用，並送出一般設定的變更。
+    const saveButton = screen.getByRole("button", { name: "儲存變更" });
+    expect(saveButton).toBeEnabled();
+    await userEvent.click(saveButton);
+
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({ siteName: "Only General" });
+  });
+
+  it("shows dirty state, can cancel changes, and previews pending desktop/mobile values", async () => {
+    render(<SiteSettingsForm initialSettings={mockSettings} />);
+    const input = screen.getByDisplayValue("Test Site");
+    expect(screen.getByRole("button", { name: "儲存變更" })).toBeDisabled();
+
+    await userEvent.clear(input);
+    await userEvent.type(input, "Pending Site");
+    expect(screen.getByText("有未儲存變更")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "預覽變更" }));
+    expect(screen.getByTestId("settings-preview-desktop")).toHaveTextContent("Pending Site");
+    expect(screen.getByTestId("settings-preview-mobile")).toHaveTextContent("Pending Site");
+
+    await userEvent.click(screen.getByRole("button", { name: "取消變更" }));
+    expect(input).toHaveValue("Test Site");
   });
 });

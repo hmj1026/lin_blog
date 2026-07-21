@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TiptapEditor } from "@/components/admin/tiptap-editor";
+import { cropImageToBlob } from "@/components/admin/image-cropper-modal";
 
 // Mock fetch
 const fetchMock = vi.fn();
@@ -160,6 +161,19 @@ describe("TiptapEditor", () => {
     });
     
     expect(mockChain.setImage).toHaveBeenCalledWith({ src: "/uploads/test.png", alt: "test.png" });
+  });
+
+  it("shows a retryable inline error when image cropping fails", async () => {
+    const { container } = render(<TiptapEditor value="" onChange={onChange} />);
+    const input = container.querySelector('input[type="file"]');
+    if (!input) throw new Error("File input not found");
+
+    vi.mocked(cropImageToBlob).mockRejectedValueOnce(new Error("圖片處理失敗"));
+    await userEvent.upload(input as HTMLElement, new File(["dummy"], "broken.png", { type: "image/png" }));
+    await userEvent.click(screen.getByTestId("crop-confirm"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("圖片處理失敗");
+    expect(screen.getByRole("button", { name: "重新開啟裁切" })).toBeInTheDocument();
   });
 
   it("handles link insertion", async () => {

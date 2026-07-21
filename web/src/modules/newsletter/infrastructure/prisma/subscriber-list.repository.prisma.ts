@@ -56,4 +56,12 @@ export const subscriberListRepositoryPrisma: SubscriberListRepository = {
 
     return { items, total };
   },
+
+  async countGrowth(params) {
+    const [last7Days, last30Days] = await Promise.all([
+      prisma.subscriber.count({ where: { createdAt: { gte: params.since7Days } } }),
+      prisma.subscriber.count({ where: { createdAt: { gte: params.since30Days } } }),
+    ]);
+    return { last7Days, last30Days };
+  },
 };

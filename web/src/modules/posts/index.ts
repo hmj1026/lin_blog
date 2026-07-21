@@ -10,3 +10,6 @@ export const postsUseCases = createPostsUseCases({
   categories: categoryRepositoryPrisma,
   tags: tagRepositoryPrisma,
 });
+
+export { normalizeAdminPostListQuery } from "./application/admin-post-list-query";
+export type { AdminPostListParams, AdminPostSort } from "./application/ports";

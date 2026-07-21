@@ -1,9 +1,15 @@
 import { randomUUID } from "crypto";
 import path from "path";
-import type { UploadRepository, StoragePort, ImageProcessorPort } from "./ports";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
+import type { UploadRepository, StoragePort, ImageProcessorPort, MediaReferenceRepository } from "./ports";
 import type { UploadVisibility } from "../domain";
 
 const MAX_LIST_TAKE = 200;
+
+function boundedInteger(value: number | undefined, fallback: number, min: number, max: number) {
+  const normalized = Number.isFinite(value) ? Math.trunc(value as number) : fallback;
+  return Math.max(min, Math.min(normalized, max));
+}
 
 export type MediaUseCases = ReturnType<typeof createMediaUseCases>;
 
@@ -17,6 +23,7 @@ export function createMediaUseCases(deps: {
   uploads: UploadRepository;
   storage: StoragePort;
   imageProcessor: ImageProcessorPort;
+  references: MediaReferenceRepository;
 }) {
   return {
     /**
@@ -25,6 +32,33 @@ export function createMediaUseCases(deps: {
     listUploads: async (params: { search?: string; type?: string; take?: number }) => {
       const take = Math.max(1, Math.min(params.take ?? 100, MAX_LIST_TAKE));
       return deps.uploads.list({ search: params.search, type: params.type, take });
+    },
+
+    /** 以有界參數取得管理端媒體分頁，避免無限制查詢。 */
+    listUploadsPage: async (params: { search?: string; type?: string; page?: number; pageSize?: number }) => {
+      const search = params.search?.trim().slice(0, 100) || undefined;
+      // type 以 mime 前綴透傳（對齊 listUploads），由 repository 以 startsWith 過濾；
+      // 不再以固定白名單靜默降級為「回傳全部類型」。
+      const type = params.type?.trim() || undefined;
+      const page = boundedInteger(params.page, 1, 1, 10_000);
+      const pageSize = boundedInteger(params.pageSize, 20, 1, 100);
+      let result = await deps.uploads.listPage({ search, type, page, pageSize });
+      const totalPages = computeTotalPages(result.total, pageSize);
+      // 請求頁碼可能超過刪除後縮減的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin 的處理）。
+      let effectivePage = page;
+      const overflowPage = resolveOverflowPage({ itemCount: result.items.length, total: result.total, page, totalPages });
+      if (overflowPage !== null) {
+        effectivePage = overflowPage;
+        result = await deps.uploads.listPage({ search, type, page: effectivePage, pageSize });
+      }
+      return {
+        items: result.items,
+        page: effectivePage,
+        pageSize,
+        total: result.total,
+        totalPages,
+      };
     },
 
     /**
@@ -93,13 +127,26 @@ export function createMediaUseCases(deps: {
      */
     openFileStream: (storageKey: string) => deps.storage.getObjectStream({ key: storageKey }),
 
+    /** 取得刪除確認所需的檔案與結構化引用摘要。 */
+    getUploadDeletionImpact: async (id: string) => {
+      const upload = await deps.uploads.getById(id);
+      if (!upload || upload.deletedAt) return { ok: false as const, error: "not-found" as const };
+      const references = await deps.references.listStructuredReferences(id);
+      return { ok: true as const, upload, references };
+    },
+
     /**
      * 軟刪除上傳記錄。若檔案不存在或已刪除，回傳 error: "not-found"
      */
     softDeleteUpload: async (id: string) => {
       const existing = await deps.uploads.getById(id);
       if (!existing || existing.deletedAt) return { ok: false as const, error: "not-found" as const };
-      await deps.uploads.softDelete(id);
+      // 引用重驗與軟刪除於同一交易內原子執行，避免「檢查與刪除」之間的競態讓仍被引用的媒體被刪除。
+      const result = await deps.references.softDeleteUploadIfUnreferenced(id);
+      if (!result.ok) {
+        if (result.reason === "conflict") return { ok: false as const, error: "conflict" as const };
+        return { ok: false as const, error: "referenced" as const, references: result.references };
+      }
       return { ok: true as const };
     },
   };

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PUT, DELETE } from "@/app/api/categories/[id]/route";
+vi.mock("@/lib/server/audit-safe", () => ({ recordAuditEventSafely: vi.fn().mockResolvedValue(true) }));
+import { GET as getCategoryImpact, PUT, PATCH, DELETE } from "@/app/api/categories/[id]/route";
 import { GET as getNav } from "@/app/api/nav/route";
 import { requirePermission, jsonOk, jsonError, handleApiError } from "@/lib/api-utils";
 import { postsQueries, siteSettingsQueries } from "@/lib/server-queries";
@@ -25,12 +26,74 @@ vi.mock("@/modules/posts", () => ({
   postsUseCases: {
     updateCategory: vi.fn(),
     removeCategory: vi.fn(),
+    getCategoryDeletionImpact: vi.fn(),
+    restoreCategory: vi.fn(),
+    mergeCategory: vi.fn(),
   },
 }));
 
 describe("Categories [id] API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("returns category deletion impact before confirmation", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    (postsUseCases.getCategoryDeletionImpact as any).mockResolvedValue({ affectedPosts: 3 });
+    const context = { params: Promise.resolve({ id: "1" }) };
+
+    await getCategoryImpact(new Request("http://localhost/api/categories/1"), context);
+
+    expect(jsonOk).toHaveBeenCalledWith({ affectedPosts: 3 });
+  });
+
+  it("restores a soft-deleted category", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    (postsUseCases.restoreCategory as any).mockResolvedValue({ id: "1" });
+    const context = { params: Promise.resolve({ id: "1" }) };
+
+    await PATCH(new Request("http://localhost/api/categories/1", { method: "PATCH" }), context);
+
+    expect(postsUseCases.restoreCategory).toHaveBeenCalledWith("1");
+    expect(jsonOk).toHaveBeenCalledWith({ id: "1" });
+  });
+
+  it("merges a category into a different active category", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    (postsUseCases.mergeCategory as any).mockResolvedValue({ id: "1", movedPosts: 4 });
+    const context = { params: Promise.resolve({ id: "1" }) };
+
+    await PATCH(new Request("http://localhost/api/categories/1", {
+      method: "PATCH",
+      body: JSON.stringify({ mergeIntoId: "2" }),
+    }), context);
+
+    expect(postsUseCases.mergeCategory).toHaveBeenCalledWith("1", "2");
+    expect(jsonOk).toHaveBeenCalledWith({ id: "1", movedPosts: 4 });
+  });
+
+  it("rejects malformed merge target instead of silently restoring", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    const context = { params: Promise.resolve({ id: "1" }) };
+
+    await PATCH(new Request("http://localhost/api/categories/1", {
+      method: "PATCH",
+      body: JSON.stringify({ mergeIntoId: "   " }),
+    }), context);
+
+    expect(jsonError).toHaveBeenCalledWith("mergeIntoId 必須為非空字串", 400);
+    expect(postsUseCases.restoreCategory).not.toHaveBeenCalled();
+    expect(postsUseCases.mergeCategory).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-JSON bodies with 400", async () => {
+    (requirePermission as any).mockResolvedValue(null);
+    const context = { params: Promise.resolve({ id: "1" }) };
+
+    await PATCH(new Request("http://localhost/api/categories/1", { method: "PATCH", body: "not-json" }), context);
+
+    expect(jsonError).toHaveBeenCalledWith("請求內容不是有效的 JSON", 400);
+    expect(postsUseCases.restoreCategory).not.toHaveBeenCalled();
   });
 
   describe("PUT /api/categories/[id]", () => {

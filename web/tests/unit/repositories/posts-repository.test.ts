@@ -16,6 +16,9 @@ vi.mock("@/lib/db", () => {
     postVersion: {
       create: vi.fn(),
     },
+    upload: {
+      findMany: vi.fn(async () => []),
+    },
     category: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -33,6 +36,7 @@ vi.mock("@/lib/db", () => {
     // 以 mocked prisma 自身作為 transaction client（tx），讓 updateWithVersion 內的
     // tx.post / tx.postVersion 呼叫落在同一組 mock 上，方便斷言。
     $transaction: vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prisma)),
+    $executeRaw: vi.fn(),
   };
   return { prisma };
 });
@@ -186,14 +190,11 @@ describe("postRepositoryPrisma", () => {
         action: "publish",
         postIds: ["p1", "p2", "p3"],
       });
-      expect(prisma.post.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            id: { in: ["p1", "p2", "p3"] },
-          }),
-          data: expect.objectContaining({ status: "PUBLISHED" }),
-        })
-      );
+      expect(prisma.post.updateMany).toHaveBeenCalledTimes(3);
+      expect(prisma.post.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: "p1", deletedAt: null, status: "DRAFT" },
+        data: { status: "PUBLISHED" },
+      });
     });
 
     it("deletes multiple posts (soft delete)", async () => {
@@ -207,6 +208,20 @@ describe("postRepositoryPrisma", () => {
           data: expect.objectContaining({ deletedAt: expect.any(Date) }),
         })
       );
+    });
+
+    it("returns per-post success and failure details", async () => {
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+      const result = await postRepositoryPrisma.batchAction({ action: "draft", postIds: ["p1", "missing"] });
+      expect(result).toEqual({
+        count: 1,
+        results: [
+          { id: "p1", ok: true },
+          { id: "missing", ok: false, error: "not-applicable" },
+        ],
+      });
     });
   });
 
@@ -256,6 +271,33 @@ describe("postRepositoryPrisma", () => {
         })
       );
     });
+
+    it("拒絕建立引用已軟刪除媒體的文章（取鎖後重驗）", async () => {
+      (prisma.upload.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([{ id: "u1" }]);
+      await expect(
+        postRepositoryPrisma.create({
+          slug: "s", title: "t", status: "DRAFT", excerpt: "e",
+          content: '<img src="/api/files/u1">',
+        })
+      ).rejects.toThrow(/媒體已被刪除/);
+      expect(prisma.upload.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ["u1"] }, deletedAt: { not: null } } })
+      );
+      expect(prisma.post.create).not.toHaveBeenCalled();
+    });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再建立文章", async () => {
+      // 與媒體刪除的排他鎖互斥：避免刪除方確認無引用後、提交前，新文章寫入該媒體引用。
+      (prisma.post.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.create({ slug: "s", title: "t", status: "DRAFT", content: "c", excerpt: "e" });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.post.create as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+      );
+    });
   });
 
   describe("update", () => {
@@ -285,6 +327,18 @@ describe("postRepositoryPrisma", () => {
         })
       );
     });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再更新文章", async () => {
+      (prisma.post.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.update("p1", { slug: "s", title: "new", excerpt: "e", content: "c", status: "DRAFT" });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.post.update as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
+      );
+    });
   });
 
   describe("updateWithVersion", () => {
@@ -309,6 +363,22 @@ describe("postRepositoryPrisma", () => {
       // 樂觀鎖：updateMany 以 updatedAt === expectedUpdatedAt 為條件。
       expect(prisma.post.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ id: "p1", updatedAt: expectedUpdatedAt }) })
+      );
+    });
+
+    it("於交易內先取得媒體引用共享 advisory lock 再寫入版本與更新", async () => {
+      (prisma.post.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      (prisma.postVersion.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "v1" });
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+      (prisma.post.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({ updatedAt: new Date() });
+
+      await postRepositoryPrisma.updateWithVersion({ id: "p1", expectedUpdatedAt, version, update });
+
+      const raw = prisma.$executeRaw as ReturnType<typeof vi.fn>;
+      const sql = raw.mock.calls.map((call) => (call[0] as readonly string[]).join("?")).join("\n");
+      expect(sql).toContain("pg_advisory_xact_lock_shared(");
+      expect(raw.mock.invocationCallOrder[0]).toBeLessThan(
+        (prisma.post.updateMany as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0],
       );
     });
 
@@ -357,39 +427,93 @@ describe("postRepositoryPrisma", () => {
   });
 
   describe("listForAdmin", () => {
-    it("returns non-deleted posts ordered by update time", async () => {
+    it("applies bounded URL filters, sorting and pagination", async () => {
       (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-      await postRepositoryPrisma.listForAdmin();
+      (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(55);
+      const result = await postRepositoryPrisma.listForAdmin({
+        query: "launch",
+        status: "DRAFT",
+        categoryId: "cat-1",
+        tagId: "tag-1",
+        featured: true,
+        deleted: false,
+        sort: "title-asc",
+        page: 2,
+        pageSize: 25,
+      });
       expect(prisma.post.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { deletedAt: null },
-          orderBy: { updatedAt: "desc" },
+          where: expect.objectContaining({
+            deletedAt: null,
+            status: "DRAFT",
+            featured: true,
+            categories: { some: { id: "cat-1" } },
+            tags: { some: { id: "tag-1" } },
+            OR: expect.arrayContaining([
+              { title: { contains: "launch", mode: "insensitive" } },
+              { slug: { contains: "launch", mode: "insensitive" } },
+            ]),
+          }),
+          orderBy: [{ title: "asc" }, { id: "desc" }],
+          skip: 25,
+          take: 25,
         })
       );
+      expect(result.pagination).toEqual({ page: 2, pageSize: 25, total: 55, totalPages: 3 });
     });
 
-    it("bounds the admin query with a defined take (admin cap, still bounded)", async () => {
+    it("clamps the page to the actual last page when the requested page is now empty", async () => {
+      // 刪文後總頁數縮減時，仍以原頁碼查詢會回傳空列表且分頁元件無法導回，需以最後一頁重查。
+      (prisma.post.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: "p-1", status: "DRAFT" }]);
+      (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(21);
+
+      const result = await postRepositoryPrisma.listForAdmin({ deleted: false, sort: "updated-desc", page: 5, pageSize: 20 });
+
+      expect(prisma.post.findMany).toHaveBeenCalledTimes(2);
+      expect((prisma.post.findMany as ReturnType<typeof vi.fn>).mock.calls[1][0]).toEqual(
+        expect.objectContaining({ skip: 20, take: 20 })
+      );
+      expect(result.pagination).toEqual({ page: 2, pageSize: 20, total: 21, totalPages: 2 });
+      expect(result.data).toHaveLength(1);
+    });
+
+    it("queries the trash explicitly instead of mixing deleted posts", async () => {
       (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-      await postRepositoryPrisma.listForAdmin();
-      const call = (prisma.post.findMany as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
-      expect(call.take).toBeDefined();
-      // admin 端無分頁 UI，採較寬鬆上限避免靜默截斷，但仍為有界查詢
-      expect(call.take).toBeGreaterThan(0);
-      expect(call.take).toBeLessThanOrEqual(1000);
+      (prisma.post.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      await postRepositoryPrisma.listForAdmin({ deleted: true, sort: "updated-desc", page: 1, pageSize: 20 });
+      expect(prisma.post.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ deletedAt: { not: null } }), take: 20 })
+      );
+    });
+  });
+
+  describe("restore", () => {
+    it("clears the deletion timestamp", async () => {
+      (prisma.post.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "p1" });
+      await postRepositoryPrisma.restore("p1");
+      expect(prisma.post.update).toHaveBeenCalledWith({
+        where: { id: "p1" },
+        data: { deletedAt: null },
+        select: { id: true },
+      });
     });
   });
 
   describe("publishDueScheduled", () => {
-    it("publishes posts due for schedule", async () => {
-      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
-        { id: "p1", slug: "s1", publishedAt: new Date() }
-      ]);
+    it("publishes posts due for schedule with atomic eligibility re-check", async () => {
+      const publishedAt = new Date();
+      (prisma.post.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([{ id: "p1", slug: "s1", publishedAt }])
+        .mockResolvedValueOnce([{ id: "p1" }]);
       (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
-      
+
       const now = new Date();
-      await postRepositoryPrisma.publishDueScheduled(now);
-      
-      expect(prisma.post.findMany).toHaveBeenCalledWith(
+      const result = await postRepositoryPrisma.publishDueScheduled(now);
+
+      expect(prisma.post.findMany).toHaveBeenNthCalledWith(
+        1,
         expect.objectContaining({
           where: {
             status: "SCHEDULED",
@@ -398,13 +522,46 @@ describe("postRepositoryPrisma", () => {
           },
         })
       );
-      
+
+      // updateMany 須以完整資格條件單次批次原子重驗，而非只依先前取得的 ID 更新。
       expect(prisma.post.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: { in: ["p1"] } },
+          where: { id: { in: ["p1"] }, status: "SCHEDULED", publishedAt: { lte: now }, deletedAt: null },
           data: { status: "PUBLISHED" },
         })
       );
+      expect(result).toEqual({ count: 1, published: [{ id: "p1", slug: "s1", publishedAt }] });
+    });
+
+    it("excludes posts that lost eligibility between findMany and updateMany", async () => {
+      // 競態情境：p2 在 findMany 後被取消排程／延後，批次 updateMany 資格重驗未命中 p2。
+      (prisma.post.findMany as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce([
+          { id: "p1", slug: "s1", publishedAt: new Date() },
+          { id: "p2", slug: "s2", publishedAt: new Date() },
+        ])
+        .mockResolvedValueOnce([{ id: "p1" }]);
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+
+      const result = await postRepositoryPrisma.publishDueScheduled(new Date());
+
+      expect(result.count).toBe(1);
+      expect(result.published.map((p) => p.id)).toEqual(["p1"]);
+    });
+
+    it("returns count 0 without a re-query when every scheduled post lost eligibility before updateMany", async () => {
+      // 全部候選文章在原子重驗 updateMany 命中前皆已喪失資格（例如全被取消排程），
+      // updateResult.count 為 0，應直接回傳空結果而不再發出第二次 findMany。
+      (prisma.post.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { id: "p1", slug: "s1", publishedAt: new Date() },
+        { id: "p2", slug: "s2", publishedAt: new Date() },
+      ]);
+      (prisma.post.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 0 });
+
+      const result = await postRepositoryPrisma.publishDueScheduled(new Date());
+
+      expect(result).toEqual({ count: 0, published: [] });
+      expect(prisma.post.findMany).toHaveBeenCalledTimes(1);
     });
   });
 

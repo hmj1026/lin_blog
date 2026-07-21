@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 // Mock Prisma
@@ -49,6 +50,7 @@ describe("securityAdminRepositoryPrisma", () => {
     name: "Admin",
     deletedAt: null,
     perms: [{ id: "rp-1", permissionKey: "MANAGE_POSTS" }],
+    _count: { users: 3 },
   };
 
   const mockUser = {
@@ -196,6 +198,48 @@ describe("securityAdminRepositoryPrisma", () => {
         expect.objectContaining({ update: { value: { increment: 1 } } })
       );
     });
+
+    it("enforceAdminFloor rolls back when no administrator remains after the update", async () => {
+      (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+      (prisma.user.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      await expect(
+        securityAdminRepositoryPrisma.updateUser({
+          id: "user-1",
+          email: "new@example.com",
+          roleId: "role-2",
+          name: "New Name",
+          enforceAdminFloor: true,
+        })
+      ).rejects.toThrow("至少需要保留一位啟用中的管理者");
+    });
+
+    it("enforceAdminFloor commits when at least one administrator remains", async () => {
+      (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+      (prisma.user.count as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+      const result = await securityAdminRepositoryPrisma.updateUser({
+        id: "user-1",
+        email: "new@example.com",
+        roleId: "role-2",
+        name: "New Name",
+        enforceAdminFloor: true,
+      });
+      expect(result.id).toBe("user-1");
+    });
+
+    it("enforceAdminFloor translates a Serializable write conflict (P2034) into a retryable conflict", async () => {
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("write conflict", { code: "P2034", clientVersion: "5.22.0" })
+      );
+      await expect(
+        securityAdminRepositoryPrisma.updateUser({
+          id: "user-1",
+          email: "new@example.com",
+          roleId: "role-2",
+          name: "New Name",
+          enforceAdminFloor: true,
+        })
+      ).rejects.toThrow("操作發生並行衝突，請重試");
+    });
   });
 
   describe("softDeleteUser", () => {
@@ -215,7 +259,8 @@ describe("securityAdminRepositoryPrisma", () => {
   });
 
   describe("softDeleteRole", () => {
-    it("sets deletedAt for role", async () => {
+    it("於交易內確認無指派使用者後設定 deletedAt", async () => {
+      (prisma.user.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
       (prisma.role.update as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "role-1" });
       await securityAdminRepositoryPrisma.softDeleteRole("role-1");
       expect(prisma.role.update).toHaveBeenCalledWith(
@@ -227,6 +272,37 @@ describe("securityAdminRepositoryPrisma", () => {
       expect(prisma.permissionVersion.upsert).toHaveBeenCalledWith(
         expect.objectContaining({ update: { value: { increment: 1 } } })
       );
+    });
+
+    it("交易內重驗發現仍有指派使用者時擲出衝突且不刪除（關閉競態）", async () => {
+      // 模擬計數後、刪除前有使用者被指派到此角色：交易內 count 回傳 > 0。
+      (prisma.user.count as ReturnType<typeof vi.fn>).mockResolvedValue(2);
+      await expect(securityAdminRepositoryPrisma.softDeleteRole("role-1")).rejects.toThrow("仍有 2 位啟用中的使用者");
+      expect(prisma.role.update).not.toHaveBeenCalled();
+    });
+
+    it("將 Serializable 寫入衝突（P2034）轉譯為可重試的衝突", async () => {
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("write conflict", { code: "P2034", clientVersion: "5.22.0" })
+      );
+      await expect(securityAdminRepositoryPrisma.softDeleteRole("role-1")).rejects.toThrow("操作發生並行衝突，請重試");
+    });
+  });
+
+  describe("getRoleAuditState", () => {
+    it("回傳更新前的 key/name/權限快照", async () => {
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        key: "ADMIN",
+        name: "管理員",
+        perms: [{ permissionKey: "admin:access" }, { permissionKey: "audit:view" }],
+      });
+      const result = await securityAdminRepositoryPrisma.getRoleAuditState("role-1");
+      expect(result).toEqual({ key: "ADMIN", name: "管理員", permissionKeys: ["admin:access", "audit:view"] });
+    });
+
+    it("角色不存在時回傳 null", async () => {
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      expect(await securityAdminRepositoryPrisma.getRoleAuditState("nope")).toBeNull();
     });
   });
 
@@ -250,12 +326,16 @@ describe("securityAdminRepositoryPrisma", () => {
 
     it("returns snapshot when user and role active", async () => {
       (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        email: "user@example.com",
+        name: "User",
         deletedAt: null,
         roleId: "role-1",
         role: { key: "admin", name: "Admin", deletedAt: null, perms: [{ permissionKey: "MANAGE_POSTS" }] },
       });
       const result = await securityAdminRepositoryPrisma.getUserAuthSnapshot("user-1");
       expect(result).toEqual({
+        email: "user@example.com",
+        name: "User",
         roleId: "role-1",
         roleKey: "admin",
         roleName: "Admin",
@@ -281,6 +361,12 @@ describe("securityAdminRepositoryPrisma", () => {
       const result = await securityAdminRepositoryPrisma.listRolesWithPermissions();
       expect(result).toHaveLength(1);
       expect(result[0].permissionKeys).toContain("MANAGE_POSTS");
+      expect(result[0].activeUserCount).toBe(3);
+      expect(prisma.role.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        include: expect.objectContaining({
+          _count: { select: { users: { where: { deletedAt: null } } } },
+        }),
+      }));
     });
   });
 

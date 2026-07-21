@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminPostForm } from "@/components/admin/post-form";
 
@@ -898,6 +898,314 @@ describe("AdminPostForm", () => {
       expect(body.seoTitle).toBe("Split SEO Title");
       expect(body.seoDescription).toBe("Split SEO Desc");
       expect(body.ogImage).toBe("og.jpg");
+    });
+  });
+
+  describe("recoverable editing workflow", () => {
+    const editInitial = {
+      ...mockInitial,
+      title: "Old Title",
+      slug: "old",
+      content: "Old content",
+      excerpt: "Old excerpt",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    function renderDraft(overrides: Partial<typeof editInitial> = {}) {
+      return render(
+        <AdminPostForm
+          mode="edit"
+          postId="123"
+          initial={{ ...editInitial, ...overrides }}
+          categories={mockCategories as any}
+          tags={mockTags as any}
+        />
+      );
+    }
+
+    it("debounces auto-save only after a draft becomes dirty and preserves publication state", async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:01:00.000Z" } }),
+      });
+      try {
+        renderDraft();
+        await act(() => vi.advanceTimersByTimeAsync(1500));
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Auto saved title" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+        expect(body.status).toBe("DRAFT");
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("上次自動儲存");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("儲存請求進行中的新編輯仍保持 dirty 並續發自動儲存（不遺失）", async () => {
+      vi.useFakeTimers();
+      let resolveFirst: (value: unknown) => void = () => {};
+      const firstResponse = new Promise((resolve) => {
+        resolveFirst = resolve;
+      });
+      fetchMock
+        .mockReturnValueOnce(firstResponse)
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:02:00.000Z" } }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "First edit" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // 首次儲存尚未回應時再次修改另一欄位。
+        fireEvent.change(screen.getByLabelText("摘要"), { target: { value: "Edited during save" } });
+
+        // 解析首次請求（回傳送出當下的舊快照）。
+        await act(async () => {
+          resolveFirst({ ok: true, json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:01:00.000Z" } }) });
+        });
+
+        // 請求期間的新編輯不得被誤清 dirty → 應對含新摘要的內容續發第二次自動儲存。
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const secondBody = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string);
+        expect(secondBody.excerpt).toBe("Edited during save");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("自動儲存失敗後（使用者未再輸入）仍會對相同內容重試", async () => {
+      vi.useFakeTimers();
+      fetchMock
+        .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ success: false, message: "伺服器錯誤" }) })
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: { updatedAt: "2026-01-01T00:01:00.000Z" } }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Retry title" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        // 失敗後不再輸入，時間前進應對相同內容重試並最終成功。
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("上次自動儲存");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("自動儲存偵測到會被剝除的 HTML 時暫停並提示，不觸發阻塞式確認", async () => {
+      vi.useFakeTimers();
+      const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+      try {
+        renderDraft({ content: '<div style="color:red">rich</div>' });
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Trigger autosave" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+
+        expect(confirmSpy).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("已暫停自動儲存");
+      } finally {
+        confirmSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    });
+
+    it("warns before unloading while local changes are not safely persisted", () => {
+      renderDraft();
+      fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Unsaved title" } });
+
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it("stops auto-save after an optimistic conflict and shows recovery actions", async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ success: false, message: "文章已被其他人更新" }),
+      });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Conflicting title" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+
+        expect(screen.getByRole("alert")).toHaveTextContent("偵測到版本衝突");
+        expect(screen.getByRole("button", { name: "重新載入最新版本" })).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText("摘要"), { target: { value: "Another local edit" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps draft status and focuses an error summary when publication checks fail", () => {
+      renderDraft({ title: "" });
+
+      fireEvent.click(screen.getByRole("radio", { name: "已發佈" }));
+
+      expect(screen.getByRole("radio", { name: "草稿" })).toBeChecked();
+      expect(screen.getByRole("alert")).toHaveTextContent("發布前請修正");
+      expect(document.activeElement).toBe(screen.getByLabelText("標題"));
+    });
+
+    it("exposes version history through the existing versions API", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: [{ id: "v1", title: "Earlier title", editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" }],
+        }),
+      });
+      renderDraft();
+
+      await userEvent.click(screen.getByRole("button", { name: "版本歷史" }));
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions");
+      expect(await screen.findByText("Earlier title")).toBeInTheDocument();
+    });
+
+    it("連續三次暫時性失敗後暫停自動儲存，不再無限重試", async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({ success: false, message: "伺服器錯誤" }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Persistent failure" } });
+        // 首次嘗試 + 兩次重試 = 3 次後暫停。
+        for (let i = 0; i < 6; i += 1) {
+          await act(() => vi.advanceTimersByTimeAsync(1100));
+        }
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("自動儲存已暫停");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("非暫時性失敗（4xx，如重複 slug）不重試自動儲存", async () => {
+      vi.useFakeTimers();
+      fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ success: false, message: "Slug 已存在" }) });
+      try {
+        renderDraft();
+        fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Duplicate slug" } });
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        await act(() => vi.advanceTimersByTimeAsync(1100));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId("post-form-status")).toHaveTextContent("自動儲存已暫停");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("dirty 時攔截站內連結導覽並改走離開確認對話框", () => {
+      renderDraft();
+      fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Unsaved before nav" } });
+
+      const anchor = document.createElement("a");
+      anchor.href = "/admin/media";
+      anchor.textContent = "媒體庫";
+      document.body.appendChild(anchor);
+      try {
+        // fireEvent 回傳 false 代表 preventDefault 被呼叫 → 導覽被攔截。
+        const notPrevented = fireEvent.click(anchor);
+
+        expect(notPrevented).toBe(false);
+        expect(screen.getByRole("dialog", { name: "尚有未儲存變更" })).toBeInTheDocument();
+      } finally {
+        anchor.remove();
+      }
+    });
+
+    it("版本歷史可檢視版本詳情並經確認後還原", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [{ id: "v1", title: "Earlier title", editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: { id: "v1", title: "Earlier title", excerpt: "Old excerpt", content: "<p>old</p>", allowRawHtml: true, showRawHtmlToc: false, editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" },
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "已還原到選定版本" } }) });
+      renderDraft();
+      await userEvent.click(screen.getByRole("button", { name: "版本歷史" }));
+      await screen.findByText("Earlier title");
+
+      await userEvent.click(screen.getByRole("button", { name: "檢視" }));
+      expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions/v1");
+      expect(await screen.findByText("<p>old</p>")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "還原" }));
+      expect(screen.getByRole("dialog", { name: "確認還原版本" })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "確認還原" }));
+
+      // 還原成功後會 window.location.reload()（jsdom 僅記錄 not-implemented，不中斷測試）。
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions/v1", expect.objectContaining({ method: "POST" }))
+      );
+    });
+
+    it("dirty 表單經確認還原成功後的重載不再被 beforeunload 攔截", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [{ id: "v1", title: "Earlier title", editorName: "Editor", createdAt: "2026-01-01T00:00:00.000Z" }],
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, data: { message: "已還原到選定版本" } }) });
+      renderDraft();
+      fireEvent.change(screen.getByLabelText("標題"), { target: { value: "Unsaved local edit" } });
+
+      // dirty 期間 beforeunload 應攔截。
+      const guarded = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(guarded);
+      expect(guarded.defaultPrevented).toBe(true);
+
+      await userEvent.click(screen.getByRole("button", { name: "版本歷史" }));
+      await screen.findByText("Earlier title");
+      await userEvent.click(screen.getByRole("button", { name: "還原" }));
+      await userEvent.click(screen.getByRole("button", { name: "確認還原" }));
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith("/api/posts/123/versions/v1", expect.objectContaining({ method: "POST" }))
+      );
+
+      // 使用者已在確認框同意放棄變更：還原成功觸發的 reload 不應再被二次攔截。
+      const bypassed = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(bypassed);
+      expect(bypassed.defaultPrevented).toBe(false);
+    });
+
+    it("shows SEO counts, search preview, reading estimate and searchable taxonomy pickers", async () => {
+      renderDraft();
+
+      await userEvent.type(screen.getByLabelText("SEO 標題"), "搜尋標題");
+      await userEvent.type(screen.getByLabelText("SEO 描述"), "搜尋描述");
+
+      expect(screen.getByText(/SEO 標題字數：4/)).toBeInTheDocument();
+      expect(screen.getByText(/SEO 描述字數：4/)).toBeInTheDocument();
+      expect(screen.getByTestId("seo-preview")).toHaveTextContent("搜尋標題");
+      expect(screen.getByText(/預估閱讀時間：/)).toBeInTheDocument();
+      expect(screen.getByRole("searchbox", { name: "搜尋分類" })).toBeInTheDocument();
+      expect(screen.getByRole("searchbox", { name: "搜尋標籤" })).toBeInTheDocument();
     });
   });
 });

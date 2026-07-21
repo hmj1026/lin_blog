@@ -18,13 +18,17 @@ export async function parseApiResponse<T>(res: Response): Promise<ApiResponse<T>
 }
 
 /**
- * 從 API 回應中取得錯誤訊息
+ * 從 API 回應中取得錯誤訊息。
+ *
+ * 僅在已判定失敗（`isApiSuccess` 為 false）的分支呼叫；即使 envelope 異常地帶著
+ * `success: true`（例如 HTTP 非 2xx 卻回 success），仍回傳 `fallback` 而非空字串，
+ * 確保拋出的 Error 一律帶有可讀訊息。
  */
 export function getApiErrorMessage<T>(
   json: ApiResponse<T>,
   fallback = "操作失敗"
 ): string {
-  if (json.success) return "";
+  if (json.success) return fallback;
   return json.message || fallback;
 }
 

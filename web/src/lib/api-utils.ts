@@ -4,6 +4,7 @@ import { getSession } from "./auth";
 import { ApiException } from "./errors";
 import { ApiResponse } from "@/types/api";
 import { logger } from "./logger";
+import { ADMIN_ACCESS_PERMISSION } from "@/modules/security-admin/domain/permissions";
 
 /**
  * 建立成功的 JSON 回應
@@ -79,7 +80,10 @@ export async function requirePermission(permissionKey: string) {
   const roleId = session.user.roleId;
   if (!roleId) return jsonError("禁止存取", 403);
 
-  if (!session.user.permissions?.includes(permissionKey)) return jsonError("禁止存取", 403);
+  const permissions = session.user.permissions ?? [];
+  // 先驗共用後台存取門檻，再驗目標權限，兩者缺一即拒絕。
+  if (!permissions.includes(ADMIN_ACCESS_PERMISSION)) return jsonError("禁止存取", 403);
+  if (!permissions.includes(permissionKey)) return jsonError("禁止存取", 403);
   return null;
 }
 
@@ -95,6 +99,8 @@ export async function requireAnyPermission(permissionKeys: string[]) {
   const roleId = session.user.roleId;
   if (!roleId) return jsonError("禁止存取", 403);
 
-  if (!permissionKeys.some((k) => session.user!.permissions?.includes(k))) return jsonError("禁止存取", 403);
+  const permissions = session.user.permissions ?? [];
+  if (!permissions.includes(ADMIN_ACCESS_PERMISSION)) return jsonError("禁止存取", 403);
+  if (!permissionKeys.some((k) => permissions.includes(k))) return jsonError("禁止存取", 403);
   return null;
 }

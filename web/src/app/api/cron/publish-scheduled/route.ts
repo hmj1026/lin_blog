@@ -1,4 +1,5 @@
 import { postsUseCases } from "@/modules/posts";
+import { auditUseCases } from "@/modules/audit";
 import { NextRequest } from "next/server";
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
@@ -24,6 +25,14 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date();
+
+  // 稽核保留清理與事件寫入解耦：每次排程執行都獨立清除逾期事件，
+  // 即使長期無高風險 mutation 或事件寫入失敗，保留政策仍會生效。失敗不影響排程主流程。
+  try {
+    await auditUseCases.purgeExpiredAuditEvents(now);
+  } catch {
+    logger.warn("Audit retention cleanup failed", { retentionDays: 365 });
+  }
 
   const { count, published } = await postsUseCases.publishScheduledPosts(now);
   if (count === 0) {

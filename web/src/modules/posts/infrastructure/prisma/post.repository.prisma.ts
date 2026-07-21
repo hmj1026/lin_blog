@@ -2,6 +2,8 @@ import { PostStatus } from "@prisma/client";
 import type { PostRepository } from "../../application/ports";
 import { prisma } from "@/lib/db";
 import { publishTimeReached } from "@/lib/prisma/public-post-visibility";
+import { assertReferencedMediaUsable, lockMediaReferencesShared } from "@/lib/media-reference-lock";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import { mapPostStatusFromPrisma, mapPostStatusToPrisma } from "./mappers";
 
 // updateWithVersion 內用來觸發 transaction rollback 並回報結果的哨兵錯誤。
@@ -49,12 +51,6 @@ function toScalarUpdateData(data: {
  * 公開文章列表查詢的最大筆數上限，避免呼叫端未指定或誤傳過大 take 造成無界查詢。
  */
 const MAX_LIST_TAKE = 100;
-
-/**
- * admin 文章列表上限。admin 端目前尚無分頁 UI（一次載入全部文章），
- * 故採較寬鬆的上限以避免靜默截斷；若未來文章量接近此值，應改為分頁查詢。
- */
-const MAX_ADMIN_LIST_TAKE = 1000;
 
 const postListItemSelect = {
   id: true,
@@ -192,14 +188,59 @@ export const postRepositoryPrisma: PostRepository = {
     });
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },
-  async listForAdmin() {
-    const posts = await prisma.post.findMany({
-      where: { deletedAt: null },
-      orderBy: { updatedAt: "desc" },
-      select: postListItemSelect,
-      take: MAX_ADMIN_LIST_TAKE,
-    });
-    return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
+  async listForAdmin(params) {
+    const page = Math.max(1, Math.min(params.page, 10_000));
+    const pageSize = Math.max(1, Math.min(params.pageSize, 100));
+    const query = params.query?.trim();
+    const where = {
+      deletedAt: params.deleted ? { not: null } : null,
+      status: params.status ? mapPostStatusToPrisma(params.status) : undefined,
+      featured: params.featured,
+      categories: params.categoryId ? { some: { id: params.categoryId } } : undefined,
+      tags: params.tagId ? { some: { id: params.tagId } } : undefined,
+      OR: query ? [
+        { title: { contains: query, mode: "insensitive" as const } },
+        { slug: { contains: query, mode: "insensitive" as const } },
+      ] : undefined,
+    };
+    const primaryOrderBy = params.sort === "title-asc"
+      ? { title: "asc" as const }
+      : params.sort === "created-desc"
+        ? { createdAt: "desc" as const }
+        : params.sort === "published-desc"
+          ? { publishedAt: { sort: "desc" as const, nulls: "last" as const } }
+          : { updatedAt: "desc" as const };
+    const orderBy = [primaryOrderBy, { id: "desc" as const }];
+    // eslint-disable-next-line prefer-const -- posts 在頁碼夾限重查時會被重新指派
+    let [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        orderBy,
+        select: postListItemSelect,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.post.count({ where }),
+    ]);
+    // 請求頁碼可能超過刪除後縮減的總頁數（例如第 2 頁唯一一篇被刪），
+    // 此時以實際最後一頁重查，避免回傳空列表且分頁元件無法導回。
+    let effectivePage = page;
+    const totalPages = computeTotalPages(total, pageSize);
+    const overflowPage = resolveOverflowPage({ itemCount: posts.length, total, page, totalPages });
+    if (overflowPage !== null) {
+      effectivePage = overflowPage;
+      posts = await prisma.post.findMany({
+        where,
+        orderBy,
+        select: postListItemSelect,
+        skip: (effectivePage - 1) * pageSize,
+        take: pageSize,
+      });
+    }
+    return {
+      data: posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) })),
+      pagination: { page: effectivePage, pageSize, total, totalPages },
+    };
   },
   async countPublished() {
     return prisma.post.count({
@@ -264,44 +305,60 @@ export const postRepositoryPrisma: PostRepository = {
     return posts.map((p) => ({ ...p, status: mapPostStatusFromPrisma(p.status) }));
   },
   async create(data) {
-    return prisma.post.create({
-      data: {
-        slug: data.slug,
-        title: data.title,
-        excerpt: data.excerpt,
-        content: data.content,
-        coverImage: data.coverImage,
-        readingTime: data.readingTime,
-        featured: data.featured ?? false,
-        allowRawHtml: data.allowRawHtml ?? false,
-        showRawHtmlToc: data.showRawHtmlToc ?? false,
-        status: mapPostStatusToPrisma(data.status),
-        publishedAt: data.publishedAt,
-        seoTitle: data.seoTitle ?? null,
-        seoDescription: data.seoDescription ?? null,
-        ogImage: data.ogImage ?? null,
-        authorId: data.authorId ?? undefined,
-        categories: { connect: data.categoryIds?.map((id) => ({ id })) ?? [] },
-        tags: { connect: data.tagIds?.map((id) => ({ id })) ?? [] },
-      },
-      select: { id: true },
+    // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+    return prisma.$transaction(async (tx) => {
+      await lockMediaReferencesShared(tx);
+      // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+      await assertReferencedMediaUsable(tx, [data.coverImage, data.ogImage, data.content]);
+      return tx.post.create({
+        data: {
+          slug: data.slug,
+          title: data.title,
+          excerpt: data.excerpt,
+          content: data.content,
+          coverImage: data.coverImage,
+          readingTime: data.readingTime,
+          featured: data.featured ?? false,
+          allowRawHtml: data.allowRawHtml ?? false,
+          showRawHtmlToc: data.showRawHtmlToc ?? false,
+          status: mapPostStatusToPrisma(data.status),
+          publishedAt: data.publishedAt,
+          seoTitle: data.seoTitle ?? null,
+          seoDescription: data.seoDescription ?? null,
+          ogImage: data.ogImage ?? null,
+          authorId: data.authorId ?? undefined,
+          categories: { connect: data.categoryIds?.map((id) => ({ id })) ?? [] },
+          tags: { connect: data.tagIds?.map((id) => ({ id })) ?? [] },
+        },
+        select: { id: true },
+      });
     });
   },
   async update(id, data) {
-    return prisma.post.update({
-      where: { id },
-      data: {
-        ...toScalarUpdateData(data),
-        categories: data.categoryIds ? { set: data.categoryIds.map((cid) => ({ id: cid })) } : undefined,
-        tags: data.tagIds ? { set: data.tagIds.map((tid) => ({ id: tid })) } : undefined,
-      },
-      select: { id: true },
+    // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+    return prisma.$transaction(async (tx) => {
+      await lockMediaReferencesShared(tx);
+      // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+      await assertReferencedMediaUsable(tx, [data.coverImage, data.ogImage, data.content]);
+      return tx.post.update({
+        where: { id },
+        data: {
+          ...toScalarUpdateData(data),
+          categories: data.categoryIds ? { set: data.categoryIds.map((cid) => ({ id: cid })) } : undefined,
+          tags: data.tagIds ? { set: data.tagIds.map((tid) => ({ id: tid })) } : undefined,
+        },
+        select: { id: true },
+      });
     });
   },
   async updateWithVersion({ id, expectedUpdatedAt, version, update }) {
     try {
       let nextUpdatedAt: Date | null = null;
       await prisma.$transaction(async (tx) => {
+        // 與媒體刪除方共享 advisory lock 互斥，避免在確認媒體無引用後、刪除前寫入新的引用。
+        await lockMediaReferencesShared(tx);
+        // 取鎖後重驗：引用的媒體若已被（先行提交的）刪除交易軟刪除，須拒絕寫入。
+        await assertReferencedMediaUsable(tx, [update.coverImage, update.ogImage, update.content]);
         const existing = await tx.post.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
         if (!existing) throw new PostNotFoundError();
 
@@ -354,28 +411,28 @@ export const postRepositoryPrisma: PostRepository = {
   async softDelete(id) {
     return prisma.post.update({ where: { id }, data: { deletedAt: new Date() }, select: { id: true } });
   },
+  async restore(id) {
+    return prisma.post.update({ where: { id }, data: { deletedAt: null }, select: { id: true } });
+  },
 
   async batchAction(params) {
-    if (params.postIds.length === 0) return { count: 0 };
-    if (params.action === "publish") {
-      const result = await prisma.post.updateMany({
-        where: { id: { in: params.postIds }, deletedAt: null, status: PostStatus.DRAFT },
-        data: { status: PostStatus.PUBLISHED },
-      });
-      return { count: result.count };
-    }
-    if (params.action === "draft") {
-      const result = await prisma.post.updateMany({
-        where: { id: { in: params.postIds }, deletedAt: null, status: PostStatus.PUBLISHED },
-        data: { status: PostStatus.DRAFT },
-      });
-      return { count: result.count };
-    }
-    const result = await prisma.post.updateMany({
-      where: { id: { in: params.postIds }, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
-    return { count: result.count };
+    // 逐筆隔離：單筆資料庫更新失敗只讓該筆回報 failed，不使整批 reject，
+    // 讓管理員能明確得知哪些成功、哪些失敗，而非整體 500 且已提交部分更新卻無從得知。
+    const results = await Promise.all(params.postIds.map(async (id) => {
+      try {
+        const result = params.action === "publish"
+          ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.DRAFT }, data: { status: PostStatus.PUBLISHED } })
+          : params.action === "draft"
+            ? await prisma.post.updateMany({ where: { id, deletedAt: null, status: PostStatus.PUBLISHED }, data: { status: PostStatus.DRAFT } })
+            : await prisma.post.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+        return result.count > 0
+          ? { id, ok: true as const }
+          : { id, ok: false as const, error: "not-applicable" as const };
+      } catch {
+        return { id, ok: false as const, error: "failed" as const };
+      }
+    }));
+    return { count: results.filter((result) => result.ok).length, results };
   },
 
   async publishDueScheduled(now) {
@@ -385,11 +442,23 @@ export const postRepositoryPrisma: PostRepository = {
     });
     if (scheduledPosts.length === 0) return { count: 0, published: [] };
 
+    const ids = scheduledPosts.map((post) => post.id);
+    // 單一原子 updateMany：WHERE 仍完整帶入資格條件，若編輯者在 findMany 後取消排程、
+    // 延後 publishedAt 或刪除文章，該筆不會被此次 UPDATE 命中；相較逐筆迴圈，
+    // 常數次資料庫往返不隨到期文章數量線性增長。
     const updateResult = await prisma.post.updateMany({
-      where: { id: { in: scheduledPosts.map((p) => p.id) } },
+      where: { id: { in: ids }, status: PostStatus.SCHEDULED, publishedAt: { lte: now }, deletedAt: null },
       data: { status: PostStatus.PUBLISHED },
     });
-    return { count: updateResult.count, published: scheduledPosts };
+    if (updateResult.count === 0) return { count: 0, published: [] };
+
+    const publishedRows = await prisma.post.findMany({
+      where: { id: { in: ids }, status: PostStatus.PUBLISHED },
+      select: { id: true },
+    });
+    const publishedIds = new Set(publishedRows.map((row) => row.id));
+    const published = scheduledPosts.filter((post) => publishedIds.has(post.id));
+    return { count: published.length, published };
   },
 
   async listForExport(params) {
@@ -397,7 +466,7 @@ export const postRepositoryPrisma: PostRepository = {
     const posts = await prisma.post.findMany({
       where: { deletedAt: null, ...(ids?.length ? { id: { in: ids } } : {}) },
       include: { categories: { select: { slug: true, name: true } }, tags: { select: { slug: true, name: true } } },
-      orderBy: params.orderBy === "createdAtDesc" ? { createdAt: "desc" } : { createdAt: "desc" },
+      orderBy: { createdAt: "desc" },
     });
 
     return posts.map((p) => ({

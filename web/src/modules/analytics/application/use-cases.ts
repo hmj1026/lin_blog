@@ -1,60 +1,63 @@
 import crypto from "crypto";
+import { computeTotalPages, resolveOverflowPage } from "@/lib/server/pagination-utils";
 import type { AnalyticsRepository, ListPostViewEventsFilter } from "./ports";
-import { clampInt, detectDeviceType, isBotUserAgent, parseSimpleUA, type DeviceType } from "../domain";
+import {
+  buildAnalyticsDateRange,
+  calculatePercentChange,
+  clampInt,
+  classifyTrafficSource,
+  detectDeviceType,
+  fillDailyTrend,
+  isBotUserAgent,
+  parseSimpleUA,
+  TRAFFIC_SOURCE_LABELS,
+  type DeviceType,
+  type TrafficSource,
+} from "../domain";
 
 export type AnalyticsUseCases = ReturnType<typeof createAnalyticsUseCases>;
 
-const MAX_SUMMARY_EVENTS = 5000;
 const MAX_PAGE_SIZE = 100;
 const RECENT_FINGERPRINT_WINDOW_MS = 30 * 60 * 1000;
 const TOP_POSTS_LIMIT = 10;
 
-export function createAnalyticsUseCases(deps: { analytics: AnalyticsRepository }) {
+export function createAnalyticsUseCases(deps: {
+  analytics: AnalyticsRepository;
+  now?: () => Date;
+  internalHosts?: string[];
+}) {
+  const now = deps.now ?? (() => new Date());
+
   return {
-    listPostAnalyticsSummary: async (params: { days: number }) => {
-      const safeDays = clampInt(params.days, 1, 90);
-      const since = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
-      const events = await deps.analytics.listEventsSince({ since, take: MAX_SUMMARY_EVENTS });
+    listPostAnalyticsSummary: async (params: { days: number; categoryId?: string; tagId?: string; publishedFrom?: Date; publishedTo?: Date }) => {
+      const range = buildAnalyticsDateRange({ days: params.days, now: now() });
+      const rows = await deps.analytics.listPostAnalyticsSummaries({
+        ...range,
+        categoryId: params.categoryId,
+        tagId: params.tagId,
+        publishedFrom: params.publishedFrom,
+        publishedTo: params.publishedTo,
+      });
+      const referers = rows.length > 0
+        ? await deps.analytics.listRefererCounts({ since: range.since, until: range.until, groupByPost: true, postIds: rows.map((row) => row.postId) })
+        : [];
+      const sourcesByPost = aggregateTrafficSourcesByPost(referers, deps.internalHosts);
 
-      const rows = new Map<
-        string,
-        { postId: string; slug: string; title: string; views: number; uniques: Set<string>; lastViewedAt: Date }
-      >();
-
-      for (const e of events) {
-        if (!e.post || e.post.deletedAt) continue;
-        const existing = rows.get(e.postId);
-        if (!existing) {
-          rows.set(e.postId, {
-            postId: e.postId,
-            slug: e.post.slug,
-            title: e.post.title,
-            views: 1,
-            uniques: new Set([e.fingerprint]),
-            lastViewedAt: e.viewedAt,
-          });
-          continue;
-        }
-        existing.views += 1;
-        existing.uniques.add(e.fingerprint);
-        if (e.viewedAt > existing.lastViewedAt) existing.lastViewedAt = e.viewedAt;
-      }
-
-      return Array.from(rows.values())
-        .map((r) => ({ ...r, uniqueCount: r.uniques.size }))
-        .sort((a, b) => b.views - a.views || b.uniqueCount - a.uniqueCount);
+      return rows.map((row) => ({
+        ...row,
+        percentChange: calculatePercentChange(row.views, row.previousViews),
+        sources: sourcesByPost.get(row.postId) ?? [],
+      }));
     },
 
     countViews: async (params: { days: number }) => {
-      const safeDays = clampInt(params.days, 1, 90);
-      const since = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
-      return deps.analytics.countViewEventsSince({ since });
+      const range = buildAnalyticsDateRange({ days: params.days, now: now() });
+      return deps.analytics.countViewEventsSince({ since: range.since, until: range.until });
     },
 
     getDashboardStats: async (params: { days: number }) => {
-      const safeDays = clampInt(params.days, 1, 90);
-      const since = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
-      const stats = await deps.analytics.getDashboardStats({ since, takeTopPosts: TOP_POSTS_LIMIT });
+      const range = buildAnalyticsDateRange({ days: params.days, now: now() });
+      const stats = await deps.analytics.getDashboardStats({ ...range, takeTopPosts: TOP_POSTS_LIMIT });
 
       const browserMap = new Map<string, number>();
       const osMap = new Map<string, number>();
@@ -70,11 +73,18 @@ export function createAnalyticsUseCases(deps: { analytics: AnalyticsRepository }
           .sort((a, b) => b.count - a.count);
 
       return {
-        trend: stats.trend,
+        trend: fillDailyTrend(range.dateKeys, stats.trend),
         topPosts: stats.topPosts,
         devices: stats.devices,
         browsers: toStatArray(browserMap),
         os: toStatArray(osMap),
+        sources: aggregateTrafficSources(stats.referers, deps.internalHosts),
+        comparison: {
+          current: stats.totalViews,
+          previous: stats.previousTotalViews,
+          percentChange: calculatePercentChange(stats.totalViews, stats.previousTotalViews),
+        },
+        period: { days: range.days, timeZone: range.timeZone },
       };
     },
 
@@ -143,7 +153,43 @@ export function createAnalyticsUseCases(deps: { analytics: AnalyticsRepository }
         refererContains: params.referer?.trim() ? params.referer.trim() : undefined,
       };
 
-      return deps.analytics.listPostViewEvents({ filter, page, pageSize });
+      let result = await deps.analytics.listPostViewEvents({ filter, page, pageSize });
+      // 請求頁碼可能超過篩選縮減後的總頁數，此時以實際最後一頁重查，
+      // 避免回傳空列表且分頁元件無法導回（同 posts.listForAdmin 的處理）。
+      const totalPages = computeTotalPages(result.total, pageSize);
+      if (resolveOverflowPage({ itemCount: result.events.length, total: result.total, page, totalPages }) !== null) {
+        result = await deps.analytics.listPostViewEvents({ filter, page: totalPages, pageSize });
+      }
+      return result;
     },
   };
+}
+
+/** 將 referer 計數依來源 SSOT 合併並由高至低排序。 */
+function aggregateTrafficSources(
+  rows: Array<{ referer: string | null; count: number }>,
+  internalHosts: string[] = []
+) {
+  const totals = new Map<TrafficSource, number>();
+  for (const row of rows) {
+    const source = classifyTrafficSource(row.referer, { internalHosts });
+    totals.set(source, (totals.get(source) ?? 0) + row.count);
+  }
+  return Array.from(totals, ([source, count]) => ({ source, name: TRAFFIC_SOURCE_LABELS[source], count }))
+    .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
+}
+
+/** 將每篇文章的 referer 計數分組後套用同一來源分類規則。 */
+function aggregateTrafficSourcesByPost(
+  rows: Array<{ postId: string | null; referer: string | null; count: number }>,
+  internalHosts: string[] = []
+) {
+  const grouped = new Map<string, Array<{ referer: string | null; count: number }>>();
+  for (const row of rows) {
+    if (!row.postId) continue;
+    const current = grouped.get(row.postId) ?? [];
+    current.push({ referer: row.referer, count: row.count });
+    grouped.set(row.postId, current);
+  }
+  return new Map(Array.from(grouped, ([postId, counts]) => [postId, aggregateTrafficSources(counts, internalHosts)]));
 }

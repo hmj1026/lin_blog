@@ -7,6 +7,9 @@ prompt.md
 features
 .shared
 
+# 程式碼智能索引 (GitNexus，含大型索引檔，不進版控)
+.gitnexus/
+
 # 開發規格文件
 # 僅追蹤 openspec/specs/（SSOT capability 規格）；changes/ 與 archive/ 維持本機
 openspec/*
@@ -27,10 +30,9 @@ Thumbs.db
 node_modules/
 
 # 環境變數 (敏感資料)
-.env
-.env.local
-.env.*.local
-.env.production
+# 忽略所有 .env 變體，僅保留範例檔
+.env*
+!.env.example
 
 # 上傳目錄
 web/storage/uploads

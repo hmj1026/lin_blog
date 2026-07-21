@@ -119,7 +119,8 @@ describe("api-utils", () => {
         });
 
         it("requirePermission returns null if authorized, without querying DB", async () => {
-            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["posts:write"] } });
+            // 授權角色需同時具備共用後台門檻 admin:access 與目標權限。
+            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["admin:access", "posts:write"] } });
 
             const result = await requirePermission("posts:write");
 
@@ -146,9 +147,16 @@ describe("api-utils", () => {
         });
 
         it("requireAnyPermission returns null if authorized", async () => {
-            (getSession as any).mockResolvedValue({ user: { roleId: "r1", permissions: ["b"] } });
+            (getSession as any).mockResolvedValue({ user: { roleId: "r1", permissions: ["admin:access", "b"] } });
             const result = await requireAnyPermission(["a", "b"]);
             expect(result).toBeNull();
+        });
+
+        it("requirePermission returns 403 if lacking admin:access even with the target permission", async () => {
+            // 有目標領域權限卻無 admin:access 的角色不得存取後台 API。
+            (getSession as any).mockResolvedValue({ user: { id: "u1", roleId: "r1", permissions: ["posts:write"] } });
+            const result = await requirePermission("posts:write");
+            expect(result?.status).toBe(403);
         });
 
         it("requireAnyPermission returns 403 if denied", async () => {

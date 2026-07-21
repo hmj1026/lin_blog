@@ -3,28 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-
-const links = [
-  { href: "/admin", label: "儀表板" },
-  { href: "/admin/posts", label: "文章列表" },
-  { href: "/admin/analytics/posts", label: "文章統計" },
-  { href: "/admin/subscribers", label: "訂閱者名單" },
-  { href: "/admin/categories", label: "分類管理" },
-  { href: "/admin/tags", label: "標籤管理" },
-  { href: "/admin/users", label: "使用者管理" },
-  { href: "/admin/roles", label: "角色權限" },
-  { href: "/admin/settings", label: "站點設定" },
-  { href: "/logout?callbackUrl=/login", label: "登出" },
-];
+import type { AdminNavigationGroup } from "@/lib/admin-navigation";
 
 function SidebarNav({
   pathname,
   onNavigate,
-  links,
+  navigationGroups,
+  account,
 }: {
   pathname: string;
   onNavigate?: () => void;
-  links: { href: string; label: string }[];
+  navigationGroups: AdminNavigationGroup[];
+  account: { email: string; roleName: string };
 }) {
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
@@ -43,40 +33,61 @@ function SidebarNav({
           前台
         </Link>
       </div>
-      <nav className="mt-6 space-y-2 text-sm font-semibold text-base-300">
-        {links.map((link) => {
-          const active = isActive(link.href);
-          return (
-            <Link
-              key={link.href}
-              href={link.href as never}
-              onClick={onNavigate}
-              className={`block rounded-xl px-3 py-2 transition ${
-                active ? "bg-primary text-white shadow-card" : "hover:bg-base-100 text-primary"
-              }`}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
+      <nav className="mt-6 space-y-5 text-sm font-semibold text-base-300" aria-label="後台功能">
+        {navigationGroups.map((group) => (
+          <div key={group.label}>
+            <div className="px-3 text-xs font-semibold uppercase tracking-wide text-base-300">
+              {group.label}
+            </div>
+            <div className="mt-2 space-y-1">
+              {group.items.map((link) => {
+                const active = isActive(link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href as never}
+                    onClick={onNavigate}
+                    className={`block rounded-xl px-3 py-2 transition ${
+                      active ? "bg-primary text-white shadow-card" : "hover:bg-base-100 text-primary"
+                    }`}
+                  >
+                    <span>{link.label}</span>
+                    {link.statusLabel ? (
+                      <span className="ml-2 text-xs font-normal opacity-75">{link.statusLabel}</span>
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
+      <div className="mt-6 border-t border-line pt-4">
+        <div className="truncate text-sm font-semibold text-primary">{account.roleName}</div>
+        <div className="truncate text-xs text-base-300">{account.email}</div>
+        <Link
+          href={"/logout?callbackUrl=/login" as never}
+          onClick={onNavigate}
+          className="mt-3 block rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-base-100"
+        >
+          登出
+        </Link>
+      </div>
     </>
   );
 }
 
-export function AdminSidebar({ showAbout = false }: { showAbout?: boolean }) {
+export function AdminSidebar({
+  navigationGroups,
+  account,
+}: {
+  navigationGroups: AdminNavigationGroup[];
+  account: { email: string; roleName: string };
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-
-  const navLinks = showAbout
-    ? [
-        ...links.slice(0, 1),
-        { href: "/admin/about", label: "關於我" },
-        ...links.slice(1),
-      ]
-    : links;
 
   // 開啟時將焦點移入抽屜、Esc 關閉、Tab 於抽屜內循環（基本焦點陷阱）；關閉後焦點還原至觸發按鈕
   useEffect(() => {
@@ -140,7 +151,7 @@ export function AdminSidebar({ showAbout = false }: { showAbout?: boolean }) {
 
       {/* 桌面版固定側邊欄 */}
       <aside className="hidden min-h-screen w-64 border-r border-line bg-white p-6 md:block">
-        <SidebarNav pathname={pathname} links={navLinks} />
+        <SidebarNav pathname={pathname} navigationGroups={navigationGroups} account={account} />
       </aside>
 
       {/* 手機版抽屜 */}
@@ -170,7 +181,12 @@ export function AdminSidebar({ showAbout = false }: { showAbout?: boolean }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <SidebarNav pathname={pathname} onNavigate={() => setOpen(false)} links={navLinks} />
+            <SidebarNav
+              pathname={pathname}
+              onNavigate={() => setOpen(false)}
+              navigationGroups={navigationGroups}
+              account={account}
+            />
           </div>
         </div>
       )}

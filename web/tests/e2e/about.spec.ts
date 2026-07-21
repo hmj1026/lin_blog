@@ -20,12 +20,11 @@ async function setShowAbout(page: import("@playwright/test").Page, shouldShow: b
   const checkbox = page.getByRole("checkbox", { name: "顯示「關於我」" });
   await expect(checkbox).toBeVisible();
   const isChecked = await checkbox.isChecked();
-  if (isChecked !== shouldShow) {
-    await checkbox.click();
-  }
+  if (isChecked === shouldShow) return;
+  await checkbox.click();
   const saveButton = page.getByRole("button", { name: "儲存" });
   await saveButton.click();
-  await expect(page.getByText("已儲存")).toBeVisible();
+  await expect(page.getByText(/上次儲存/)).toBeVisible();
 }
 
 test.describe.configure({ mode: "serial" });
@@ -119,9 +118,9 @@ test.describe("關於我頁面（about page）", () => {
 
     await setShowAbout(page, false);
 
-    // 後台 sidebar 不再顯示「關於我」入口
+    // 後台管理入口持續可見，並清楚標示前台目前未啟用。
     await gotoSettled(page, "/admin");
-    await expect(page.locator("aside").getByRole("link", { name: "關於我" })).toHaveCount(0);
+    await expect(page.locator("aside").getByRole("link", { name: /關於我.*前台未啟用/ })).toBeVisible();
 
     // 前台 /about 回 404
     const response = await page.goto("/about");

@@ -39,10 +39,3 @@ export function isReadablePost(
   if (params.allowDraft && input.status === "DRAFT") return true;
   return false;
 }
-
-/**
- * 判斷文章是否可被編輯
- */
-export function isEditablePost(input: { deletedAt: Date | null }): boolean {
-  return input.deletedAt === null;
-}

@@ -4,6 +4,7 @@ import { postsQueries } from "@/lib/server-queries";
 import { postsUseCases } from "@/modules/posts";
 import { getSession } from "@/lib/auth";
 import { toPostByIdResponse } from "@/lib/frontend/post";
+import { recordAuditEventSafely } from "@/lib/server/audit-safe";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -59,6 +60,12 @@ export async function PATCH(request: Request, context: Context) {
       const raw = await request.json();
     
     // 支援局部更新（如切換 featured）
+    if (raw.restore === true) {
+      await postsUseCases.restorePost(id);
+      await recordAuditEventSafely({ action: "post.restored", resourceType: "post", resourceId: id, summary: {} });
+      return jsonOk({ ok: true, restored: true });
+    }
+
     if ("featured" in raw && typeof raw.featured === "boolean") {
       const post = await postsQueries.getPostById(id);
       if (!post) return jsonError("文章不存在", 404);
@@ -85,6 +92,7 @@ export async function DELETE(_req: Request, context: Context) {
   try {
     const { id } = await context.params;
     await postsUseCases.removePost(id);
+    await recordAuditEventSafely({ action: "post.deleted", resourceType: "post", resourceId: id, summary: {} });
     return jsonOk({ ok: true });
   } catch (error: unknown) {
     return handleApiError(error);

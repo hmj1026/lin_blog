@@ -192,7 +192,10 @@ describe("NewsletterForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /訂閱/ }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/感謝訂閱/);
+    // findByRole 一找到 status 元素就 resolve，抓到的會是「訂閱送出中」的暫態
+    // live region，而 toHaveTextContent 不會重試；CI 較慢時該暫態尚未被成功訊息
+    // 取代就會誤判失敗。改用 waitFor 輪詢文字內容，與本檔其他狀態斷言一致。
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/感謝訂閱/));
   });
 
   it("shows a generic error (not success) when a 2xx response body is not a success envelope", async () => {
