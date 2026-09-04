@@ -99,12 +99,14 @@ gh pr checks <PR> --watch
 | 事件 | Workflow | 主要驗證 |
 |---|---|---|
 | PR → `develop` | `ci.yml`、`e2e.yml` | Node 22 品質檢查、整合測試、build、Playwright E2E |
-| PR → `main` | `ci.yml`、`e2e.yml` | Node 20/22 矩陣、整合測試、build、Playwright E2E |
+| PR → `main` | `ci.yml`、`e2e.yml` | Node 22 品質檢查、整合測試、build、Playwright E2E |
 | 符合 paths 的 push → `main` | `docker-build.yml`、`e2e.yml` | reusable CI、Docker image 建置與 GHCR 推送、E2E |
 | push `vX.Y.Z` tag | `docker-build.yml` | release tag 的 reusable CI、版本化 Docker image 建置與 GHCR 推送 |
 | `cd.yml` | 已停用 | 目前不提供自動 staging 或 production deploy |
 
 `main` 的 branch protection required checks 以 GitHub 目前設定與 workflow 實際產生的名稱為準。修改 CI 矩陣或 job 名稱時，必須同步檢查 branch protection，避免 required check 指向不存在的 context。
+
+上表的 Node 版本以 `ci.yml` 的 `detect` job 實際輸出為準（目前所有觸發情境一律單一 Node 22；Node 20 已於 2026-04-30 EOL 並自矩陣移除）。**調整 Node 矩陣時，`.github/workflows/ci.yml`、本文件上表與 `main` 的 branch protection required checks 三處必須一併檢查**：required check 綁定的是 workflow 實際產生的 check 名稱，文件若殘留已移除的版本，會誤導維護者把 required check 指向永不存在的 context，使 PR 永久停在 pending 而無法合併。此約束的規格層依據為 `openspec/specs/project-documentation/spec.md` 的 `Deployment Documentation Accuracy` 要求；該要求原僅涵蓋 [`docs/deployment.md`](docs/deployment.md) 的 CI/CD 章節，其涵蓋範圍由 change `fix-release-gate-and-ci-cost` 擴充至本文件，並於該 change 歸檔後生效。
 
 ## Release 前置條件
 
@@ -118,8 +120,14 @@ gh pr checks <PR> --watch
 - 若有 schema 變更，migration 已完成可丟棄資料庫與既有資料庫升級演練。
 - GitHub secrets 已備妥：`NEXT_PUBLIC_SITE_URL` 與 `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`。tag 建置缺少任一必要 secret 時，`docker-build.yml` 必須失敗。
 - production deploy 使用的 image tag 已確認為版本 tag 或 commit SHA，不能使用 `latest`。
+- **GitHub Actions 額度可用**：確認帳戶的 Actions included minutes 未耗盡、且 billing 狀態正常。此項必須在推送 `vX.Y.Z` tag（第 5 步）**之前**完成確認。
 
-撰寫本文件時，`web/package.json` 為 `1.4.4`，但 `web/package-lock.json` 根 package metadata 仍為 `1.4.0`。下一個 release 必須先透過版本同步步驟修正此漂移；既有 tag 不回溯改寫。
+```bash
+# 確認 Actions 額度與 billing 狀態；亦可於 GitHub 網頁 Settings → Billing → Plans and usage 查看
+gh api /users/{owner}/settings/billing/actions
+```
+
+額度確認之所以必須前置於 tag 推送：tag 一經推送即為不可變的發布事實，但 `docker-build.yml` 若因額度不足而未啟動，會產生「tag 已存在於遠端、對應 GHCR 映像卻不存在」的半完成狀態。該狀態下依本文件既有規範，既不可部署（見「Release 完成條件」），也不得以移動或重寫 tag 補救（見第 5 步）。復原方式見「回滾與失敗處理 › 常見阻塞」。
 
 ## Release 流程
 
@@ -313,6 +321,31 @@ BLOG_IMAGE_TAG=<commit-sha> /var/www/products/deploy.sh
 | migration 失敗 | 停止繼續流量切換，保留 log，檢查 migration status 與資料庫備份 |
 | deploy healthcheck 失敗 | 檢查 `blog_app`、`blog_db` log 與 endpoint；必要時部署上一個已驗證 tag |
 | main → develop 衝突 | 手動解決並重新跑相關測試，不可刪除 release commit 或 CHANGELOG 內容 |
+| job 以零 step、數秒內結束且 `conclusion` 為 `failure` | 屬帳務／用量上限而非程式缺陷。改查 check-run annotation 取得成因（見下方「Actions 額度耗盡」） |
+
+#### Actions 額度耗盡
+
+**症狀。** job 未執行任何 step、數秒內結束，`conclusion` 為 `failure`。此形態與程式缺陷造成的失敗難以區分，容易讓維運者把時間全花在排查程式問題上。
+
+**判讀。** `gh run view <run-id> --log-failed` 對此類失敗**取不到任何內容**（沒有 step，就沒有 log），據此判定「無 log 可查」本身即是重要訊號。實際成因只存在於 check-run annotation：
+
+```bash
+# 從 annotation 取得帳務成因（--log-failed 對此類失敗無效）
+gh api "/repos/{owner}/{repo}/check-runs/$(gh run view <run-id> --json jobs -q '.jobs[0].databaseId')/annotations"
+
+# 或直接列出該 run 各 job 的結論與耗時，確認「零 step、數秒」的形態
+gh run view <run-id> --json jobs -q '.jobs[] | {name, conclusion, startedAt, completedAt, steps: (.steps | length)}'
+```
+
+**復原。** 額度恢復後，直接重跑既有 run 即可完成發布：
+
+```bash
+gh run rerun <run-id>
+```
+
+**不得刪除或重建 tag。** tag 指向的 commit 已包含當前的 `docker-build.yml`（含 `v*.*.*` 觸發器），因此重跑原 run 即可產出映像，tag 本身不需任何變動。這與第 5 步「不得以移動或重寫 tag 的方式補救」一致。
+
+在對應的 GHCR 映像產出並可拉取之前，該版本**不得**部署至正式環境，即使 tag 已存在於遠端。
 
 ## Release 完成條件
 

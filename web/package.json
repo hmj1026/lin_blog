@@ -29,7 +29,6 @@
     "@google-cloud/storage": "^7.18.0",
     "@next/third-parties": "^16.1.1",
     "@prisma/client": "^5.22.0",
-    "@rollup/rollup-linux-x64-gnu": "^4.56.0",
     "@tiptap/extension-image": "^3.13.0",
     "@tiptap/extension-link": "^3.13.0",
     "@tiptap/extension-text-align": "^3.14.0",
